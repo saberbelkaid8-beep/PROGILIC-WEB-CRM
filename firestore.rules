@@ -1,0 +1,217 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Catch-all Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- PRIMITIVE GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Required by skill: verified user constraint for write operations
+    function isVerified(userId) {
+      return isOwner(userId);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- VALIDATION BLUEPRINTS (EIGHT PILLARS) ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['v', 'updatedAt', 'nid'])
+          && data.v is number && data.v == 3
+          && data.nid is number
+          && (data.updatedAt is string || data.updatedAt is timestamp)
+          && (!data.keys().contains('stats') || data.stats is map);
+    }
+
+    function isValidClient(data) {
+      return data.keys().hasAll(['id', 'fullName', 'status'])
+          && data.id is number
+          && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
+          && data.status is string && data.status in ["نشط", "محتمل", "متوقف"]
+          && (!data.keys().contains('phone') || data.phone is string && data.phone.size() <= 30)
+          && (!data.keys().contains('company') || data.company is string && data.company.size() <= 100)
+          && (!data.keys().contains('wilaya') || data.wilaya is string && data.wilaya.size() <= 50)
+          && (!data.keys().contains('location') || data.location is string && data.location.size() <= 100)
+          && (!data.keys().contains('businessType') || data.businessType is string && data.businessType.size() <= 50)
+          && (!data.keys().contains('businessField') || data.businessField is string && data.businessField.size() <= 50)
+          && (!data.keys().contains('startDate') || data.startDate is string && data.startDate.size() <= 20)
+          && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20)
+          && (!data.keys().contains('lastContact') || data.lastContact is string && data.lastContact.size() <= 20)
+          && (!data.keys().contains('notes') || data.notes is string && data.notes.size() <= 1000)
+          && (!data.keys().contains('gps') || data.gps is map)
+          && (!data.keys().contains('score') || data.score is number)
+          && (!data.keys().contains('openIssuesCount') || data.openIssuesCount is number)
+          && (!data.keys().contains('requirementsCount') || data.requirementsCount is number)
+          && (!data.keys().contains('programsCount') || data.programsCount is number)
+          && (!data.keys().contains('installationsCount') || data.installationsCount is number)
+          && (!data.keys().contains('updatedAt') || (data.updatedAt is string || data.updatedAt is timestamp));
+    }
+
+    function isValidProgram(data) {
+      return data.keys().hasAll(['id', 'programName', 'platform', 'type'])
+          && data.id is number
+          && data.programName is string && data.programName.size() >= 1 && data.programName.size() <= 100
+          && data.platform is string && data.platform in ["Desktop", "Mobile", "Web", "Hybrid"]
+          && data.type is string && data.type in ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"]
+          && (!data.keys().contains('installationsCount') || data.installationsCount is number)
+          && (!data.keys().contains('startDate') || data.startDate is string && data.startDate.size() <= 20)
+          && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20);
+    }
+
+    function isValidIssue(data) {
+      return data.keys().hasAll(['id', 'title', 'type', 'priority', 'status'])
+          && data.id is number
+          && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+          && data.type is string && data.type in ["خطأ تقني", "أداء", "استفسار", "طلب ميزة", "خطأ مستخدم", "أخرى"]
+          && data.priority is string && data.priority in ["عاجل", "عالية", "متوسطة", "منخفضة"]
+          && data.status is string && data.status in ["مفتوح", "قيد المعالجة", "محلول", "مغلق"]
+          && (!data.keys().contains('repeatCount') || data.repeatCount is number)
+          && (!data.keys().contains('featureOpp') || data.featureOpp is bool)
+          && (!data.keys().contains('source') || data.source is string && data.source in ["نظام", "عميل", "سوء استخدام", "شبكة", "غير محدد"])
+          && (!data.keys().contains('confidence') || data.confidence is number)
+          && (!data.keys().contains('date') || data.date is string && data.date.size() <= 20)
+          && (!data.keys().contains('notes') || data.notes is string && data.notes.size() <= 1000)
+          && (!data.keys().contains('solution') || data.solution is string && data.solution.size() <= 1000);
+    }
+
+    function isValidRequirement(data) {
+      return data.keys().hasAll(['id', 'title', 'priority', 'status', 'impact'])
+          && data.id is number
+          && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+          && data.priority is string && data.priority in ["عاجل", "عالية", "متوسطة", "منخفضة"]
+          && data.status is string && data.status in ["مقترح", "قيد الدراسة", "مخطط", "منفذ", "مرفوض"]
+          && data.impact is string && data.impact in ["عالي", "متوسط", "منخفض"]
+          && (!data.keys().contains('type') || data.type is string && data.type.size() <= 100)
+          && (!data.keys().contains('date') || data.date is string && data.date.size() <= 20)
+          && (!data.keys().contains('notes') || data.notes is string && data.notes.size() <= 1000);
+    }
+
+    function isValidContact(data) {
+      return data.keys().hasAll(['id', 'date', 'note'])
+          && data.id is number
+          && data.date is string && data.date.size() <= 20
+          && data.note is string && data.note.size() >= 1 && data.note.size() <= 2000;
+    }
+
+    // --- COLLECTION ROUTES ---
+
+    // 1. Users profile metadata & global pre-aggregated stats
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Security against general scraping
+      
+      allow create: if isVerified(userId)
+                    && isValidUser(incoming())
+                    && incoming().keys().size() <= 5;
+
+      allow update: if isVerified(userId)
+                    && isValidUser(incoming())
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['v', 'updatedAt', 'nid', 'stats', 'clients']);
+
+      allow delete: if isVerified(userId);
+    }
+
+    // 2. Clients subcollection
+    match /users/{userId}/clients/{clientId} {
+      allow get: if isOwner(userId) && isValidId(clientId);
+      allow list: if isOwner(userId);
+
+      allow create: if isVerified(userId) && isValidId(clientId)
+                    && isValidClient(incoming())
+                    && incoming().id == int(clientId); // Guard ID poisoning
+
+      allow update: if isVerified(userId) && isValidId(clientId)
+                    && isValidClient(incoming())
+                    && incoming().id == existing().id // Immutable ID
+                    && (
+                      // Either full client profile update
+                      incoming().diff(existing()).affectedKeys().hasAny(['fullName', 'phone', 'company', 'wilaya', 'location', 'businessType', 'businessField', 'status', 'startDate', 'endDate', 'lastContact', 'notes', 'gps', 'score', 'updatedAt']) ||
+                      // Or pre-calculated counters/aggregates from our transaction write engine
+                      incoming().diff(existing()).affectedKeys().hasOnly(['openIssuesCount', 'requirementsCount', 'programsCount', 'installationsCount', 'score', 'endDate', 'lastContact', 'updatedAt'])
+                    );
+
+      allow delete: if isVerified(userId) && isValidId(clientId);
+    }
+
+    // 3. Client Programs Subcollection
+    match /users/{userId}/clients/{clientId}/programs/{programId} {
+      allow get: if isOwner(userId) && isValidId(clientId) && isValidId(programId);
+      allow list: if isOwner(userId) && isValidId(clientId);
+
+      allow create: if isVerified(userId) && isValidId(clientId) && isValidId(programId)
+                    && isValidProgram(incoming());
+
+      allow update: if isVerified(userId) && isValidId(clientId) && isValidId(programId)
+                    && isValidProgram(incoming())
+                    && incoming().id == existing().id;
+
+      allow delete: if isVerified(userId) && isValidId(clientId) && isValidId(programId);
+    }
+
+    // 4. Client Issues Subcollection
+    match /users/{userId}/clients/{clientId}/issues/{issueId} {
+      allow get: if isOwner(userId) && isValidId(clientId) && isValidId(issueId);
+      allow list: if isOwner(userId) && isValidId(clientId);
+
+      allow create: if isVerified(userId) && isValidId(clientId) && isValidId(issueId)
+                    && isValidIssue(incoming());
+
+      allow update: if isVerified(userId) && isValidId(clientId) && isValidId(issueId)
+                    && isValidIssue(incoming())
+                    && incoming().id == existing().id;
+
+      allow delete: if isVerified(userId) && isValidId(clientId) && isValidId(issueId);
+    }
+
+    // 5. Client Requirements Subcollection
+    match /users/{userId}/clients/{clientId}/requirements/{requirementId} {
+      allow get: if isOwner(userId) && isValidId(clientId) && isValidId(requirementId);
+      allow list: if isOwner(userId) && isValidId(clientId);
+
+      allow create: if isVerified(userId) && isValidId(clientId) && isValidId(requirementId)
+                    && isValidRequirement(incoming());
+
+      allow update: if isVerified(userId) && isValidId(clientId) && isValidId(requirementId)
+                    && isValidRequirement(incoming())
+                    && incoming().id == existing().id;
+
+      allow delete: if isVerified(userId) && isValidId(clientId) && isValidId(requirementId);
+    }
+
+    // 6. Client Contacts Subcollection
+    match /users/{userId}/clients/{clientId}/contacts/{contactId} {
+      allow get: if isOwner(userId) && isValidId(clientId) && isValidId(contactId);
+      allow list: if isOwner(userId) && isValidId(clientId);
+
+      allow create: if isVerified(userId) && isValidId(clientId) && isValidId(contactId)
+                    && isValidContact(incoming());
+
+      allow update: if isVerified(userId) && isValidId(clientId) && isValidId(contactId)
+                    && isValidContact(incoming())
+                    && incoming().id == existing().id;
+
+      allow delete: if isVerified(userId) && isValidId(clientId) && isValidId(contactId);
+    }
+  }
+}

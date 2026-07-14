@@ -1,0 +1,6 @@
+{
+  "name": "Client CRM & Intelligence Hub",
+  "description": "An Enterprise-grade Client CRM system with reactive state management, high-performance DOM reconciliation, Firestore database persistence, and advanced Arabic analytical intelligence.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

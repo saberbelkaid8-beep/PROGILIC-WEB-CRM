@@ -1,0 +1,226 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User specific global settings, counter stats, and current sequence counter for offline ID generation",
+      "type": "object",
+      "properties": {
+        "v": {
+          "type": "number",
+          "description": "Database schema version (currently v3)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last global update"
+        },
+        "nid": {
+          "type": "number",
+          "description": "Next ID counter for generating unique client/sub-item IDs"
+        },
+        "stats": {
+          "type": "object",
+          "description": "Pre-aggregated counters for instant dashboard rendering",
+          "properties": {
+            "activeClients": { "type": "number" },
+            "prospectiveClients": { "type": "number" },
+            "stoppedClients": { "type": "number" },
+            "totalClients": { "type": "number" },
+            "totalPrograms": { "type": "number" },
+            "totalLicensedDevices": { "type": "number" },
+            "averageScore": { "type": "number" },
+            "totalOpenIssues": { "type": "number" }
+          }
+        }
+      },
+      "required": ["v", "updatedAt", "nid"]
+    },
+    "Client": {
+      "title": "Client Metadata",
+      "description": "Independent client profile with denormalized analytics metrics for quick searches and grid listing",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "number",
+          "description": "Numeric client ID for backward compatibility"
+        },
+        "fullName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Client full name"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Contact phone number"
+        },
+        "company": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Company name"
+        },
+        "wilaya": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Wilaya location in Algeria"
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "District or precise address"
+        },
+        "businessType": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Main industry/business activity"
+        },
+        "businessField": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Specific business sub-specialty"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["نشط", "محتمل", "متوقف"],
+          "description": "Client engagement status"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Contract start date (YYYY-MM-DD)"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Contract end date (YYYY-MM-DD)"
+        },
+        "lastContact": {
+          "type": "string",
+          "description": "Last touchpoint date (YYYY-MM-DD)"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "General notes on client relationship"
+        },
+        "gps": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "string" },
+            "lng": { "type": "string" }
+          }
+        },
+        "score": {
+          "type": "number",
+          "description": "Calculated health score of client"
+        },
+        "openIssuesCount": {
+          "type": "number",
+          "description": "Denormalized count of unresolved issues"
+        },
+        "requirementsCount": {
+          "type": "number",
+          "description": "Denormalized count of feature requests"
+        },
+        "programsCount": {
+          "type": "number",
+          "description": "Denormalized count of licensed programs"
+        },
+        "installationsCount": {
+          "type": "number",
+          "description": "Denormalized count of licensed installations/devices"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Server modification timestamp"
+        }
+      },
+      "required": ["id", "fullName", "status"]
+    },
+    "Program": {
+      "title": "Licensed Program",
+      "description": "A software license assigned to a client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "programName": { "type": "string", "maxLength": 100 },
+        "platform": { "type": "string", "enum": ["Desktop", "Mobile", "Web", "Hybrid"] },
+        "type": { "type": "string", "enum": ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"] },
+        "installationsCount": { "type": "number" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" }
+      },
+      "required": ["id", "programName", "platform", "type"]
+    },
+    "Issue": {
+      "title": "Technical Issue",
+      "description": "Customer bug ticket or technical support item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "title": { "type": "string", "maxLength": 200 },
+        "type": { "type": "string", "enum": ["خطأ تقني", "أداء", "استفسار", "طلب ميزة", "خطأ مستخدم", "أخرى"] },
+        "priority": { "type": "string", "enum": ["عاجل", "عالية", "متوسطة", "منخفضة"] },
+        "status": { "type": "string", "enum": ["مفتوح", "قيد المعالجة", "محلول", "مغلق"] },
+        "repeatCount": { "type": "number" },
+        "featureOpp": { "type": "boolean" },
+        "source": { "type": "string", "enum": ["نظام", "عميل", "سوء استخدام", "شبكة", "غير محدد"] },
+        "confidence": { "type": "number" },
+        "date": { "type": "string" },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "solution": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "title", "type", "priority", "status"]
+    },
+    "Requirement": {
+      "title": "Feature Requirement",
+      "description": "Custom development requests or functional requirements from the client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "title": { "type": "string", "maxLength": 200 },
+        "type": { "type": "string" },
+        "priority": { "type": "string", "enum": ["عاجل", "عالية", "متوسطة", "منخفضة"] },
+        "status": { "type": "string", "enum": ["مقترح", "قيد الدراسة", "مخطط", "منفذ", "مرفوض"] },
+        "impact": { "type": "string", "enum": ["عالي", "متوسط", "منخفض"] },
+        "date": { "type": "string" },
+        "notes": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "title", "priority", "status", "impact"]
+    },
+    "Contact": {
+      "title": "Contact History Log",
+      "description": "Historical interactions and meeting logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "date": { "type": "string" },
+        "note": { "type": "string", "maxLength": 2000 }
+      },
+      "required": ["id", "date", "note"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User specific configuration, next sequence counter, and pre-calculated global stats"
+    },
+    "users/{userId}/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Clients belonging to this user"
+    },
+    "users/{userId}/clients/{clientId}/programs/{programId}": {
+      "schema": "Program",
+      "description": "Software products licensed to this client"
+    },
+    "users/{userId}/clients/{clientId}/issues/{issueId}": {
+      "schema": "Issue",
+      "description": "Technical support issues and bugs for this client"
+    },
+    "users/{userId}/clients/{clientId}/requirements/{requirementId}": {
+      "schema": "Requirement",
+      "description": "Functional feature requirements requested by this client"
+    },
+    "users/{userId}/clients/{clientId}/contacts/{contactId}": {
+      "schema": "Contact",
+      "description": "Log of interactions with this client"
+    }
+  }
+}
