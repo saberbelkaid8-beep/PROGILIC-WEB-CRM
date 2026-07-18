@@ -4,8 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/prebuild.js",
     "build": "vite build",
-    "verify": "npm run lint && npm run test && npm run build",
+    "postbuild": "node scripts/postbuild.js",
+    "check:integrity": "npm audit && node scripts/dependency-check.js",
+    "verify": "npm run check:integrity && npm run lint && npm run test && npm run build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",

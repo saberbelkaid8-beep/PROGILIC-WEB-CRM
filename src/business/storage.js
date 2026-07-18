@@ -369,13 +369,39 @@ export async function loadDataFromFirestore(user) {
     await loadUserCache(user.uid);
 
     try {
+      if (user && (user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com'))) {
+        try {
+          await user.getIdToken(true);
+          console.log("ID token force refreshed in loadDataFromFirestore");
+        } catch (tokErr) {
+          console.warn("Failed to force refresh ID token:", tokErr);
+        }
+      }
       console.log("loadDataFromFirestore: before getUserData");
       data = await getUserData(user.uid);
       console.log("loadDataFromFirestore: after getUserData", data);
     } catch (fetchErr) {
-      console.warn("Could not load user data from Firestore server, falling back to local cache:", fetchErr);
-      fetchFailed = true;
-      setSaveError(true);
+      const isPermissionErr = fetchErr.message && (
+        fetchErr.message.includes("permission") || 
+        fetchErr.message.includes("permissions") || 
+        fetchErr.message.includes("Missing or insufficient permissions")
+      );
+      if (isPermissionErr && user) {
+        try {
+          console.log("Permission error in loadDataFromFirestore, attempting ID token force refresh and retry...");
+          await user.getIdToken(true);
+          data = await getUserData(user.uid);
+          console.log("Retry getUserData succeeded after ID token force refresh");
+        } catch (retryErr) {
+          console.error("Retry getUserData failed after ID token force refresh:", retryErr);
+          fetchFailed = true;
+          setSaveError(true);
+        }
+      } else {
+        console.warn("Could not load user data from Firestore server, falling back to local cache:", fetchErr);
+        fetchFailed = true;
+        setSaveError(true);
+      }
     }
 
     if (!fetchFailed) {

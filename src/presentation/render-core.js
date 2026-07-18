@@ -205,6 +205,18 @@ function performRender() { try {
     updateAuditorHUD();
     return;
   }
+
+  // Verification Pending View Router
+  if (currentUser && !currentUser.emailVerified) {
+    const tempLogin = document.createElement('div');
+    tempLogin.id = app.id;
+    tempLogin.className = app.className;
+    window.loginMode = 'verificationPending';
+    tempLogin.innerHTML = renderLogin();
+    morph(app, tempLogin);
+    updateAuditorHUD();
+    return;
+  }
   
   const alerts = computeAlerts();
   try { clients.forEach(c => autoDetectFeatureOpp(c.issues || [])); } catch(e) { console.error("Error in autoDetectFeatureOpp:", e); }

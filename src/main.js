@@ -82,6 +82,29 @@ function boot() {
   loadCache(); // Restore offline local cache immediately on startup
   const app = document.getElementById('app');
 
+  // Detect password reset flow from URL on load
+  const urlParams = new URLSearchParams(window.location.search);
+  const mode = urlParams.get('mode');
+  const oobCode = urlParams.get('oobCode');
+
+  if (mode === 'resetPassword' && oobCode) {
+    window.loginMode = 'resetPassword';
+    window.resetOobCode = oobCode;
+    import('firebase/auth').then(({ verifyPasswordResetCode }) => {
+      verifyPasswordResetCode(auth, oobCode)
+        .then((email) => {
+          window.resetEmail = email;
+          R();
+        })
+        .catch((err) => {
+          console.error("Invalid or expired reset code:", err);
+          actions.showToast("رابط إعادة تعيين كلمة المرور منتهي الصلاحية أو تم استخدامه مسبقاً.", "error");
+          window.loginMode = 'login';
+          R();
+        });
+    });
+  }
+
   // Register Global Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     // Ctrl + K to focus search
@@ -120,14 +143,16 @@ function boot() {
   onAuthStateChanged(auth, async (user) => {
     const currentUid = user ? user.uid : null;
     const currentEmail = user ? user.email : null;
-    const currentVerified = user ? user.emailVerified : null;
+    
+    // Check if user email is verified or logged in via Google/Facebook
+    const isVerified = user ? (user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com')) : false;
 
     // Memoize/deduplicate identical auth state callbacks to avoid redundant render loops
     // and multiple active Firestore listeners during rapid token/state triggers on startup.
     if (
       currentUid === lastUserUid &&
       currentEmail === lastUserEmail &&
-      currentVerified === lastUserVerified
+      isVerified === lastUserVerified
     ) {
       console.log("onAuthStateChanged: Redundant auth state update prevented via memoization");
       return;
@@ -135,36 +160,42 @@ function boot() {
 
     lastUserUid = currentUid;
     lastUserEmail = currentEmail;
-    lastUserVerified = currentVerified;
+    lastUserVerified = isVerified;
 
     if (user) {
       setCurrentUser({
         uid: user.uid,
         email: user.email,
-        emailVerified: user.emailVerified,
+        emailVerified: isVerified,
       });
       
-      if (app) {
-        app.innerHTML = `
-          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background:var(--bg); color:var(--t1); transition: background 0.3s;">
-            <style>
-              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-              @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-            </style>
-            <div class="auth-logo" style="width:100px; height:100px; margin-bottom:24px; animation: pulse 2s infinite ease-in-out;">
-              <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M 40 30 H 130 C 180 30 180 110 130 110 H 40 C 90 110 100 50 40 30 Z" fill="#1A73E8"/>
-                <path d="M 40 110 C 90 110 100 170 60 190 L 40 140 C 60 130 60 120 40 110 Z" fill="#0D47A1"/>
-              </svg>
+      if (isVerified) {
+        if (app) {
+          app.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background:var(--bg); color:var(--t1); transition: background 0.3s;">
+              <style>
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+              </style>
+              <div class="auth-logo" style="width:100px; height:100px; margin-bottom:24px; animation: pulse 2s infinite ease-in-out;">
+                <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M 40 30 H 130 C 180 30 180 110 130 110 H 40 C 90 110 100 50 40 30 Z" fill="#1A73E8"/>
+                  <path d="M 40 110 C 90 110 100 170 60 190 L 40 140 C 60 130 60 120 40 110 Z" fill="#0D47A1"/>
+                </svg>
+              </div>
+              <div style="font-size:18px; font-weight:700; margin-bottom:8px; letter-spacing: -0.5px;">Connecting to Secure Cloud Database...</div>
+              <div style="font-size:13px; color:var(--t3); font-weight: 500;">PROGILIC Real-time Firestore Cloud CRM</div>
+              <div style="width:32px; height:32px; border:3px solid var(--border); border-top-color:#1A73E8; border-radius:50%; animation:spin 0.8s linear infinite; margin-top:24px;"></div>
             </div>
-            <div style="font-size:18px; font-weight:700; margin-bottom:8px; letter-spacing: -0.5px;">Connecting to Secure Cloud Database...</div>
-            <div style="font-size:13px; color:var(--t3); font-weight: 500;">PROGILIC Real-time Firestore Cloud CRM</div>
-            <div style="width:32px; height:32px; border:3px solid var(--border); border-top-color:#1A73E8; border-radius:50%; animation:spin 0.8s linear infinite; margin-top:24px;"></div>
-          </div>
-        `;
+          `;
+        }
+        
+        console.log("Before loadDataFromFirestore"); await loadDataFromFirestore(user); console.log("After loadDataFromFirestore");
+      } else {
+        stopRealtimeSync();
+        setClients([]);
+        window.loginMode = 'verificationPending';
       }
-      
-      console.log("Before loadDataFromFirestore"); await loadDataFromFirestore(user); console.log("After loadDataFromFirestore");
     } else {
       stopRealtimeSync();
       setCurrentUser(null);
