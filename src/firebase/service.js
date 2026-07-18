@@ -130,6 +130,7 @@ export async function addClientTransaction(userId, clientData, globalStats) {
       // Verify and set user metadata update
       tx.set(clientRef, {
         ...clientData,
+        version: 1, // OCC: Initial version
         openIssuesCount: 0,
         requirementsCount: 0,
         programsCount: 0,
@@ -157,7 +158,7 @@ export async function addClientTransaction(userId, clientData, globalStats) {
 }
 
 // Transaction: Update client and adjust stats if status changed
-export async function updateClientTransaction(userId, clientId, clientData, oldStatus, globalStats) {
+export async function updateClientTransaction(userId, clientId, clientData, oldStatus, globalStats, baseVersion = 0) {
   const userPath = `users/${userId}`;
   const clientPath = `users/${userId}/clients/${clientId}`;
 
@@ -166,8 +167,20 @@ export async function updateClientTransaction(userId, clientId, clientData, oldS
       const userRef = doc(db, userPath);
       const clientRef = doc(db, clientPath);
 
+      const docSnap = await tx.get(clientRef);
+      if (docSnap.exists()) {
+        const currentVersion = docSnap.data().version || 0;
+        if (currentVersion > baseVersion && baseVersion > 0) {
+          const conflictError = new Error('VERSION_CONFLICT');
+          conflictError.code = 'VERSION_CONFLICT';
+          conflictError.serverData = docSnap.data();
+          throw conflictError;
+        }
+      }
+
       tx.update(clientRef, {
         ...clientData,
+        version: Math.max(baseVersion || 0, docSnap.exists() ? (docSnap.data().version || 0) : 0) + 1,
         updatedAt: new Date().toISOString()
       });
 
@@ -190,6 +203,9 @@ export async function updateClientTransaction(userId, clientId, clientData, oldS
       }
     });
   } catch (error) {
+    if (error.code === 'VERSION_CONFLICT') {
+      throw error;
+    }
     handleFirestoreError(error, OperationType.TRANSACTION, clientPath);
   }
 }

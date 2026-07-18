@@ -249,3 +249,46 @@ function renderBackupManagerModal() {
     </div>
   `;
 }
+
+function renderConflictModal() {
+  const item = S.conflictItem;
+  const serverData = S.conflictServerData;
+  if (!item || !serverData) return '';
+  const localData = item.payload.clientData;
+  
+  return `
+    <div class="mhdr">
+      <div class="mtitle" style="color: #ef4444;">⚠️ تعارض في المزامنة (Conflict)</div>
+    </div>
+    <div class="mbdy">
+      <p style="margin-bottom: 15px; font-size: 14px; color: #475569;">
+        تم تعديل هذا العميل في الخادم بواسطة مستخدم آخر أثناء انقطاع اتصالك بالإنترنت. يرجى اختيار التعديل الذي ترغب في الاحتفاظ به.
+      </p>
+      
+      <div style="display: flex; gap: 16px; margin-bottom: 20px;">
+        <div style="flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f8fafc;">
+          <h4 style="margin-top:0; color:#3b82f6; font-size: 14px;">بيانات الخادم (الأحدث)</h4>
+          <ul style="padding-right: 20px; font-size: 13px; color: #334155; margin-bottom: 0;">
+            <li><strong>الاسم:</strong> ${serverData.fullName || 'غير محدد'}</li>
+            <li><strong>الحالة:</strong> ${serverData.status || 'غير محدد'}</li>
+            <li><strong>رقم الإصدار:</strong> ${serverData.version || 0}</li>
+          </ul>
+        </div>
+        
+        <div style="flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f1f5f9;">
+          <h4 style="margin-top:0; color:#10b981; font-size: 14px;">تعديلاتك المحلية (غير المحفوظة)</h4>
+          <ul style="padding-right: 20px; font-size: 13px; color: #334155; margin-bottom: 0;">
+            <li><strong>الاسم:</strong> ${localData.fullName || 'غير محدد'}</li>
+            <li><strong>الحالة:</strong> ${localData.status || 'غير محدد'}</li>
+            <li><strong>رقم الإصدار:</strong> ${localData.version || 0}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="mftr" style="justify-content: flex-start; gap: 8px;">
+      <button class="btn" style="background:#10b981; color:white; flex:1;" onclick="resolveConflict('local')">الاحتفاظ بتعديلاتي</button>
+      <button class="btn" style="background:#3b82f6; color:white; flex:1;" onclick="resolveConflict('server')">اعتماد بيانات الخادم</button>
+      <button class="btn btn-text" onclick="resolveConflict('merge')" style="flex:1; border:1px solid #cbd5e1;">دمج (Keep Both)</button>
+    </div>
+  `;
+}

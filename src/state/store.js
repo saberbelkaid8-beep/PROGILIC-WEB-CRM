@@ -1,4 +1,6 @@
 // Single Source of Truth - Centralized State Store with Rendering Audit Controls
+import { buildSearchIndex } from '../business/searchIndex.js';
+
 let internalState = {
   lang: 'ar',
   view: 'list',
@@ -15,6 +17,8 @@ let internalState = {
   fActivity: '',
   fActType: '',
   fProgram: '',
+  conflictItem: null,
+  conflictServerData: null,
   sortBy: 'id',
   sortOrder: 'desc',
   syncQueue: [],
@@ -203,6 +207,7 @@ export function setClients(newClients) {
   
   handleRecursiveCheck('clients');
   clients = Object.freeze(Array.isArray(newClients) ? [...newClients] : []);
+  buildSearchIndex(clients);
   scheduleRender();
 }
 

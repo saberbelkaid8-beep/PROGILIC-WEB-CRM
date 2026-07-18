@@ -14,7 +14,9 @@
   "dependencies": {
     "algeria-locations": "^1.0.6",
     "express": "^4.22.2",
-    "firebase": "^12.16.0"
+    "firebase": "^12.16.0",
+    "minisearch": "^7.2.0",
+    "morphdom": "^2.7.8"
   },
   "devDependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",

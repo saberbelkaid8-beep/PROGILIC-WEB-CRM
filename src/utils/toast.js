@@ -1,3 +1,5 @@
+import { esc } from './index.js';
+
 export function showToast(message, type = 'success', duration = 3000) {
   let container = document.querySelector('.toast-container');
   if (!container) {
@@ -15,7 +17,7 @@ export function showToast(message, type = 'success', duration = 3000) {
 
   toast.innerHTML = `
     <div class="toast-icon">${icon}</div>
-    <div class="toast-body">${message}</div>
+    <div class="toast-body">${esc(message)}</div>
   `;
 
   container.appendChild(toast);

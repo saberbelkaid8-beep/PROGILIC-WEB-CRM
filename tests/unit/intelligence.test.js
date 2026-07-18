@@ -12,9 +12,9 @@ import {
   computeAlerts,
   calcAutoConf,
   autoDetectFeatureOpp,
-  generateAutoNote
+  generateAutoNote,
+  checkCacheValidity
 } from '../../src/business/intelligence.js';
-import { S, setClients } from '../../src/state/store.js';
 
 describe('Intelligence Module', () => {
   it('should return correct score colors', () => {
@@ -56,5 +56,51 @@ describe('Intelligence Module', () => {
     const note = generateAutoNote(client);
     expect(note.text).toBeDefined();
     expect(note.action).toBeDefined();
+  });
+
+  describe('computeScore', () => {
+    it('should compute score properly with subcollections', () => {
+      // Mock Date to ensure deterministic scoring for "lastContact"
+      const now = new Date('2023-01-10T00:00:00Z').getTime();
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+
+      const client = {
+        _subcollectionsLoaded: true,
+        lastContact: '2023-01-08', // 2 days ago
+        programs: [
+          { status: 'نشط', installationsCount: 2 }
+        ],
+        issues: [
+          { status: 'مفتوح', priority: 'عاجل' }
+        ],
+        requirements: [
+          { status: 'مكتمل' }
+        ]
+      };
+      // For testing, mock the internal max values which are used
+      // Since it depends on global S.clients, we might need to mock getProgramStats or clients array
+      // but if the clients list is empty, maxProgs is 1, maxInst is 1
+      const score = computeScore(client);
+      
+      expect(score).toBeDefined();
+      expect(score.total).toBeGreaterThan(0);
+      expect(score.total).toBeLessThanOrEqual(100);
+      
+      // Since lastContact is 2 days ago (< 7), actScore = 25
+      expect(score.act).toBe(25);
+      
+      vi.restoreAllMocks();
+    });
+
+    it('should use pre-computed score if subcollections are not loaded', () => {
+      const client = {
+        _subcollectionsLoaded: false,
+        score: 85
+      };
+      
+      const score = computeScore(client);
+      
+      expect(score).toEqual({ total: 85, prog: 0, act: 0, iss: 0, req: 0 });
+    });
   });
 });

@@ -1,3 +1,5 @@
+import { esc } from './index.js';
+
 export function showConfirm(message, title = 'تأكيد الإجراء') {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -23,10 +25,10 @@ export function showConfirm(message, title = 'تأكيد الإجراء') {
     card.innerHTML = `
       <div style="font-size: 16px; font-weight: 700; color: var(--t1); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px;">
         <span>⚠️</span>
-        <span>${title}</span>
+        <span>${esc(title)}</span>
       </div>
       <div style="font-size: 13px; color: var(--t2); margin-bottom: 1.5rem; line-height: 1.6;">
-        ${message.replace(/\n/g, '<br>')}
+        ${esc(message).replace(/\n/g, '<br>')}
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn btn-outline confirm-cancel" style="padding: 6px 14px; font-size: 12px;">إلغاء</button>
@@ -84,13 +86,13 @@ export function showPrompt(message, title = 'إدخل البيانات', default
     card.innerHTML = `
       <div style="font-size: 16px; font-weight: 700; color: var(--t1); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px;">
         <span>📝</span>
-        <span>${title}</span>
+        <span>${esc(title)}</span>
       </div>
       <div style="font-size: 13px; color: var(--t2); margin-bottom: 1rem; line-height: 1.6;">
-        ${message.replace(/\n/g, '<br>')}
+        ${esc(message).replace(/\n/g, '<br>')}
       </div>
       <div style="margin-bottom: 1.5rem;">
-        <input type="text" class="fctl prompt-input" style="width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--t1); padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px;" value="${defaultValue}" placeholder="${placeholder}" autofocus>
+        <input type="text" class="fctl prompt-input" style="width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--t1); padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px;" value="${esc(defaultValue)}" placeholder="${esc(placeholder)}" autofocus>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn btn-outline prompt-cancel" style="padding: 6px 14px; font-size: 12px;">إلغاء</button>

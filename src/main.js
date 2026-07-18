@@ -50,7 +50,7 @@ import './firebase/config.js';
 import * as actions from './business/actions.js';
 import { R } from './presentation/render-core.js';
 import { updateActTypeOpts, updateCommunesOpts } from './utils/index.js';
-import { exportData, exportToCSV, importData, clearAllData } from './business/storage.js';
+import { exportData, exportToCSV, importData, clearAllData, resolveConflict } from './business/storage.js';
 import { toggleLanguage } from './utils/i18n.js';
 
 import { onAuthStateChanged } from 'firebase/auth';
@@ -72,6 +72,7 @@ window.importData = importData;
 window.clearAllData = clearAllData;
 window.toggleLanguage = toggleLanguage;
 window.R = R;
+window.resolveConflict = resolveConflict;
 
 // Boot application
 function boot() {

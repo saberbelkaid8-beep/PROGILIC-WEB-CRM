@@ -19,7 +19,7 @@ service cloud.firestore {
 
     // Required by skill: verified user constraint for write operations
     function isVerified(userId) {
-      return isOwner(userId);
+      return isOwner(userId) && request.auth.token.email_verified == true;
     }
 
     function isValidId(id) {

@@ -232,11 +232,14 @@ function performRender() { try {
     modalHTML +
     (S.gi ? renderGlobalIntelligence() : '');
 
-  // Parse HTML into virtual DOM wrapper
+  // Parse HTML safely without triggering image loads or inline scripts
+  const doc = new DOMParser().parseFromString(nextHTML, 'text/html');
   const tempWrapper = document.createElement('div');
   tempWrapper.id = app.id;
   tempWrapper.className = app.className;
-  tempWrapper.innerHTML = nextHTML;
+  while (doc.body.firstChild) {
+    tempWrapper.appendChild(doc.body.firstChild);
+  }
 
   // Perform surgical DOM updates using Morphing Reconciliation
   morph(app, tempWrapper);

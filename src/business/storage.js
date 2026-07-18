@@ -747,6 +747,19 @@ export async function flushSyncQueue() {
     } catch (err) {
       console.error(`[Offline Sync] Failed to process action ${item.type}:`, err);
       
+      if (err.code === 'VERSION_CONFLICT' || (err.message && err.message.includes('VERSION_CONFLICT'))) {
+        _isFlushing = false;
+        errorOccurred = true;
+        setSaveError(true);
+        updateState({ 
+          conflictItem: item, 
+          conflictServerData: err.serverData,
+          modal: 'conflict'
+        });
+        if (typeof window !== 'undefined' && window.R) window.R();
+        break; 
+      }
+      
       const isNetworkError = !navigator.onLine || 
                             err.message.includes("network") || 
                             err.message.includes("failed-precondition") ||
@@ -856,3 +869,64 @@ if (typeof window !== 'undefined') {
   });
 }
 
+
+export function resolveConflict(decision) {
+  const item = S.conflictItem;
+  const serverData = S.conflictServerData;
+  if (!item || !serverData) return;
+
+  const currentQueue = S.syncQueue || [];
+  
+  if (decision === 'server') {
+    // Drop the local change, adopt server data
+    // First, update local state to match server
+    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...serverData } : c);
+    setClients(nextClients);
+    
+    // Remove item from queue
+    const nextQueue = currentQueue.filter(q => q.id !== item.id);
+    updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
+    
+  } else if (decision === 'local') {
+    // Re-enqueue with the updated baseVersion to force it through
+    const nextQueue = currentQueue.map(q => {
+      if (q.id === item.id) {
+        return {
+          ...q,
+          payload: {
+            ...q.payload,
+            baseVersion: serverData.version || 0
+          }
+        };
+      }
+      return q;
+    });
+    updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
+  } else if (decision === 'merge') {
+    // Basic merge: combine fields, preferring local, and bump baseVersion
+    const mergedData = { ...serverData, ...item.payload.clientData };
+    
+    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...mergedData } : c);
+    setClients(nextClients);
+    
+    const nextQueue = currentQueue.map(q => {
+      if (q.id === item.id) {
+        return {
+          ...q,
+          payload: {
+            ...q.payload,
+            clientData: mergedData,
+            baseVersion: serverData.version || 0
+          }
+        };
+      }
+      return q;
+    });
+    updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
+  }
+  
+  R();
+  setTimeout(() => {
+    flushSyncQueue();
+  }, 500);
+}

@@ -12,9 +12,17 @@ vi.mock('firebase/auth', () => {
   function MockGoogleAuthProvider() {
     this.setCustomParameters = vi.fn();
   }
+  function MockFacebookAuthProvider() {
+    this.setCustomParameters = vi.fn();
+  }
+  function MockOAuthProvider() {
+    this.setCustomParameters = vi.fn();
+  }
   return {
     getAuth: vi.fn(),
     GoogleAuthProvider: MockGoogleAuthProvider,
+    FacebookAuthProvider: MockFacebookAuthProvider,
+    OAuthProvider: MockOAuthProvider,
     onAuthStateChanged: vi.fn(),
     setPersistence: vi.fn(() => Promise.resolve()),
     browserLocalPersistence: 'browserLocalPersistence'

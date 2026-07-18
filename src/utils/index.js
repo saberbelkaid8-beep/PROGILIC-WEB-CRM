@@ -131,6 +131,10 @@ export function normalizePhone(p) { return (p || '').replace(/[\s\-\.]/g, '') }
 
 export function searchMatch(c, rawQ) {
   if (!rawQ) return { match: true, fields: [] };
+  // Fallback if no global search results are passed, but preferably we get them from performSearch
+  // Actually, we can just use the old searchMatch for highlighting if needed, or find the result in MiniSearch.
+  // We'll rewrite this to get fields from minisearch directly if we want to be clean, 
+  // but to keep highlighting working simply we can retain the old fields logic for visual matching.
   const q = rawQ.trim().toLowerCase();
   if (!q) return { match: true, fields: [] };
   const fields = [];
@@ -151,10 +155,24 @@ export function searchMatch(c, rawQ) {
   return { match: fields.length > 0, fields };
 }
 
+import { performSearch } from '../business/searchIndex.js';
+
 export function applyFilters(list) {
   let fil = [...list];
   if (S.filter !== 'الكل') fil = fil.filter(c => c.status === S.filter);
-  if (S.q) fil = fil.filter(c => searchMatch(c, S.q).match);
+  
+  // In-Memory Search Index using MiniSearch
+  if (S.q) {
+    const searchResults = performSearch(S.q);
+    if (searchResults) {
+      const matchedIds = new Set(searchResults.map(r => r.id));
+      fil = fil.filter(c => matchedIds.has(c.id));
+      // Sort the list based on MiniSearch relevance score
+      const scoreMap = new Map(searchResults.map(r => [r.id, r.score]));
+      fil.sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0));
+    }
+  }
+  
   if (S.fWilaya) fil = fil.filter(c => c.wilaya === S.fWilaya);
   if (S.fCommune) fil = fil.filter(c => c.commune === S.fCommune);
   if (S.fActivity) fil = fil.filter(c => c.businessType === S.fActivity);

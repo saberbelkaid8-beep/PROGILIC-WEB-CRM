@@ -3,6 +3,7 @@ import { BUSINESS_TYPES, PROGRAM_TYPES, WILAYAS } from '../constants/index.js';
 import { gc, applyFilters, pBdg, sBdg, srcCls, platformIcon, updateActTypeOpts, isBdg, fmtD, rBdg, progStatusLabel, progStatusCls, progTypeBdg, activityIcon, getProgramStats, selOpts, wOpts, actTypeOpts, getActTypes, esc, avCls, init, searchMatch, countAdvFil, pBorder } from '../utils/index.js';
 import { computeScore, computeGlobalStats, generateAutoNote, computeRiskProfile, scoreColor, computeAlerts, scoreLabel, riskColor, riskBdg, riskLabel, analyzeRootCause } from '../business/intelligence.js';
 import { getActivityVisuals } from '../business/timelineService.js';
+import { performSearch } from '../business/searchIndex.js';
 export function renderList(){
   console.log("renderList: S.isLoading =", S.isLoading, "clients.length =", clients.length);
   const ac=clients.filter(c=>c.status==='نشط').length;
@@ -874,33 +875,31 @@ export function renderDashboard() {
     return { text: 'خطر عالي', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)', border: '#EF4444', class: 'critical' };
   }
 
-  // 2. Filter clients based on dynamic interactive filters
-  const filteredClients = clients.filter(c => {
+    // 2. Filter clients based on dynamic interactive filters
+  let filteredClients = clients;
+  
+  if (S.dbSearchQuery) {
+    const searchResults = performSearch(S.dbSearchQuery);
+    if (searchResults) {
+      const matchedIds = new Set(searchResults.map(r => r.id));
+      filteredClients = filteredClients.filter(c => matchedIds.has(c.id));
+    }
+  }
+
+  filteredClients = filteredClients.filter(c => {
     // Wilaya filter
     if (S.dbFilterWilaya !== 'all' && c.wilaya !== S.dbFilterWilaya) return false;
-
     // Licensed Program filter
     if (S.dbFilterProg !== 'all') {
       const hasProg = (c.programs || []).some(p => p.programName === S.dbFilterProg);
       if (!hasProg) return false;
     }
-
     // Health Tier filter
     if (S.dbFilterTier !== 'all') {
       const score = computeScore(c).total;
       const style = getScoreStyle(score);
       if (style.class !== S.dbFilterTier) return false;
     }
-
-    // Live search query
-    if (S.dbSearchQuery) {
-      const q = S.dbSearchQuery.toLowerCase().trim();
-      const matchName = (c.fullName || '').toLowerCase().includes(q);
-      const matchCompany = (c.company || '').toLowerCase().includes(q);
-      const matchWilaya = (c.wilaya || '').toLowerCase().includes(q);
-      if (!matchName && !matchCompany && !matchWilaya) return false;
-    }
-
     return true;
   });
 
@@ -1590,7 +1589,7 @@ export function renderDashboard() {
                 return `
                   <div>
                     <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px">
-                      <span style="font-weight:700; color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px">${idx+1}. ${p.name}</span>
+                      <span style="font-weight:700; color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px">${idx+1}. ${esc(p.name)}</span>
                       <span style="color:#3B82F6; font-size:11.5px; font-weight:700">${p.count} حساب · ${p.installs} جهاز</span>
                     </div>
                     <div style="width:100%; height:8px; background:var(--border-soft); border-radius:4px; overflow:hidden">
