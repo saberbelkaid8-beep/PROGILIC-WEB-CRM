@@ -11,8 +11,9 @@ let noteCache = new WeakMap();
 function checkCacheValidity() {
   if (clients !== lastClientsRef) {
     lastClientsRef = clients;
-    cachedMaxProgs = Math.max(...clients.map(x => getProgramStats(x).total), 1);
-    cachedMaxInsts = Math.max(...clients.map(x => getProgramStats(x).totalInstalls), 1);
+    const safeClientsList = Array.isArray(clients) ? clients.filter(x => x && typeof x === 'object') : [];
+    cachedMaxProgs = Math.max(...safeClientsList.map(x => (getProgramStats(x) || {}).total || 0), 1);
+    cachedMaxInsts = Math.max(...safeClientsList.map(x => (getProgramStats(x) || {}).totalInstalls || 0), 1);
     scoreCache = new WeakMap();
     riskCache = new WeakMap();
     noteCache = new WeakMap();
@@ -26,33 +27,40 @@ export function riskLabel(l){return l==='high'?'خطر عالي':l==='medium'?'�
 export function riskBdg(l){return l==='high'?'bdg-r':l==='medium'?'bdg-y':'bdg-g'}
 
 export function computeScore(c){
+  if (!c || typeof c !== 'object') {
+    return { total: 0, prog: 0, act: 0, iss: 0, req: 0 };
+  }
   checkCacheValidity();
   if (scoreCache.has(c)) {
     return scoreCache.get(c);
   }
   if (!c._subcollectionsLoaded && c.score !== undefined) {
-    const res = { total: c.score, prog: 0, act: 0, iss: 0, req: 0 };
+    const res = { total: Number(c.score) || 0, prog: 0, act: 0, iss: 0, req: 0 };
     scoreCache.set(c, res);
     return res;
   }
-  const ps=getProgramStats(c);
-  const maxProgs=cachedMaxProgs;
-  const maxInst=cachedMaxInsts;
-  const progScore=Math.min(35,Math.round((ps.active/maxProgs)*20+(ps.totalInstalls/maxInst)*15));
-  let actScore=0;
-  if(c.lastContact){
-    const d=Math.floor((Date.now()-new Date(c.lastContact+'T00:00').getTime())/86400000);
-    actScore=d<7?25:d<30?18:d<60?10:d<90?4:0;
+  const ps = getProgramStats(c) || { total: 0, totalInstalls: 0, active: 0, expired: 0 };
+  const maxProgs = cachedMaxProgs || 1;
+  const maxInst = cachedMaxInsts || 1;
+  const progScore = Math.min(35, Math.round(((ps.active || 0) / maxProgs) * 20 + ((ps.totalInstalls || 0) / maxInst) * 15));
+  let actScore = 0;
+  if (c.lastContact) {
+    try {
+      const d = Math.floor((Date.now() - new Date(c.lastContact + 'T00:00').getTime()) / 86400000);
+      actScore = d < 7 ? 25 : d < 30 ? 18 : d < 60 ? 10 : d < 90 ? 4 : 0;
+    } catch {
+      actScore = 0;
+    }
   }
-  const openCnt=(c.issues||[]).filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة').length;
-  const urgCnt=(c.issues||[]).filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length;
-  const repCnt=(c.issues||[]).filter(i=>i.repeatCount>=3).length;
-  const issScore=Math.max(0,25-(openCnt*4)-(urgCnt*7)-(repCnt*3));
-  const hiReqs=(c.requirements||[]).filter(r=>r.impact==='عالي'&&r.status!=='مرفوض').length;
-  const reqScore=Math.min(15,hiReqs*5);
-  let total=progScore+actScore+issScore+reqScore;
-  if(c.status==='متوقف')total=Math.round(total*0.6);
-  const res = {total:Math.min(100,Math.max(0,total)),prog:progScore,act:actScore,iss:issScore,req:reqScore};
+  const openCnt = (c.issues || []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
+  const urgCnt = (c.issues || []).filter(i => i && i.priority === 'عاجل' && i.status !== 'محلول' && i.status !== 'مغلق').length;
+  const repCnt = (c.issues || []).filter(i => i && (Number(i.repeatCount) || 0) >= 3).length;
+  const issScore = Math.max(0, 25 - (openCnt * 4) - (urgCnt * 7) - (repCnt * 3));
+  const hiReqs = (c.requirements || []).filter(r => r && r.impact === 'عالي' && r.status !== 'مرفوض').length;
+  const reqScore = Math.min(15, hiReqs * 5);
+  let total = progScore + actScore + issScore + reqScore;
+  if (c.status === 'متوقف') total = Math.round(total * 0.6);
+  const res = { total: Math.min(100, Math.max(0, total || 0)), prog: progScore, act: actScore, iss: issScore, req: reqScore };
   scoreCache.set(c, res);
   return res;
 }
@@ -97,29 +105,36 @@ export function detectCrossClientIssues(){
 }
 
 export function computeRiskProfile(c){
+  if (!c || typeof c !== 'object') {
+    return { level: 'low', risks: [], score: 0 };
+  }
   checkCacheValidity();
   if (riskCache.has(c)) {
     return riskCache.get(c);
   }
   const risks=[];let level='low';
-  const openUrgent=(c.issues||[]).filter(i=>i.priority==='عاجل'&&(i.status==='مفتوح'||i.status==='قيد المعالجة'));
+  const openUrgent=(c.issues||[]).filter(i=>i && i.priority==='عاجل'&&(i.status==='مفتوح'||i.status==='قيد المعالجة'));
   if(openUrgent.length>0){risks.push(`${openUrgent.length} مشكلة عاجلة لم تُحل بعد`);level='high';}
-  const sc=computeScore(c);
+  const sc=computeScore(c) || { total: 0 };
   if(sc.total<25){risks.push('نقاط العميل أقل من 25 — خطر إلغاء العقد');if(level!=='high')level='high';}
   else if(sc.total<50){risks.push('نقاط العميل دون المتوسط');if(level==='low')level='medium';}
   if(c.endDate){
-    const dl=Math.floor((new Date(c.endDate+'T00:00').getTime()-Date.now())/86400000);
-    if(dl>=0&&dl<=7){risks.push(`العقد ينتهي خلال ${dl} يوم — عاجل`);level='high';}
-    else if(dl>=0&&dl<=30){risks.push(`العقد ينتهي خلال ${dl} يوم`);if(level==='low')level='medium';}
-    else if(dl<0&&c.status==='نشط'){risks.push('العقد انتهى ولم يتم تجديده');level='high';}
+    try {
+      const dl=Math.floor((new Date(c.endDate+'T00:00').getTime()-Date.now())/86400000);
+      if(dl>=0&&dl<=7){risks.push(`العقد ينتهي خلال ${dl} يوم — عاجل`);level='high';}
+      else if(dl>=0&&dl<=30){risks.push(`العقد ينتهي خلال ${dl} يوم`);if(level==='low')level='medium';}
+      else if(dl<0&&c.status==='نشط'){risks.push('العقد انتهى ولم يتم تجديده');level='high';}
+    } catch {}
   }
   if(c.lastContact){
-    const ds=Math.floor((Date.now()-new Date(c.lastContact+'T00:00').getTime())/86400000);
-    if(ds>=60&&c.status==='نشط'){risks.push(`لا تواصل منذ ${ds} يوم`);if(level==='low')level='medium';}
-    else if(ds>=90){risks.push(`لا تواصل منذ ${ds} يوم — خطر عالٍ`);if(level!=='high')level='high';}
+    try {
+      const ds=Math.floor((Date.now()-new Date(c.lastContact+'T00:00').getTime())/86400000);
+      if(ds>=60&&c.status==='نشط'){risks.push(`لا تواصل منذ ${ds} يوم`);if(level==='low')level='medium';}
+      else if(ds>=90){risks.push(`لا تواصل منذ ${ds} يوم — خطر عالٍ`);if(level!=='high')level='high';}
+    } catch {}
   }
   if(c.status==='متوقف'){risks.push('العميل في حالة توقف');if(level==='low')level='medium';}
-  const repeated=(c.issues||[]).filter(i=>i.repeatCount>=3);
+  const repeated=(c.issues||[]).filter(i=>i && (Number(i.repeatCount) || 0)>=3);
   if(repeated.length>=2){risks.push(`${repeated.length} مشاكل متكررة — انعدام الثقة محتمل`);if(level==='low')level='medium';}
   const res = {level,risks,score:sc.total};
   riskCache.set(c, res);
@@ -197,6 +212,9 @@ export function autoDetectFeatureOpp(issues){
 }
 
 export function generateAutoNote(c){
+  if (!c || typeof c !== 'object') {
+    return { text: '', action: '', tags: [] };
+  }
   checkCacheValidity();
   if (noteCache.has(c)) {
     return noteCache.get(c);

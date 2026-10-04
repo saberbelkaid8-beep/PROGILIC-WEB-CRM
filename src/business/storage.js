@@ -1,6 +1,7 @@
 import { td, getProgramStats } from '../utils/index.js';
 import { showToast } from '../utils/toast.js';
 import { showConfirm } from '../utils/confirm.js';
+import { t } from '../utils/i18n.js';
 import { computeScore } from './intelligence.js';
 import { R } from '../presentation/render-core.js';
 import { 
@@ -511,7 +512,7 @@ export function exportData(){
     a.href=url;a.download=`progilic-crm-backup-${td()}.json`;
     document.body.appendChild(a);a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-  }catch(e){showToast('فشل التصدير: '+e.message, 'error');}
+  }catch(e){showToast(t('فشل التصدير: ')+e.message, 'error');}
 }
 
 export function exportToCSV(){
@@ -525,38 +526,45 @@ export function exportToCSV(){
 
     let csvContent="";
     
-    csvContent+=`"إحصائيات عامة","PROGILIC CRM v3"\n`;
-    csvContent+=`"تاريخ التصدير","${td()}"\n`;
-    csvContent+=`"إجمالي العملاء","${clients.length}"\n`;
-    csvContent+=`"عملاء نشطون","${ac}"\n`;
-    csvContent+=`"عملاء محتملون","${pr}"\n`;
-    csvContent+=`"عملاء متوقفون","${pa}"\n`;
-    csvContent+=`"إجمالي البرامج","${totalProgs}"\n`;
-    csvContent+=`"إجمالي الأجهزة المرخصة","${totalInst}"\n`;
-    csvContent+=`"متوسط نقاط العملاء","${avgScore}"\n`;
+    const generalStatsTitle = S.lang === 'fr' ? 'Statistiques Générales' : (S.lang === 'en' ? 'General Statistics' : 'إحصائيات عامة');
+    const exportDateTitle = S.lang === 'fr' ? 'Date d\'exportation' : (S.lang === 'en' ? 'Export Date' : 'تاريخ التصدير');
+    const totalClientsTitle = S.lang === 'fr' ? 'Total Clients' : (S.lang === 'en' ? 'Total Clients' : 'إجمالي العملاء');
+    const activeClientsTitle = S.lang === 'fr' ? 'Clients Actifs' : (S.lang === 'en' ? 'Active Clients' : 'عملاء نشطون');
+    const prospectClientsTitle = S.lang === 'fr' ? 'Clients Prospects' : (S.lang === 'en' ? 'Prospect Clients' : 'عملاء محتملون');
+    const inactiveClientsTitle = S.lang === 'fr' ? 'Clients Inactifs' : (S.lang === 'en' ? 'Inactive Clients' : 'عملاء متوقفون');
+    const totalProgramsTitle = S.lang === 'fr' ? 'Total Logiciels' : (S.lang === 'en' ? 'Total Software' : 'إجمالي البرامج');
+    const totalDevicesTitle = S.lang === 'fr' ? 'Total Appareils Licenciés' : (S.lang === 'en' ? 'Total Licensed Devices' : 'إجمالي الأجهزة المرخصة');
+    const avgScoreTitle = S.lang === 'fr' ? 'Score Moyen des Clients' : (S.lang === 'en' ? 'Average Client Score' : 'متوسط نقاط العملاء');
+    const tableTitle = S.lang === 'fr' ? 'Tableau détaillé des clients' : (S.lang === 'en' ? 'Detailed Clients Table' : 'جدول العملاء التفصيلي');
+
+    csvContent+=`"${generalStatsTitle}","PROGILIC CRM v3"\n`;
+    csvContent+=`"${exportDateTitle}","${td()}"\n`;
+    csvContent+=`"${totalClientsTitle}","${clients.length}"\n`;
+    csvContent+=`"${activeClientsTitle}","${ac}"\n`;
+    csvContent+=`"${prospectClientsTitle}","${pr}"\n`;
+    csvContent+=`"${inactiveClientsTitle}","${pa}"\n`;
+    csvContent+=`"${totalProgramsTitle}","${totalProgs}"\n`;
+    csvContent+=`"${totalDevicesTitle}","${totalInst}"\n`;
+    csvContent+=`"${avgScoreTitle}","${avgScore}"\n`;
     csvContent+=`"\n`;
+    csvContent+=`"${tableTitle}"\n`;
     
-    csvContent+=`"جدول العملاء التفصيلي"\n`;
-    
-    const headers=[
-      "المعرف",
-      "الاسم الكامل",
-      "المؤسسة/الشركة",
-      "الهاتف",
-      "الولاية",
-      "المنطقة/الحي",
-      "النشاط الرئيسي",
-      "تخصص النشاط",
-      "الحالة",
-      "بداية العقد",
-      "نهاية العقد",
-      "آخر تواصل",
-      "عدد البرامج",
-      "عدد الأجهزة",
-      "المشاكل المفتوحة",
-      "إجمالي الطلبات",
-      "نقاط العميل"
-    ];
+    const headers = S.lang === 'fr' ? [
+      "ID", "Nom complet", "Entreprise", "Téléphone", "Wilaya", "Localisation",
+      "Activité principale", "Spécialité", "Statut", "Début contrat", "Fin contrat",
+      "Dernier contact", "Nombre de logiciels", "Nombre d'appareils", "Problèmes ouverts",
+      "Total des demandes", "Score client"
+    ] : (S.lang === 'en' ? [
+      "ID", "Full Name", "Company", "Phone", "Wilaya", "Location",
+      "Main Activity", "Specialty", "Status", "Contract Start", "Contract End",
+      "Last Contact", "Programs Count", "Devices Count", "Open Issues",
+      "Total Requirements", "Client Score"
+    ] : [
+      "المعرف", "الاسم الكامل", "المؤسسة/الشركة", "الهاتف", "الولاية", "المنطقة/الحي",
+      "النشاط الرئيسي", "تخصص النشاط", "الحالة", "بداية العقد", "نهاية العقد",
+      "آخر تواصل", "عدد البرامج", "عدد الأجهزة", "المشاكل المفتوحة",
+      "إجمالي الطلبات", "نقاط العميل"
+    ]);
     
     csvContent+=headers.map(h=>`"${h}"`).join(",")+ "\n";
     
@@ -572,9 +580,9 @@ export function exportToCSV(){
         c.phone||"",
         c.wilaya||"",
         c.location||"",
-        c.businessType||"",
-        c.businessField||"",
-        c.status||"",
+        t(c.businessType||""),
+        t(c.businessField||""),
+        t(c.status||""),
         c.startDate||"",
         c.endDate||"",
         c.lastContact||"",
@@ -597,7 +605,7 @@ export function exportToCSV(){
     a.href=url;a.download=`progilic-clients-export-${td()}.csv`;
     document.body.appendChild(a);a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-  }catch(e){showToast('فشل تصدير CSV: '+e.message, 'error');}
+  }catch(e){showToast(t('فشل تصدير CSV: ')+e.message, 'error');}
 }
 
 export function importData(file){
@@ -607,8 +615,13 @@ export function importData(file){
     try{
       let d=JSON.parse(e.target.result);
       d=migrateSchema(d);
-      if(!d || !Array.isArray(d.clients))throw new Error('ملف غير صالح');
-      const confirmed = await showConfirm(`سيتم استبدال جميع بياناتك بـ ${d.clients.length} عميل من الملف والبدء بهيكل v3.\nهل تريد المتابعة؟`, 'استيراد البيانات');
+      if(!d || !Array.isArray(d.clients))throw new Error(t('ملف غير صالح'));
+      const confirmPrompt = S.lang === 'fr'
+        ? `Toutes vos données actuelles seront remplacées par ${d.clients.length} client(s) du fichier.\nVoulez-vous continuer ?`
+        : (S.lang === 'en'
+          ? `All current data will be replaced by ${d.clients.length} client(s) from the file.\nDo you want to continue?`
+          : `سيتم استبدال جميع بياناتك بـ ${d.clients.length} عميل من الملف والبدء بهيكل v3.\nهل تريد المتابعة؟`);
+      const confirmed = await showConfirm(confirmPrompt, t('استيراد البيانات'));
       if(!confirmed)return;
       
       setSyncing(true);
@@ -638,7 +651,7 @@ export function importData(file){
       S.view='list';S.selId=null;S.modal=null;S.gi=false;
       R();
     }catch(er){
-      showToast('خطأ في الاستيراد: '+er.message, 'error');
+      showToast(t('خطأ في الاستيراد: ')+er.message, 'error');
     } finally {
       setSyncing(false);
     }
@@ -647,9 +660,20 @@ export function importData(file){
 }
 
 export async function clearAllData(){
-  const confirmed1 = await showConfirm('⚠️ هل أنت متأكد من حذف جميع البيانات نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.', 'مسح جميع البيانات');
+  const msg1 = S.lang === 'fr'
+    ? '⚠️ Êtes-vous certain de vouloir supprimer définitivement toutes les données ?\nCette action est irréversible.'
+    : (S.lang === 'en'
+      ? '⚠️ Are you sure you want to permanently delete all data?\nThis action cannot be undone.'
+      : '⚠️ هل أنت متأكد من حذف جميع البيانات نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.');
+  const confirmed1 = await showConfirm(msg1, t('مسح جميع البيانات'));
   if(!confirmed1)return;
-  const confirmed2 = await showConfirm('تأكيد أخير: سيتم مسح جميع العملاء والمشاكل والمتطلبات.\nاستمرار؟', 'تأكيد الحذف النهائي');
+  
+  const msg2 = S.lang === 'fr'
+    ? 'Confirmation finale : tous les clients, tickets et demandes seront effacés.\nContinuer ?'
+    : (S.lang === 'en'
+      ? 'Final confirmation: all clients, issues, and requirements will be erased.\nContinue?'
+      : 'تأكيد أخير: سيتم مسح جميع العملاء والمشاكل والمتطلبات.\nاستمرار؟');
+  const confirmed2 = await showConfirm(msg2, t('تأكيد الحذف النهائي'));
   if(!confirmed2)return;
   
   try {
@@ -686,7 +710,7 @@ export async function clearAllData(){
     S.view='list';S.selId=null;S.gi=false;
     R();
   } catch (err) {
-    showToast("حدث خطأ أثناء مسح البيانات: " + err.message, 'error');
+    showToast(t("حدث خطأ أثناء مسح البيانات: ") + err.message, 'error');
   } finally {
     setSyncing(false);
   }

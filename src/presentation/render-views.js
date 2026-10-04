@@ -1,9 +1,11 @@
 import { S, clients } from '../state/store.js';
 import { BUSINESS_TYPES, PROGRAM_TYPES, WILAYAS } from '../constants/index.js';
-import { gc, applyFilters, pBdg, sBdg, srcCls, platformIcon, updateActTypeOpts, isBdg, fmtD, rBdg, progStatusLabel, progStatusCls, progTypeBdg, activityIcon, getProgramStats, selOpts, wOpts, actTypeOpts, getActTypes, esc, avCls, init, searchMatch, countAdvFil, pBorder } from '../utils/index.js';
+import { gc, applyFilters, pBdg, sBdg, srcCls, platformIcon, updateActTypeOpts, isBdg, fmtD, rBdg, progStatusLabel, progStatusCls, progTypeBdg, activityIcon, getProgramStats, selOpts, wOpts, actTypeOpts, getActTypes, esc, avCls, init, searchMatch, countAdvFil, pBorder, cOpts } from '../utils/index.js';
 import { computeScore, computeGlobalStats, generateAutoNote, computeRiskProfile, scoreColor, computeAlerts, scoreLabel, riskColor, riskBdg, riskLabel, analyzeRootCause } from '../business/intelligence.js';
 import { getActivityVisuals } from '../business/timelineService.js';
 import { performSearch } from '../business/searchIndex.js';
+import { t } from '../utils/i18n.js';
+import { getWilayasList } from '../utils/algeria.js';
 export function renderList(){
   console.log("renderList: S.isLoading =", S.isLoading, "clients.length =", clients.length);
   const ac=clients.filter(c=>c.status==='نشط').length;
@@ -49,49 +51,49 @@ export function renderList(){
 
   return`
     <div class="stats-row">
-      <div class="stat-c sg"><div class="stat-v">${ac}</div><div class="stat-l">نشطون</div></div>
-      <div class="stat-c sb"><div class="stat-v">${pr}</div><div class="stat-l">محتمل</div></div>
-      <div class="stat-c so"><div class="stat-v">${pa}</div><div class="stat-l">متوقف</div></div>
-      <div class="stat-c"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+(c.programs||[]).length,0)}</div><div class="stat-l">برامج · ${clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0)} جهاز</div></div>
+      <div class="stat-c sg" style="cursor:pointer" onclick="setFil('نشط')" title="${t('تصفية وتحديد')}"><div class="stat-v">${ac}</div><div class="stat-l">${t('نشط')}</div></div>
+      <div class="stat-c sb" style="cursor:pointer" onclick="setFil('محتمل')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pr}</div><div class="stat-l">${t('محتمل')}</div></div>
+      <div class="stat-c so" style="cursor:pointer" onclick="setFil('متوقف')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pa}</div><div class="stat-l">${t('متوقف')}</div></div>
+      <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+(c.programs||[]).length,0)}</div><div class="stat-l">${t('برامج')} · ${clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0)} ${t('جهاز')}</div></div>
     </div>
     <div class="search-row">
-      <input class="search-input" placeholder="ابحث: اسم، شركة، ولاية، نشاط، تخصص، هاتف..." value="${esc(S.q)}" oninput="onQ(this.value)">
+      <input class="search-input" placeholder="${t('ابحث: اسم، شركة، ولاية، نشاط، تخصص، هاتف...')}" value="${esc(S.q)}" oninput="onQ(this.value)">
       <button class="adv-fil-toggle${cnt>0||S.showAdvFil?' active':''}" onclick="toggleAdvFil()">
-        ⚙ فلترة ${cnt>0?`<span class="adv-fil-badge">${cnt}</span>`:''}
+        ⚙ ${t('فلترة')} ${cnt>0?`<span class="adv-fil-badge">${cnt}</span>`:''}
       </button>
     </div>
     ${S.q?`<div class="search-result-bar">
-      🔍 <strong>${fil.length}</strong> نتيجة لـ "<em>${esc(S.q)}</em>"
+      🔍 <strong>${fil.length}</strong> ${t('نتيجة لـ')} "<em>${esc(S.q)}</em>"
       <div style="margin-right:auto;display:flex;gap:4px;flex-wrap:wrap">
-        ${['الاسم','الشركة','الولاية','النشاط','التخصص','الهاتف'].map(f=>`<span class="sf-tag">${f}</span>`).join('')}
+        ${['الاسم','الشركة','الولاية','النشاط','التخصص','الهاتف'].map(f=>`<span class="sf-tag">${t(f)}</span>`).join('')}
       </div>
-      <button class="search-clear" onclick="onQ('')">✕ مسح</button>
+      <button class="search-clear" onclick="onQ('')">✕ ${t('مسح')}</button>
     </div>`:''}
     ${renderAdvFilterPanel()}
     <div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem 0;margin-bottom:.5rem;gap:12px;flex-wrap:wrap">
       <div class="filter-bar" style="margin:0;border:none;padding:0">
-        ${['الكل','نشط','محتمل','متوقف'].map(s=>`<span class="fpill${S.filter===s?' on':''}" onclick="setFil('${s}')">${s}</span>`).join('')}
+        ${['الكل','نشط','محتمل','متوقف'].map(s=>`<span class="fpill${S.filter===s?' on':''}" onclick="setFil('${s}')">${t(s)}</span>`).join('')}
       </div>
       <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)">
-        <span style="font-weight:600">ترتيب:</span>
+        <span style="font-weight:600">${t('ترتيب:')}</span>
         <select onchange="setSortBy(this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:4px 8px;color:var(--t1);font-family:inherit;font-size:11px;outline:none;cursor:pointer">
-          <option value="id"${S.sortBy==='id'?' selected':''}>رقم العميل</option>
-          <option value="fullName"${S.sortBy==='fullName'?' selected':''}>الاسم الكامل</option>
-          <option value="score"${S.sortBy==='score'?' selected':''}>نقاط التقييم</option>
-          <option value="lastContact"${S.sortBy==='lastContact'?' selected':''}>تاريخ التواصل</option>
-          <option value="endDate"${S.sortBy==='endDate'?' selected':''}>انتهاء العقد</option>
+          <option value="id"${S.sortBy==='id'?' selected':''}>${t('رقم العميل')}</option>
+          <option value="fullName"${S.sortBy==='fullName'?' selected':''}>${t('الاسم الكامل')}</option>
+          <option value="score"${S.sortBy==='score'?' selected':''}>${t('نقاط التقييم')}</option>
+          <option value="lastContact"${S.sortBy==='lastContact'?' selected':''}>${t('تاريخ التواصل')}</option>
+          <option value="endDate"${S.sortBy==='endDate'?' selected':''}>${t('انتهاء العقد')}</option>
         </select>
-        <button onclick="toggleSortOrder()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t1)" title="${S.sortOrder==='asc'?'تصاعدي':'تنازلي'}">
+        <button onclick="toggleSortOrder()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t1)" title="${S.sortOrder==='asc'?t('تصاعدي'):t('تنازلي')}">
           ${S.sortOrder==='asc'?'▲':'▼'}
         </button>
       </div>
     </div>
     ${fil.length===0?`<div class="empty">
       <div class="empty-icon">🔍</div>
-      <div class="empty-text">لا توجد نتائج تطابق الفلاتر المحددة حالياً.</div>
+      <div class="empty-text">${S.lang === 'fr' ? 'Aucun résultat ne correspond aux filtres appliqués.' : S.lang === 'en' ? 'No results match the current filters.' : 'لا توجد نتائج تطابق الفلاتر المحددة حالياً.'}</div>
       <div style="display:flex;gap:8px;justify-content:center">
-        ${cnt>0?`<button class="btn btn-outline btn-sm" onclick="clearAdvFil()">مسح الفلاتر</button>`:''}
-        <button class="btn btn-primary btn-sm" onclick="openModal('addClient')">إضافة عميل جديد</button>
+        ${cnt>0?`<button class="btn btn-outline btn-sm" onclick="clearAdvFil()">${t('مسح الفلاتر')}</button>`:''}
+        <button class="btn btn-primary btn-sm" onclick="openModal('addClient')">${t('إضافة عميل جديد')}</button>
       </div>
     </div>`:
     `<div class="cgrid">
@@ -110,16 +112,16 @@ export function renderList(){
           </div>
           <div class="cc-badges">
             ${sBdg(c.status)}
-            ${(()=>{const ps=getProgramStats(c);return ps.total>0?`<span class="bdg bdg-b">📦 ${ps.total} برنامج`+(ps.totalInstalls>1?` · ${ps.totalInstalls} جهاز`:'')+'</span>':`<span class="bdg bdg-gr">لا برامج</span>`})()}
-            <span class="bdg score-tip" style="background:${scColor}18;color:${scColor}" data-tip="${sc.total>=75?'عميل متميز':sc.total>=50?'عميل جيد':sc.total>=25?'يحتاج متابعة':'خطر عالٍ'}">⭐ ${sc.total}</span>
+            ${(()=>{const ps=getProgramStats(c);return ps.total>0?`<span class="bdg bdg-b">📦 ${ps.total} ${t('برامج')}`+(ps.totalInstalls>1?` · ${ps.totalInstalls} ${t('جهاز')}`:'')+'</span>':`<span class="bdg bdg-gr">${t('لا برامج')}</span>`})()}
+            <span class="bdg score-tip" style="background:${scColor}18;color:${scColor}" data-tip="${sc.total>=75?t('عميل متميز'):sc.total>=50?t('عميل جيد'):sc.total>=25?t('يحتاج متابعة'):t('خطر عالٍ')}">⭐ ${sc.total}</span>
           </div>
-          ${c.businessType?`<div class="cc-activity">${activityIcon(c.businessType)} ${esc(c.businessType)}${c.businessField?` · ${esc(c.businessField)}`:''}</div>`:''}
-          ${hit&&hit.fields.length>0?`<div class="cc-search-match">${hit.fields.map(f=>`<span class="sf-tag">✓ ${f}</span>`).join('')}</div>`:''}
+          ${c.businessType?`<div class="cc-activity">${activityIcon(c.businessType)} ${t(c.businessType)}${c.businessField?` · ${t(c.businessField)}`:''}</div>`:''}
+          ${hit&&hit.fields.length>0?`<div class="cc-search-match">${hit.fields.map(f=>`<span class="sf-tag">✓ ${t(f)}</span>`).join('')}</div>`:''}
           <div class="cc-footer">
             <div class="cc-phone" dir="ltr">${esc(c.phone)||"—"}</div>
             <div class="cc-wilaya">${esc(c.wilaya)||"—"}</div>
           </div>
-          ${oi>0?`<div class="cc-alert" style="color:${urg>0?'var(--r)':'var(--w)'}">▸ ${oi} مشكلة مفتوحة${urg>0?' (عاجل)':''}</div>`:''}
+          ${oi>0?`<div class="cc-alert" style="color:${urg>0?'var(--r)':'var(--w)'}">▸ ${oi} ${t('مشاكل مفتوحة')}${urg>0?` (${t('عاجل')})`:''}</div>`:''}
         </div>`;
       }).join('')}
       <div style="grid-column:1/-1;height:${bottomSpacerHeight}px;pointer-events:none"></div>
@@ -138,14 +140,14 @@ export function renderDetail(){
       <div class="tabs-wrap skeleton" style="height:40px"></div>
     `;
   }
-  const c=gc();if(!c)return'<p style="color:var(--t2)">العميل غير موجود</p>';
+  const c=gc();if(!c)return`<p style="color:var(--t2)">${t('العميل غير موجود')}</p>`;
   const oi=c.issues.filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة').length;
   const fo=c.issues.filter(i=>i.featureOpp).length;
   const sc=computeScore(c);
   const scColor=scoreColor(sc.total);
   console.log("DEBUG RENDER DETAIL: c.id =", c.id, "S.tab =", S.tab, "c._subcollectionsLoaded =", c._subcollectionsLoaded);
   return`
-    <div class="back" onclick="goBack()">← قائمة العملاء</div>
+    <div class="back" onclick="goBack()">${t('← قائمة العملاء')}</div>
     <div class="chdr">
       <div class="ch-top">
         <div class="ch-av">${esc(init(c.fullName))}</div>
@@ -155,32 +157,32 @@ export function renderDetail(){
         </div>
         <div class="ch-acts">
           ${sBdg(c.status)}
-          <button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:#fff;border:none" onclick="openModal('editClient')">تعديل</button>
+          <button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:#fff;border:none" onclick="openModal('editClient')">${t('تعديل')}</button>
         </div>
       </div>
       <div class="ch-meta">
         <span class="ch-mi">📍 ${esc(c.wilaya)||"—"}${c.location?'، '+esc(c.location):''}</span>
         <span class="ch-mi" dir="ltr">📞 ${esc(c.phone)||"—"}</span>
-        ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return ps.total>0?`<span class="ch-mi">📦 ${esc(pp[0].programName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls} جهاز</span>`:`<span class="ch-mi" style="opacity:.5">📦 لا برامج</span>`})()}
-        <span class="ch-mi">${activityIcon(c.businessType)} ${esc(c.businessType)||"—"}${c.businessField?' · '+esc(c.businessField):''}</span>
+        ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return ps.total>0?`<span class="ch-mi">📦 ${esc(pp[0].programName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls} ${t('جهاز')}</span>`:`<span class="ch-mi" style="opacity:.5">📦 ${t('لا برامج')}</span>`})()}
+        <span class="ch-mi">${activityIcon(c.businessType)} ${t(c.businessType)||"—"}${c.businessField?' · '+t(c.businessField):''}</span>
       </div>
     </div>
     <div class="qstats">
-      <div class="qs ${oi>0?'qr':'qg'}"><div class="qs-v">${oi}</div><div class="qs-l">مشاكل مفتوحة</div></div>
-      <div class="qs ${fo>0?'qw':''}"><div class="qs-v">${fo}</div><div class="qs-l">فرص ميزات</div></div>
-      ${(()=>{const ps=getProgramStats(c);return`<div class="qs ${ps.expired>0?'qr':'qg'}"><div class="qs-v">${ps.total}</div><div class="qs-l">البرامج (${ps.totalInstalls} جهاز)</div></div>`})()}
-      <div class="qs qc"><div class="qs-v">${(c.contactHistory||[]).length}</div><div class="qs-l">سجلات تواصل</div></div>
-      <div class="qs"><div class="qs-v" style="color:${scColor};font-size:20px">${sc.total}</div><div class="qs-l">نقاط العميل</div></div>
+      <div class="qs ${oi>0?'qr':'qg'}"><div class="qs-v">${oi}</div><div class="qs-l">${t('مشاكل مفتوحة')}</div></div>
+      <div class="qs ${fo>0?'qw':''}"><div class="qs-v">${fo}</div><div class="qs-l">${t('فرص ميزات')}</div></div>
+      ${(()=>{const ps=getProgramStats(c);return`<div class="qs ${ps.expired>0?'qr':'qg'}"><div class="qs-v">${ps.total}</div><div class="qs-l">${t('البرامج')} (${ps.totalInstalls} ${t('جهاز')})</div></div>`})()}
+      <div class="qs qc"><div class="qs-v">${(c.contactHistory||[]).length}</div><div class="qs-l">${t('سجلات تواصل')}</div></div>
+      <div class="qs"><div class="qs-v" style="color:${scColor};font-size:20px">${sc.total}</div><div class="qs-l">${t('نقاط العميل')}</div></div>
     </div>
     <div class="tabs-wrap">
-      <button class="tabBtn${S.tab==='overview'?' on':''}" onclick="setTab('overview')">نظرة عامة</button>
-      <button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">البرامج <span class="tab-count">${(c.programs||[]).length}</span></button>
-      <button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">المشاكل <span class="tab-count${c.issues.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${c.issues.length}</span></button>
-      <button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">المتطلبات <span class="tab-count">${c.requirements.length}</span></button>
-      <button class="tabBtn${S.tab==='contacts'?' on':''}" onclick="setTab('contacts')">📞 التواصل <span class="tab-count">${(c.contactHistory||[]).length}</span></button>
-      <button class="tabBtn${S.tab==='timeline'?' on':''}" onclick="setTab('timeline')">⏱️ الخط الزمني</button>
-      <button class="tabBtn${S.tab==='report'?' on':''}" onclick="setTab('report')">📊 التقرير</button>
-      <button class="tabBtn${S.tab==='intelligence'?' on':''}" onclick="setTab('intelligence')">🧠 الذكاء</button>
+      <button class="tabBtn${S.tab==='overview'?' on':''}" onclick="setTab('overview')">${t('نظرة عامة')}</button>
+      <button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length}</span></button>
+      <button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">${t('المشاكل')} <span class="tab-count${c.issues.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${c.issues.length}</span></button>
+      <button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">${t('المتطلبات')} <span class="tab-count">${c.requirements.length}</span></button>
+      <button class="tabBtn${S.tab==='contacts'?' on':''}" onclick="setTab('contacts')">${t('📞 التواصل')} <span class="tab-count">${(c.contactHistory||[]).length}</span></button>
+      <button class="tabBtn${S.tab==='timeline'?' on':''}" onclick="setTab('timeline')">${t('⏱️ الخط الزمني')}</button>
+      <button class="tabBtn${S.tab==='report'?' on':''}" onclick="setTab('report')">${t('📊 التقرير')}</button>
+      <button class="tabBtn${S.tab==='intelligence'?' on':''}" onclick="setTab('intelligence')">${t('🧠 الذكاء')}</button>
     </div>
     <div class="tab-pane">
       ${S.tab==='overview'?renderOverview(c):''}
@@ -196,86 +198,86 @@ export function renderDetail(){
 
 function renderOverview(c){
   const gpsSection=c.gps&&c.gps.lat
-    ?`<div class="gps-row"><span>📍</span><span class="gps-coords">${c.gps.lat}, ${c.gps.lng}</span><button class="btn btn-blue-soft btn-xs" onclick="captureGPS()">تحديث GPS</button></div>`
-    :`<button class="btn btn-blue-soft btn-sm" style="margin-top:8px;width:100%" onclick="captureGPS()">📍 تحديد الموقع بـ GPS</button>`;
+    ?`<div class="gps-row"><span>📍</span><span class="gps-coords">${c.gps.lat}, ${c.gps.lng}</span><button class="btn btn-blue-soft btn-xs" onclick="captureGPS()">${S.lang === 'fr' ? 'Mettre à jour GPS' : S.lang === 'en' ? 'Update GPS' : 'تحديث GPS'}</button></div>`
+    :`<button class="btn btn-blue-soft btn-sm" style="margin-top:8px;width:100%" onclick="captureGPS()">${S.lang === 'fr' ? '📍 Définir position GPS' : S.lang === 'en' ? '📍 Set GPS Location' : '📍 تحديد الموقع بـ GPS'}</button>`;
   const hasBiz=c.businessType||c.businessField;
   const bizCard=hasBiz
     ?`<div class="biz-profile">
         <div class="biz-icon">${activityIcon(c.businessType)}</div>
         <div class="biz-info">
-          <div class="biz-activity">${esc(c.businessType)}</div>
-          <div class="biz-type">${esc(c.businessField)||"لم يُحدد التخصص بعد"}</div>
+          <div class="biz-activity">${t(c.businessType)}</div>
+          <div class="biz-type">${t(c.businessField)||(S.lang === 'fr' ? 'Spécialité non définie' : S.lang === 'en' ? 'Specialty not specified' : 'لم يُحدد التخصص بعد')}</div>
         </div>
-        <span class="biz-badge">ملف النشاط</span>
+        <span class="biz-badge">${S.lang === 'fr' ? 'Fiche activité' : S.lang === 'en' ? 'Business Profile' : 'ملف النشاط'}</span>
       </div>`
     :`<div class="biz-profile" style="cursor:pointer" onclick="openModal('editClient')">
         <div class="biz-icon">🏪</div>
-        <div class="biz-info"><div class="biz-empty">لم يُحدد النشاط التجاري — اضغط لإضافته</div></div>
-        <span class="biz-badge">+ إضافة</span>
+        <div class="biz-info"><div class="biz-empty">${S.lang === 'fr' ? 'Activité non définie — cliquez pour ajouter' : S.lang === 'en' ? 'No activity defined — click to set' : 'لم يُحدد النشاط التجاري — اضغط لإضافته'}</div></div>
+        <span class="biz-badge">+ ${t('إضافة')}</span>
       </div>`;
   const an=generateAutoNote(c);
   return`
     <div class="auto-note">
       <span class="an-ic">🤖</span>
       <div class="an-body">
-        <div class="an-lbl">تحليل ذكي تلقائي</div>
+        <div class="an-lbl">${t('تحليل ذكي تلقائي')}</div>
         <div class="an-text">${esc(an.text)}</div>
         ${an.action?`<div class="an-text" style="margin-top:6px;font-weight:700;font-size:12px">${esc(an.action)}</div>`:''}
-        <div class="an-tags">${an.tags.map(t=>`<span class="an-tag ${t.cls}">${esc(t.t)}</span>`).join('')}</div>
+        <div class="an-tags">${an.tags.map(tItem=>`<span class="an-tag ${tItem.cls}">${esc(t(tItem.t))}</span>`).join('')}</div>
       </div>
     </div>
     ${bizCard}
     <div class="igrid">
-      <div class="iitem"><div class="ilbl">الاسم الكامل</div><div class="ival">${esc(c.fullName)}</div></div>
-      <div class="iitem"><div class="ilbl">الشركة / المؤسسة</div><div class="ival ${c.company?'':'muted'}">${esc(c.company)||"—"}</div></div>
-      <div class="iitem"><div class="ilbl">الهاتف</div><div class="ival" dir="ltr" style="text-align:right">${esc(c.phone)||"—"}</div></div>
-      <div class="iitem"><div class="ilbl">الولاية</div><div class="ival">${esc(c.wilaya)||"—"}</div></div>
-      <div class="iitem"><div class="ilbl">المنطقة / الحي</div><div class="ival ${c.location?'':'muted'}">${esc(c.location)||"—"}</div></div>
-      <div class="iitem"><div class="ilbl">الحالة</div><div class="ival">${sBdg(c.status)}</div></div>
-      <div class="iitem"><div class="ilbl">النشاط الرئيسي</div><div class="ival">${c.businessType?`${activityIcon(c.businessType)} ${esc(c.businessType)}`:'<span class="muted">—</span>'}</div></div>
-      <div class="iitem"><div class="ilbl">تخصص النشاط</div><div class="ival ${c.businessField?'':'muted'}">${esc(c.businessField)||"—"}</div></div>
+      <div class="iitem"><div class="ilbl">${t('الاسم الكامل')}</div><div class="ival">${esc(c.fullName)}</div></div>
+      <div class="iitem"><div class="ilbl">${t('الشركة / المؤسسة')}</div><div class="ival ${c.company?'':'muted'}">${esc(c.company)||"—"}</div></div>
+      <div class="iitem"><div class="ilbl">${t('الهاتف')}</div><div class="ival" dir="ltr" style="text-align:${S.lang === 'ar' ? 'right' : 'left'}">${esc(c.phone)||"—"}</div></div>
+      <div class="iitem"><div class="ilbl">${t('الولاية')}</div><div class="ival">${esc(c.wilaya)||"—"}</div></div>
+      <div class="iitem"><div class="ilbl">${t('المنطقة / الحي')}</div><div class="ival ${c.location?'':'muted'}">${esc(c.location)||"—"}</div></div>
+      <div class="iitem"><div class="ilbl">${t('الحالة')}</div><div class="ival">${sBdg(c.status)}</div></div>
+      <div class="iitem"><div class="ilbl">${t('النشاط الرئيسي')}</div><div class="ival">${c.businessType?`${activityIcon(c.businessType)} ${t(c.businessType)}`:'<span class="muted">—</span>'}</div></div>
+      <div class="iitem"><div class="ilbl">${t('تخصص النشاط')}</div><div class="ival ${c.businessField?'':'muted'}">${t(c.businessField)||"—"}</div></div>
       ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return`
-      <div class="iitem"><div class="ilbl">عدد البرامج</div><div class="ival">${ps.total} ${ps.total>0?`<span style="font-size:11px;color:var(--t3)">· ${ps.totalInstalls} جهاز</span>`:''}</div></div>
-      <div class="iitem"><div class="ilbl">البرنامج الرئيسي</div><div class="ival ${pp.length?'':'muted'}">${pp.length?esc(pp[0].programName):'—'}</div></div>`})()}
-      <div class="iitem"><div class="ilbl">بداية العقد</div><div class="ival">${fmtD(c.startDate)}</div></div>
-      <div class="iitem"><div class="ilbl">نهاية العقد</div><div class="ival ${c.endDate?'':'muted'}">${c.endDate?fmtD(c.endDate):'—'}</div></div>
-      <div class="iitem"><div class="ilbl">آخر تواصل</div><div class="ival"><span class="last-contact-clickable" onclick="setTab('contacts')" title="عرض سجل التواصل الكامل">${fmtD(c.lastContact)||'—'} 📋</span></div></div>
+      <div class="iitem"><div class="ilbl">${t('إجمالي البرامج')}</div><div class="ival">${ps.total} ${ps.total>0?`<span style="font-size:11px;color:var(--t3)">· ${ps.totalInstalls} ${t('جهاز')}</span>`:''}</div></div>
+      <div class="iitem"><div class="ilbl">${t('البرنامج')}</div><div class="ival ${pp.length?'':'muted'}">${pp.length?esc(pp[0].programName):'—'}</div></div>`})()}
+      <div class="iitem"><div class="ilbl">${t('تاريخ البداية')}</div><div class="ival">${fmtD(c.startDate)}</div></div>
+      <div class="iitem"><div class="ilbl">${t('تاريخ النهاية')}</div><div class="ival ${c.endDate?'':'muted'}">${c.endDate?fmtD(c.endDate):'—'}</div></div>
+      <div class="iitem"><div class="ilbl">${t('آخر تواصل')}</div><div class="ival"><span class="last-contact-clickable" onclick="setTab('contacts')" title="${t('عرض التفاصيل')}">${fmtD(c.lastContact)||'—'} 📋</span></div></div>
     </div>
     ${gpsSection}
-    ${c.notes?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">ملاحظات</div><div class="notes-box">${esc(c.notes)}</div></div>`:''}
+    ${c.notes?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">${t('ملاحظات')}</div><div class="notes-box">${esc(c.notes)}</div></div>`:''}
     <div class="dzone">
-      <div class="dz-t">منطقة الخطر</div>
-      <div class="dz-b">حذف هذا العميل يحذف جميع مشاكله ومتطلباته نهائياً ولا يمكن التراجع</div>
-      <button class="btn btn-danger-soft btn-sm" onclick="delClient(${c.id})">حذف العميل نهائياً</button>
+      <div class="dz-t">${t('منطقة الخطر')}</div>
+      <div class="dz-b">${t('حذف هذا العميل يحذف جميع مشاكله ومتطلباته نهائياً ولا يمكن التراجع')}</div>
+      <button class="btn btn-danger-soft btn-sm" onclick="delClient(${c.id})">${t('حذف العميل نهائياً')}</button>
     </div>`;
 }
 
 function renderIssues(c){
   return`
     <div class="pane-hdr">
-      <span class="pane-title">المشاكل والتذاكر (${c.issues.length})</span>
-      <button class="btn btn-primary btn-sm" onclick="openModal('addIssue')">+ مشكلة جديدة</button>
+      <span class="pane-title">${t('المشاكل والتذاكر')} (${c.issues.length})</span>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addIssue')">${t('+ مشكلة جديدة')}</button>
     </div>
     ${c.issues.length===0
-      ?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">لا توجد مشاكل مسجلة لهذا العميل</div><button class="btn btn-outline btn-sm" onclick="openModal('addIssue')">تسجيل أول مشكلة</button></div>`
+      ?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">${t('لا توجد مشاكل مسجلة لهذا العميل')}</div><button class="btn btn-outline btn-sm" onclick="openModal('addIssue')">${t('تسجيل أول مشكلة')}</button></div>`
       :c.issues.map(iss=>`
         <div class="icard ${pBorder(iss.priority)}">
           <div class="ic-top"><div class="ic-title">${esc(iss.title)}</div>${isBdg(iss.status)}</div>
           <div class="ic-meta">
             ${pBdg(iss.priority)}
-            <span class="ic-type">${esc(iss.type)}</span>
-            ${iss.source?`<span class="ic-src ${srcCls(iss.source)}">${esc(iss.source)}</span>`:''}
-            ${iss.confidence?`<span class="ic-conf">${iss.confidence}% ثقة</span>`:''}
+            <span class="ic-type">${esc(t(iss.type))}</span>
+            ${iss.source?`<span class="ic-src ${srcCls(iss.source)}">${esc(t(iss.source))}</span>`:''}
+            ${iss.confidence?`<span class="ic-conf">${iss.confidence}% ${t('ثقة')}</span>`:''}
             ${iss.repeatCount>1?`<span class="ic-repeat">× ${iss.repeatCount}</span>`:''}
-            ${iss.featureOpp?`<span class="ic-opp">💡 فرصة ميزة</span>`:''}
+            ${iss.featureOpp?`<span class="ic-opp">💡 ${t('فرصة ميزة')}</span>`:''}
             <span class="ic-date">${fmtD(iss.date)}</span>
           </div>
           ${iss.notes?`<div class="ic-sol">📝 ${esc(iss.notes)}</div>`:''}
-          ${iss.solution?`<div class="ic-sol"><strong style="color:var(--gt)">✓ الحل:</strong> ${esc(iss.solution)}</div>`:''}
+          ${iss.solution?`<div class="ic-sol"><strong style="color:var(--gt)">✓ ${t('الحل:')}</strong> ${esc(iss.solution)}</div>`:''}
           <div class="ic-acts">
-            ${iss.status!=='محلول'&&iss.status!=='مغلق'?`<button class="btn btn-success-soft btn-xs" onclick="markSolved(${c.id},${iss.id})">✓ تم الحل</button>`:''}
-            <button class="btn btn-ghost btn-xs" onclick="editIssue(${c.id},${iss.id})">تعديل</button>
-            <button class="btn btn-danger-soft btn-xs" onclick="delIssue(${c.id},${iss.id})">حذف</button>
+            ${iss.status!=='محلول'&&iss.status!=='مغلق'?`<button class="btn btn-success-soft btn-xs" onclick="markSolved(${c.id},${iss.id})">${t('✓ تم الحل')}</button>`:''}
+            <button class="btn btn-ghost btn-xs" onclick="editIssue(${c.id},${iss.id})">${t('تعديل')}</button>
+            <button class="btn btn-danger-soft btn-xs" onclick="delIssue(${c.id},${iss.id})">${t('حذف')}</button>
           </div>
         </div>`).join('')}`;
 }
@@ -283,24 +285,24 @@ function renderIssues(c){
 function renderReqs(c){
   return`
     <div class="pane-hdr">
-      <span class="pane-title">المتطلبات والاقتراحات (${c.requirements.length})</span>
-      <button class="btn btn-primary btn-sm" onclick="openModal('addRequirement')">+ طلب جديد</button>
+      <span class="pane-title">${t('المتطلبات والاقتراحات')} (${c.requirements.length})</span>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addRequirement')">${t('+ طلب جديد')}</button>
     </div>
     ${c.requirements.length===0
-      ?`<div class="empty"><div class="empty-icon">💡</div><div class="empty-text">لا توجد متطلبات مسجلة</div><button class="btn btn-outline btn-sm" onclick="openModal('addRequirement')">تسجيل أول طلب</button></div>`
+      ?`<div class="empty"><div class="empty-icon">💡</div><div class="empty-text">${t('لا توجد متطلبات مسجلة')}</div><button class="btn btn-outline btn-sm" onclick="openModal('addRequirement')">${t('تسجيل أول طلب')}</button></div>`
       :c.requirements.map(req=>`
         <div class="icard ${pBorder(req.priority)}">
           <div class="ic-top"><div class="ic-title">${esc(req.title)}</div>${rBdg(req.status)}</div>
           <div class="ic-meta">
             ${pBdg(req.priority)}
-            <span class="ic-type">${esc(req.type)}</span>
-            <span class="bdg bdg-gr">تأثير ${esc(req.impact)}</span>
+            <span class="ic-type">${esc(t(req.type))}</span>
+            <span class="bdg bdg-gr">${t('تأثير')} ${esc(t(req.impact))}</span>
             <span class="ic-date">${fmtD(req.date)}</span>
           </div>
           ${req.notes?`<div class="ic-sol">📝 ${esc(req.notes)}</div>`:''}
           <div class="ic-acts">
-            <button class="btn btn-ghost btn-xs" onclick="editReq(${c.id},${req.id})">تعديل</button>
-            <button class="btn btn-danger-soft btn-xs" onclick="delReq(${c.id},${req.id})">حذف</button>
+            <button class="btn btn-ghost btn-xs" onclick="editReq(${c.id},${req.id})">${t('تعديل')}</button>
+            <button class="btn btn-danger-soft btn-xs" onclick="delReq(${c.id},${req.id})">${t('حذف')}</button>
           </div>
         </div>`).join('')}`;
 }
@@ -309,11 +311,11 @@ function renderContacts(c){
   return`
     <div class="ch-tab">
       <div class="ch-summary">
-        <span class="ch-count">📋 ${hist.length} تواصل مسجل</span>
-        <button class="btn btn-primary btn-sm" onclick="openModal('addContact')">+ تسجيل تواصل</button>
+        <span class="ch-count">📋 ${hist.length} ${t('تواصل مسجل')}</span>
+        <button class="btn btn-primary btn-sm" onclick="openModal('addContact')">${t('+ تسجيل تواصل')}</button>
       </div>
       ${hist.length===0
-        ?`<div class="ch-empty">📭 لا توجد سجلات تواصل بعد<br><small>سجّل أول تواصل مع هذا العميل</small></div>`
+        ?`<div class="ch-empty">📭 ${t('لا توجد سجلات تواصل بعد')}<br><small>${t('سجّل أول تواصل مع هذا العميل')}</small></div>`
         :`<div class="timeline">
           ${hist.map((h,i)=>`
             <div class="tl-entry">
@@ -321,7 +323,7 @@ function renderContacts(c){
               <div class="tl-date">${fmtD(h.date)}</div>
               <div class="tl-note">${esc(h.note)}</div>
               <div class="tl-acts">
-                <button class="btn btn-danger-soft btn-xs" onclick="delContact(${c.id},${h.id})">حذف</button>
+                <button class="btn btn-danger-soft btn-xs" onclick="delContact(${c.id},${h.id})">${t('حذف')}</button>
               </div>
             </div>`).join('')}
         </div>`}
@@ -334,19 +336,19 @@ function renderPrograms(c){
   console.log("DEBUG RENDER PROGRAMS: c.id =", c.id, "c.fullName =", c.fullName, "progs =", JSON.stringify(progs));
   return`
     <div class="prog-summary">
-      <div class="ps-item ps-active"><div class="ps-val">${ps.total}</div><div class="ps-lbl">إجمالي البرامج</div></div>
-      <div class="ps-item"><div class="ps-val">${ps.totalInstalls}</div><div class="ps-lbl">إجمالي الأجهزة</div></div>
-      <div class="ps-item ${ps.expired>0?'ps-expired':'ps-active'}"><div class="ps-val">${ps.active}</div><div class="ps-lbl">نشط / ${ps.expired} منتهي</div></div>
+      <div class="ps-item ps-active"><div class="ps-val">${ps.total}</div><div class="ps-lbl">${t('إجمالي البرامج')}</div></div>
+      <div class="ps-item"><div class="ps-val">${ps.totalInstalls}</div><div class="ps-lbl">${t('إجمالي الأجهزة')}</div></div>
+      <div class="ps-item ${ps.expired>0?'ps-expired':'ps-active'}"><div class="ps-val">${ps.active}</div><div class="ps-lbl">${t('نشط /')} ${ps.expired} ${t('منتهي')}</div></div>
     </div>
     <div class="pane-hdr">
-      <span class="pane-title">قائمة البرامج</span>
-      <button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">+ برنامج جديد</button>
+      <span class="pane-title">${t('قائمة البرامج')}</span>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('+ برنامج جديد')}</button>
     </div>
     ${progs.length===0
       ?`<div class="empty">
           <div class="empty-icon">📦</div>
-          <div class="empty-text">لا توجد برامج مرتبطة بهذا العميل</div>
-          <button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">إضافة أول برنامج</button>
+          <div class="empty-text">${t('لا توجد برامج مرتبطة بهذا العميل')}</div>
+          <button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('إضافة أول برنامج')}</button>
         </div>`
       :progs.map(p=>`
         <div class="prog-card ${progStatusCls(p)}">
@@ -358,20 +360,20 @@ function renderPrograms(c){
             ${progTypeBdg(p.type)}
             <span class="bdg bdg-gr">${esc(p.platform)}</span>
           </div>
-          <div class="prog-installs">🖥 <strong>${p.installationsCount}</strong> جهاز مُرخَّص</div>
+          <div class="prog-installs">🖥 <strong>${p.installationsCount}</strong> ${t('جهاز مُرخَّص')}</div>
           <div class="prog-dates">
             <div class="prog-date-item">
-              <div class="prog-date-lbl">تاريخ البداية</div>
+              <div class="prog-date-lbl">${t('تاريخ البداية')}</div>
               <div class="prog-date-val">${fmtD(p.startDate)||'—'}</div>
             </div>
             <div class="prog-date-item">
-              <div class="prog-date-lbl">تاريخ الانتهاء</div>
-              <div class="prog-date-val ${!p.endDate?'muted':''}">${p.endDate?fmtD(p.endDate):'بدون انتهاء'}</div>
+              <div class="prog-date-lbl">${t('تاريخ الانتهاء')}</div>
+              <div class="prog-date-val ${!p.endDate?'muted':''}">${p.endDate?fmtD(p.endDate):t('بدون انتهاء')}</div>
             </div>
           </div>
           <div class="prog-acts">
-            <button class="btn btn-ghost btn-xs" onclick="editProg(${c.id},${p.id})">✏ تعديل</button>
-            <button class="btn btn-danger-soft btn-xs" onclick="delProgram(${c.id},${p.id})">حذف</button>
+            <button class="btn btn-ghost btn-xs" onclick="editProg(${c.id},${p.id})">✏ ${t('تعديل')}</button>
+            <button class="btn btn-danger-soft btn-xs" onclick="delProgram(${c.id},${p.id})">${t('حذف')}</button>
           </div>
         </div>`).join('')}`;
 }
@@ -753,10 +755,6 @@ export function renderGlobalIntelligence(){
 </div>`;
 }
 
-import { t } from '../utils/i18n.js';
-import { cOpts } from '../utils/index.js';
-import { getWilayasList } from '../utils/algeria.js';
-
 function renderAdvFilterPanel(){
   const cnt=countAdvFil();
   const wilayas=getWilayasList().map(w => w.name_ar); 
@@ -765,7 +763,7 @@ function renderAdvFilterPanel(){
     ?getActTypes(S.fActivity)
     :[...new Set(clients.map(c=>c.businessField).filter(Boolean))].sort();
   const programs=[...new Set(clients.flatMap(c=>(c.programs||[]).map(p=>p.programName)).filter(Boolean))].sort();
-  const opt=(arr,cur)=>`<option value="">${t('الكل')}</option>`+arr.map(v=>`<option value="${v}"${cur===v?' selected':''}>${v}</option>`).join('');
+  const opt=(arr,cur)=>`<option value="">${t('الكل')}</option>`+arr.map(v=>`<option value="${v}"${cur===v?' selected':''}>${t(v)}</option>`).join('');
   const totalFiltered=applyFilters(clients).length;
   
   const optW = () => `<option value="">${t('الكل')}</option>` + wOpts(S.fWilaya);
@@ -784,39 +782,40 @@ function renderAdvFilterPanel(){
       </select>
     </div>
     <div class="adf-group">
-      <div class="adf-lbl">النشاط الرئيسي</div>
+      <div class="adf-lbl">${t('النشاط الرئيسي')}</div>
       <select class="adf-sel${S.fActivity?' has-val':''}" onchange="setAdvFil('fActivity',this.value)">
-        ${`<option value="">${t('الكل')}</option>`+activities.map(a=>`<option value="${a}"${S.fActivity===a?' selected':''}>${activityIcon(a)} ${a}</option>`).join('')}
+        ${`<option value="">${t('الكل')}</option>`+activities.map(a=>`<option value="${a}"${S.fActivity===a?' selected':''}>${activityIcon(a)} ${t(a)}</option>`).join('')}
       </select>
     </div>
     <div class="adf-group">
-      <div class="adf-lbl">تخصص النشاط${S.fActivity?` (${S.fActivity})`:''}</div>
+      <div class="adf-lbl">${t('تخصص النشاط')}${S.fActivity?` (${t(S.fActivity)})`:''}</div>
       <select class="adf-sel${S.fActType?' has-val':''}" onchange="setAdvFil('fActType',this.value)">${opt(actTypes,S.fActType)}</select>
     </div>
     <div class="adf-group">
-      <div class="adf-lbl">البرنامج</div>
+      <div class="adf-lbl">${t('البرنامج')}</div>
       <select class="adf-sel${S.fProgram?' has-val':''}" onchange="setAdvFil('fProgram',this.value)">${opt(programs,S.fProgram)}</select>
     </div>
     <div class="adv-fil-footer">
-      <span class="adv-fil-summary">${cnt>0?`<strong>${totalFiltered}</strong> نتيجة بعد تطبيق ${cnt} فلتر`:`عرض جميع العملاء (${clients.length})`}</span>
-      ${cnt>0?`<button class="btn btn-ghost btn-xs" onclick="clearAdvFil()">✕ مسح الفلاتر</button>`:''}
+      <span class="adv-fil-summary">${cnt>0?`<strong>${totalFiltered}</strong> ${t('نتيجة لـ')} (${cnt} filters)`:`${t('جميع العملاء')} (${clients.length})`}</span>
+      ${cnt>0?`<button class="btn btn-ghost btn-xs" onclick="clearAdvFil()">✕ ${t('مسح الفلاتر')}</button>`:''}
     </div>
   </div>`;
 }
 
 function renderTimeline(c) {
   const list = S.clientActivities || [];
+  const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
   return `
     <div class="pane-hdr">
-      <span class="pane-title">الخط الزمني للنشاط (${list.length})</span>
-      <button class="btn btn-outline btn-sm" onclick="loadClientTimeline(${c.id})">🔄 تحديث</button>
+      <span class="pane-title">${t('الخط الزمني للنشاط')} (${list.length})</span>
+      <button class="btn btn-outline btn-sm" onclick="loadClientTimeline(${c.id})">${t('🔄 تحديث')}</button>
     </div>
     ${list.length === 0
-      ? `<div class="empty"><div class="empty-icon">⏱️</div><div class="empty-text">لا توجد أحداث مسجلة للعميل حتى الآن. سيتم تسجيل التفاعلات تلقائياً هنا.</div></div>`
+      ? `<div class="empty"><div class="empty-icon">⏱️</div><div class="empty-text">${t('لا توجد أحداث مسجلة للعميل حتى الآن. سيتم تسجيل التفاعلات تلقائياً هنا.')}</div></div>`
       : `<div class="timeline-v3" style="position:relative;padding-right:1.5rem;border-right:2px solid var(--border);margin-top:1.5rem;display:flex;flex-direction:column;gap:1.5rem">
           ${list.map((act) => {
             const vis = getActivityVisuals(act.type);
-            const dateStr = new Date(act.timestamp).toLocaleString('ar-DZ', {
+            const dateStr = new Date(act.timestamp).toLocaleString(locale, {
               day: 'numeric',
               month: 'short',
               year: 'numeric',
@@ -833,16 +832,16 @@ function renderTimeline(c) {
                 <div class="tl-v3-card" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:1rem;display:flex;flex-direction:column;gap:0.5rem">
                   <div style="display:flex;align-items:center;justify-content:between;gap:8px;flex-wrap:wrap">
                     <span class="bdg ${vis.colorClass}" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid transparent">
-                      ${vis.label}
+                      ${t(vis.label)}
                     </span>
                     <span style="font-size:11px;color:var(--t3);margin-right:auto" dir="ltr">
                       ${dateStr}
                     </span>
                   </div>
-                  <div style="font-size:13px;font-weight:700;color:var(--t1)">${esc(act.title)}</div>
-                  <div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(act.description)}</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--t1)">${esc(t(act.title))}</div>
+                  <div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(t(act.description))}</div>
                   ${act.actorEmail ? `<div style="font-size:10px;color:var(--t3);display:flex;align-items:center;gap:4px">
-                    <span>👤 المنفذ:</span>
+                    <span>👤 ${t('المنفذ:')}</span>
                     <strong>${esc(act.actorEmail)}</strong>
                   </div>` : ''}
                 </div>
@@ -855,194 +854,202 @@ function renderTimeline(c) {
 }
 
 export function renderDashboard() {
-  // Ensure dashboard state properties are initialized
-  S.dbFilterWilaya = S.dbFilterWilaya || 'all';
-  S.dbFilterProg = S.dbFilterProg || 'all';
-  S.dbFilterTier = S.dbFilterTier || 'all';
-  S.dbSearchQuery = S.dbSearchQuery || '';
-  S.dbSortKey = S.dbSortKey || 'score';
-  S.dbSortDir = S.dbSortDir || 'desc';
+  try {
+    // Ensure dashboard state properties are initialized
+    S.dbFilterWilaya = S.dbFilterWilaya || 'all';
+    S.dbFilterProg = S.dbFilterProg || 'all';
+    S.dbFilterTier = S.dbFilterTier || 'all';
+    S.dbSearchQuery = S.dbSearchQuery || '';
+    S.dbSortKey = S.dbSortKey || 'score';
+    S.dbSortDir = S.dbSortDir || 'desc';
 
-  // 1. Compute dynamic list of Wilayas and Licensed Programs for selection options
-  const uniqueWilayas = [...new Set(clients.map(c => c.wilaya).filter(Boolean))].sort();
-  const uniquePrograms = [...new Set(clients.flatMap(c => (c.programs || []).map(p => p.programName).filter(Boolean)))].sort();
+    // 0. Ensure safe clients array
+    const safeClients = Array.isArray(clients) ? clients.filter(c => c && typeof c === 'object') : [];
 
-  // Helper score categorization
-  function getScoreStyle(score) {
-    if (score >= 75) return { text: 'ممتاز', color: '#10B981', bg: 'rgba(16, 185, 129, 0.1)', border: '#10B981', class: 'excellent' };
-    if (score >= 50) return { text: 'مستقر', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.1)', border: '#3B82F6', class: 'good' };
-    if (score >= 25) return { text: 'متابعة', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.1)', border: '#F59E0B', class: 'warning' };
-    return { text: 'خطر عالي', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)', border: '#EF4444', class: 'critical' };
-  }
+    // 1. Compute dynamic list of Wilayas and Licensed Programs for selection options
+    const uniqueWilayas = [...new Set(safeClients.map(c => c.wilaya).filter(Boolean))].sort();
+    const uniquePrograms = [...new Set(safeClients.flatMap(c => (Array.isArray(c.programs) ? c.programs : []).map(p => p && p.programName).filter(Boolean)))].sort();
+
+    // Helper score categorization
+    function getScoreStyle(score) {
+      const s = Number(score) || 0;
+      if (s >= 75) return { text: 'ممتاز', color: '#10B981', bg: 'rgba(16, 185, 129, 0.1)', border: '#10B981', class: 'excellent' };
+      if (s >= 50) return { text: 'مستقر', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.1)', border: '#3B82F6', class: 'good' };
+      if (s >= 25) return { text: 'متابعة', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.1)', border: '#F59E0B', class: 'warning' };
+      return { text: 'خطر عالي', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)', border: '#EF4444', class: 'critical' };
+    }
 
     // 2. Filter clients based on dynamic interactive filters
-  let filteredClients = clients;
-  
-  if (S.dbSearchQuery) {
-    const searchResults = performSearch(S.dbSearchQuery);
-    if (searchResults) {
-      const matchedIds = new Set(searchResults.map(r => r.id));
-      filteredClients = filteredClients.filter(c => matchedIds.has(c.id));
-    }
-  }
-
-  filteredClients = filteredClients.filter(c => {
-    // Wilaya filter
-    if (S.dbFilterWilaya !== 'all' && c.wilaya !== S.dbFilterWilaya) return false;
-    // Licensed Program filter
-    if (S.dbFilterProg !== 'all') {
-      const hasProg = (c.programs || []).some(p => p.programName === S.dbFilterProg);
-      if (!hasProg) return false;
-    }
-    // Health Tier filter
-    if (S.dbFilterTier !== 'all') {
-      const score = computeScore(c).total;
-      const style = getScoreStyle(score);
-      if (style.class !== S.dbFilterTier) return false;
-    }
-    return true;
-  });
-
-  // 3. Sort clients based on sort criteria
-  const sortedClients = [...filteredClients].sort((a, b) => {
-    let valA, valB;
-    if (S.dbSortKey === 'name') {
-      valA = a.fullName || '';
-      valB = b.fullName || '';
-    } else if (S.dbSortKey === 'score') {
-      valA = computeScore(a).total;
-      valB = computeScore(b).total;
-    } else if (S.dbSortKey === 'programs') {
-      valA = (a.programs || []).length;
-      valB = (b.programs || []).length;
-    } else if (S.dbSortKey === 'issues') {
-      valA = (a.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-      valB = (b.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-    } else {
-      valA = computeScore(a).total;
-      valB = computeScore(b).total;
+    let filteredClients = safeClients;
+    
+    if (S.dbSearchQuery) {
+      try {
+        const searchResults = performSearch(S.dbSearchQuery);
+        if (searchResults && Array.isArray(searchResults)) {
+          const matchedIds = new Set(searchResults.filter(Boolean).map(r => r.id));
+          filteredClients = filteredClients.filter(c => c && matchedIds.has(c.id));
+        }
+      } catch (err) {
+        console.warn("Dashboard performSearch failed:", err);
+      }
     }
 
-    if (valA < valB) return S.dbSortDir === 'asc' ? -1 : 1;
-    if (valA > valB) return S.dbSortDir === 'asc' ? 1 : -1;
-    return 0;
-  });
+    filteredClients = filteredClients.filter(c => {
+      if (!c) return false;
+      // Wilaya filter
+      if (S.dbFilterWilaya && S.dbFilterWilaya !== 'all' && c.wilaya !== S.dbFilterWilaya) return false;
+      // Licensed Program filter
+      if (S.dbFilterProg && S.dbFilterProg !== 'all') {
+        const hasProg = (Array.isArray(c.programs) ? c.programs : []).some(p => p && p.programName === S.dbFilterProg);
+        if (!hasProg) return false;
+      }
+      // Health Tier filter
+      if (S.dbFilterTier && S.dbFilterTier !== 'all') {
+        const score = (computeScore(c) || {}).total ?? 0;
+        const style = getScoreStyle(score);
+        if (style.class !== S.dbFilterTier) return false;
+      }
+      return true;
+    });
 
-  // 4. Compute statistics for current filtered list of clients
-  const totalFilteredCount = filteredClients.length;
-  const avgFilteredScore = totalFilteredCount ? Math.round(filteredClients.reduce((sum, c) => sum + computeScore(c).total, 0) / totalFilteredCount) : 0;
-  const totalFilteredInstalls = filteredClients.reduce((sum, c) => sum + (c.programs || []).reduce((pSum, p) => pSum + (Number(p.installationsCount) || 1), 0), 0);
-  const totalFilteredIssues = filteredClients.reduce((sum, c) => sum + (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length, 0);
+    // 3. Sort clients based on sort criteria
+    const sortedClients = [...filteredClients].sort((a, b) => {
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
+      let valA, valB;
+      if (S.dbSortKey === 'name') {
+        valA = (a.fullName || '').toLowerCase();
+        valB = (b.fullName || '').toLowerCase();
+      } else if (S.dbSortKey === 'score') {
+        valA = (computeScore(a) || {}).total ?? 0;
+        valB = (computeScore(b) || {}).total ?? 0;
+      } else if (S.dbSortKey === 'programs') {
+        valA = (Array.isArray(a.programs) ? a.programs : []).length;
+        valB = (Array.isArray(b.programs) ? b.programs : []).length;
+      } else if (S.dbSortKey === 'issues') {
+        valA = (Array.isArray(a.issues) ? a.issues : []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
+        valB = (Array.isArray(b.issues) ? b.issues : []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
+      } else {
+        valA = (computeScore(a) || {}).total ?? 0;
+        valB = (computeScore(b) || {}).total ?? 0;
+      }
 
-  // Health Tier distributions (filtered)
-  const tierExcellent = filteredClients.filter(c => computeScore(c).total >= 75);
-  const tierGood = filteredClients.filter(c => { const s = computeScore(c).total; return s >= 50 && s < 75; });
-  const tierWarning = filteredClients.filter(c => { const s = computeScore(c).total; return s >= 25 && s < 50; });
-  const tierCritical = filteredClients.filter(c => computeScore(c).total < 25);
+      if (valA < valB) return S.dbSortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return S.dbSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
 
-  const pctExcellent = Math.round((tierExcellent.length / (totalFilteredCount || 1)) * 100);
-  const pctGood = Math.round((tierGood.length / (totalFilteredCount || 1)) * 100);
-  const pctWarning = Math.round((tierWarning.length / (totalFilteredCount || 1)) * 100);
-  const pctCritical = Math.round((tierCritical.length / (totalFilteredCount || 1)) * 100);
+    // 4. Compute statistics for current filtered list of clients
+    const totalFilteredCount = filteredClients.length;
+    const avgFilteredScore = totalFilteredCount ? Math.round(filteredClients.reduce((sum, c) => sum + ((computeScore(c) || {}).total ?? 0), 0) / totalFilteredCount) : 0;
+    const totalFilteredInstalls = filteredClients.reduce((sum, c) => {
+      const progs = Array.isArray(c?.programs) ? c.programs : [];
+      return sum + progs.reduce((pSum, p) => pSum + (Number(p?.installationsCount) || 1), 0);
+    }, 0);
+    const totalFilteredIssues = filteredClients.reduce((sum, c) => {
+      const issues = Array.isArray(c?.issues) ? c.issues : [];
+      return sum + issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
+    }, 0);
 
-  // Regional (Wilayas) distribution for filtered clients
-  const wilayaCounts = {};
-  filteredClients.forEach(c => {
-    if (c.wilaya) {
-      wilayaCounts[c.wilaya] = (wilayaCounts[c.wilaya] || 0) + 1;
-    }
-  });
-  const sortedWilayas = Object.entries(wilayaCounts)
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+    // Health Tier distributions (filtered)
+    const tierExcellent = filteredClients.filter(c => ((computeScore(c) || {}).total ?? 0) >= 75);
+    const tierGood = filteredClients.filter(c => { const s = (computeScore(c) || {}).total ?? 0; return s >= 50 && s < 75; });
+    const tierWarning = filteredClients.filter(c => { const s = (computeScore(c) || {}).total ?? 0; return s >= 25 && s < 50; });
+    const tierCritical = filteredClients.filter(c => ((computeScore(c) || {}).total ?? 0) < 25);
 
-  // Program licensing distribution for filtered clients
-  const programCounts = {};
-  const programInstalls = {};
-  filteredClients.forEach(c => {
-    (c.programs || []).forEach(p => {
-      if (p.programName) {
-        programCounts[p.programName] = (programCounts[p.programName] || 0) + 1;
-        programInstalls[p.programName] = (programInstalls[p.programName] || 0) + (Number(p.installationsCount) || 1);
+    const pctExcellent = Math.round((tierExcellent.length / (totalFilteredCount || 1)) * 100);
+    const pctGood = Math.round((tierGood.length / (totalFilteredCount || 1)) * 100);
+    const pctWarning = Math.round((tierWarning.length / (totalFilteredCount || 1)) * 100);
+    const pctCritical = Math.round((tierCritical.length / (totalFilteredCount || 1)) * 100);
+
+    // Regional (Wilayas) distribution for filtered clients
+    const wilayaCounts = {};
+    filteredClients.forEach(c => {
+      if (c && c.wilaya) {
+        wilayaCounts[c.wilaya] = (wilayaCounts[c.wilaya] || 0) + 1;
       }
     });
-  });
-  const sortedPrograms = Object.entries(programCounts)
-    .map(([name, count]) => ({ name, count, installs: programInstalls[name] || 0 }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+    const sortedWilayas = Object.entries(wilayaCounts)
+      .map(([name, count]) => ({ name, count: count || 0 }))
+      .sort((a, b) => (b.count || 0) - (a.count || 0))
+      .slice(0, 5);
 
-  // 5. Generate AI Smart Sentinel Advisor Alerts (filtered)
-  const recs = [];
-  filteredClients.forEach(c => {
-    const rp = computeRiskProfile(c);
-    const sc = computeScore(c);
-    
-    // Expired or expiring contract
-    if (c.endDate) {
-      const dl = Math.floor((new Date(c.endDate+'T00:00').getTime() - Date.now()) / 86400000);
-      if (dl < 0 && c.status === 'نشط') {
-        recs.push({
-          type: 'danger',
-          icon: '📅',
-          title: `عقد منتهي للعميل "${c.fullName}"`,
-          desc: `انتهى العقد بتاريخ ${fmtD(c.endDate)} والعميل لا يزال مسجلاً بنظام التشغيل "نشط". يرجى اتخاذ إجراء للتجديد السريع.`,
-          clientId: c.id
-        });
-      } else if (dl >= 0 && dl <= 15) {
-        recs.push({
-          type: 'warning',
-          icon: '⏳',
-          title: `قرب انتهاء عقد "${c.fullName}"`,
-          desc: `ينتهي عقد الشريك خلال ${dl} أيام فقط (تاريخ الانتهاء: ${fmtD(c.endDate)}). يوصى بإعداد مسودة التجديد والاتصال به.`,
-          clientId: c.id
-        });
-      }
-    }
-    
-    // High risk level or critical health score
-    if (rp.level === 'high') {
-      recs.push({
-        type: 'danger',
-        icon: '🚨',
-        title: `ملف خطر عالي للعميل "${c.fullName}"`,
-        desc: `تراجع مؤشر الصحة لمستوى حرج (${sc.total}/100). المسببات النشطة: ${rp.risks.join(' ، ')}.`,
-        clientId: c.id
+    // Program licensing distribution for filtered clients
+    const programCounts = {};
+    const programInstalls = {};
+    filteredClients.forEach(c => {
+      if (!c) return;
+      (Array.isArray(c.programs) ? c.programs : []).forEach(p => {
+        if (p && p.programName) {
+          programCounts[p.programName] = (programCounts[p.programName] || 0) + 1;
+          programInstalls[p.programName] = (programInstalls[p.programName] || 0) + (Number(p.installationsCount) || 1);
+        }
       });
-    }
+    });
+    const sortedPrograms = Object.entries(programCounts)
+      .map(([name, count]) => ({ name, count: count || 0, installs: programInstalls[name] || 0 }))
+      .sort((a, b) => (b.count || 0) - (a.count || 0))
+      .slice(0, 5);
 
-    // High support tickets overload
-    const openUrgent = (c.issues || []).filter(i => i.priority === 'عاجل' && (i.status === 'مفتوح' || i.status === 'قيد المعالجة'));
-    if (openUrgent.length > 0) {
-      recs.push({
-        type: 'urgent',
-        icon: '⚡',
-        title: `مشاكل عاجلة معلقة لـ "${c.fullName}"`,
-        desc: `يوجد لدى العميل تذاكر معلقة ذات أولوية عالية تتطلب تدخلاً سريعاً: "${openUrgent[0].title}".`,
-        clientId: c.id
-      });
-    }
+    // 5. Generate AI Smart Sentinel Advisor Alerts (filtered)
+    const recs = [];
+    filteredClients.forEach(c => {
+      if (!c) return;
+      try {
+        const rp = computeRiskProfile(c) || { level: 'low', risks: [] };
+        const sc = computeScore(c) || { total: 0 };
+        
+        // Expired or expiring contract
+        if (c.endDate) {
+          try {
+            const endDateTimestamp = new Date(c.endDate + 'T00:00').getTime();
+            if (!isNaN(endDateTimestamp)) {
+              const dl = Math.floor((endDateTimestamp - Date.now()) / 86400000);
+              if (dl < 0 && c.status === 'نشط') {
+                recs.push({
+                  type: 'danger',
+                  icon: '📅',
+                  title: S.lang === 'fr' ? `Contrat expiré pour "${c.fullName || ''}"` : S.lang === 'en' ? `Expired contract for "${c.fullName || ''}"` : `عقد منتهي للعميل "${c.fullName || ''}"`,
+                  desc: S.lang === 'fr' ? `Le contrat a expiré le ${fmtD(c.endDate)} alors que le statut est actif.` : S.lang === 'en' ? `Contract expired on ${fmtD(c.endDate)} while status is active.` : `انتهى العقد بتاريخ ${fmtD(c.endDate)} والعميل لا يزال مسجلاً بنظام التشغيل "نشط". يرجى اتخاذ إجراء للتجديد السريع.`,
+                  clientId: c.id
+                });
+              } else if (dl >= 0 && dl <= 15) {
+                recs.push({
+                  type: 'warning',
+                  icon: '⏳',
+                  title: S.lang === 'fr' ? `Expiration proche pour "${c.fullName || ''}"` : S.lang === 'en' ? `Contract expiring soon for "${c.fullName || ''}"` : `قرب انتهاء عقد "${c.fullName || ''}"`,
+                  desc: S.lang === 'fr' ? `Le contrat expire dans ${dl} jours (${fmtD(c.endDate)}).` : S.lang === 'en' ? `Contract expires in ${dl} days (${fmtD(c.endDate)}).` : `ينتهي العقد خلال ${dl} يوماً (بتاريخ ${fmtD(c.endDate)}). ينصح بالتواصل للتجديد.`,
+                  clientId: c.id
+                });
+              }
+            }
+          } catch (eDate) {}
+        }
 
-    // No communication for long periods of time
-    if (c.lastContact && c.status === 'نشط') {
-      const ds = Math.floor((Date.now() - new Date(c.lastContact+'T00:00').getTime()) / 86400000);
-      if (ds >= 45) {
-        recs.push({
-          type: 'info',
-          icon: '📞',
-          title: `انقطاع تواصل مع العميل "${c.fullName}"`,
-          desc: `مضى أكثر من ${ds} يوماً دون تسجيل أي نشاط أو مكالمة تواصل مع العميل. يوصى بإجراء تواصل دوري سريع.`,
-          clientId: c.id
-        });
-      }
-    }
-  });
+        // Critical support issues or high operational risk
+        const urgentIssues = (Array.isArray(c.issues) ? c.issues : []).filter(i => i && i.priority === 'عاجل' && (i.status === 'مفتوح' || i.status === 'قيد المعالجة'));
+        if (urgentIssues.length > 0) {
+          recs.push({
+            type: 'urgent',
+            icon: '⚡',
+            title: S.lang === 'fr' ? `Tickets urgents (${c.fullName || ''})` : S.lang === 'en' ? `Urgent tickets (${c.fullName || ''})` : `طلبات فنية عاجلة (${c.fullName || ''})`,
+            desc: S.lang === 'fr' ? `${urgentIssues.length} tickets urgents nécessitent une intervention immédiate.` : S.lang === 'en' ? `${urgentIssues.length} urgent tickets require immediate action.` : `توجد ${urgentIssues.length} تذكرة دعم فني ذات أولوية عاجلة معلقة تتطلب التدخل الفوري.`,
+            clientId: c.id
+          });
+        } else if (sc.total < 35) {
+          recs.push({
+            type: 'warning',
+            icon: '⚠️',
+            title: S.lang === 'fr' ? `Indice faible (${c.fullName || ''})` : S.lang === 'en' ? `Low health index (${c.fullName || ''})` : `مؤشر صحة منخفض (${c.fullName || ''})`,
+            desc: S.lang === 'fr' ? `Score de santé opérationnel faible (${sc.total}%).` : S.lang === 'en' ? `Operational health score is low (${sc.total}%).` : `مؤشر السلامة التشغيلية منخفض (${sc.total}%). ينصح بمراجعة البرامج والتواصل مع الشريك.`,
+            clientId: c.id
+          });
+        }
+      } catch (eRec) {}
+    });
 
-  // Sort recommendations so danger displays first
-  const rank = { danger: 1, urgent: 2, warning: 3, info: 4 };
-  recs.sort((a, b) => rank[a.type] - rank[b.type]);
-  const visibleRecs = recs.slice(0, 6);
+    const visibleRecs = recs.slice(0, 6);
 
   // Sorting columns helper to show visual arrows
   function getSortIndicator(key) {
@@ -1061,355 +1068,189 @@ export function renderDashboard() {
     R();
   };
 
-  // HTML Rendering
-  window.__dashboardFilteredClients = filteredClients;
+  window.__dashboardFilteredClients = sortedClients;
 
-  if (clients.length === 0) {
-    return `
-      <style>
-        @keyframes floatDash {
-          0% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-          100% { transform: translateY(0px); }
-        }
-      </style>
-      <div class="dashboard-wrapper" style="display:flex; flex-direction:column; gap:1.5rem; text-align:center; min-height:60vh; justify-content:center; align-items:center;">
-        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:3rem 2rem; max-width:500px; width:100%; box-shadow:0 10px 25px rgba(0,0,0,0.05);">
-          <div style="font-size:64px; margin-bottom:1rem; animation: floatDash 3s ease-in-out infinite;">✨</div>
-          <h2 style="color:var(--t1); font-size:24px; font-weight:800; margin-bottom:0.75rem;">أهلاً بك في منصة إدارة العملاء</h2>
-          <p style="color:var(--t3); font-size:14px; line-height:1.6; margin-bottom:2rem;">
-            تبدو لوحة التحكم فارغة حالياً. ابدأ بإضافة أول عميل لك لتتمكن من تتبع البرامج، التراخيص، وإدارة تذاكر الدعم الفني بكل سهولة.
-          </p>
-          <button class="btn btn-primary" onclick="openModal('addClient')" style="padding:12px 24px; font-size:15px; border-radius:12px; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 14px rgba(139, 92, 246, 0.4);">
-            <span>+</span>
-            <span>ابدأ بإضافة أول عميل</span>
-          </button>
-        </div>
-      </div>
-    `;
-  }
-  
   return `
-    <div class="dashboard-wrapper" style="display:flex; flex-direction:column; gap:1.5rem; text-align:right;">
+    <div class="dashboard-wrapper" style="display:flex; flex-direction:column; gap:1.25rem; text-align:${S.lang === 'ar' ? 'right' : 'left'};">
       
-      <!-- HEADER PARTNER WELCOME BANNER -->
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; border-bottom:1px solid var(--border); padding-bottom:1.25rem; margin-bottom:0.25rem">
-        <div style="display:flex; align-items:center; gap:14px">
-          <div style="width:54px; height:54px; border-radius:16px; background:linear-gradient(135deg, var(--dash-p) 0%, #EC4899 100%); display:flex; align-items:center; justify-content:center; color:#fff; font-size:20px; font-weight:800; box-shadow:0 6px 16px rgba(139, 92, 246, 0.25)">
-            ${(S.currentUser?.email || 'A').charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <h1 style="font-size:22px; font-weight:800; color:var(--t1); margin:0; display:flex; align-items:center; gap:8px">
-              <span>مرحباً بك مجدداً،</span>
-              <span style="color:var(--dash-p)">${esc((S.currentUser?.email || 'المشرف').split('@')[0])}</span>
+      <!-- CLEAN HEADER -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--border); padding-bottom:1rem">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px">
+            <h1 style="font-size:22px; font-weight:800; color:var(--t1); margin:0">
+              ${t('لوحة القيادة')}
             </h1>
-            <p style="font-size:12.5px; color:var(--t3); margin:4px 0 0 0">
-              مراقبة وتحليل فوري لمؤشرات الصحة، التراخيص الفعالة للعملاء، والتمركز الإقليمي.
-            </p>
+            <span class="copilot-badge" style="font-size:11px; padding:3px 10px">
+              <span>✨</span> Copilot AI
+            </span>
           </div>
+          <p style="font-size:12.5px; color:var(--t3); margin:2px 0 0 0">
+            ${esc((S.currentUser?.email || 'المشرف').split('@')[0])} • ${t('نظرة عامة')}
+          </p>
         </div>
         
-        <div style="display:flex; gap:10px; flex-wrap:wrap">
-          <button class="btn btn-outline" onclick="exportToCSV()" style="font-size:12px; padding:8px 14px; display:flex; align-items:center; gap:6px; border-radius:12px">
-            <span>📥</span> تصدير البيانات (CSV)
+        <div style="display:flex; gap:8px; align-items:center">
+          <button class="btn btn-outline" onclick="exportToCSV()" style="font-size:12px; padding:7px 14px; border-radius:10px; font-weight:700">
+            <span>📥</span> ${t('تصدير البيانات')}
           </button>
-          <button class="btn" onclick="resetDbFilters()" style="font-size:12px; padding:8px 14px; display:flex; align-items:center; gap:6px; background:var(--border-soft); border:1px solid var(--border); color:var(--t2); border-radius:12px">
-            <span>🧹</span> إعادة ضبط التصفية
+          <button class="btn" onclick="resetDbFilters()" style="font-size:12px; padding:7px 14px; background:var(--border-soft); border:1px solid var(--border); color:var(--t2); border-radius:10px; font-weight:700">
+            <span>🔄</span> ${t('إعادة ضبط')}
           </button>
         </div>
       </div>
 
-      <!-- INTERACTIVE FILTERS PANEL (Bento-style Ribbon) -->
-      <div class="dash-v-card dash-glow-purple" style="padding:1.25rem; margin-bottom:0.25rem">
-        <div style="font-size:13px; font-weight:800; color:var(--dash-p); margin-bottom:0.85rem; display:flex; align-items:center; gap:8px">
-          <span>🔍</span> فلاتر تصفية حية للبيانات وأدوات الفرز التفاعلي
+      <!-- COPILOT BRIEFING & FILTER CHIPS -->
+      <div class="copilot-hero" style="padding:1.1rem 1.25rem">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
+          <div style="flex:1; min-width:260px">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px">
+              <span style="font-size:15px">✨</span>
+              <strong style="font-size:14px; color:var(--t1)">Copilot:</strong>
+            </div>
+            <div style="font-size:13px; color:var(--t2); line-height:1.6">
+              <strong>${totalFilteredCount}</strong> ${t('العملاء')} · <strong style="color:#10B981">${avgFilteredScore}%</strong> · <strong>${totalFilteredInstalls}</strong> ${t('الأجهزة المرخصة')}. 
+              ${tierCritical.length > 0 
+                ? `<span style="color:#EF4444; font-weight:700">⚠️ (${tierCritical.length})</span>` 
+                : `<span style="color:#10B981; font-weight:700">✔</span>`
+              }
+            </div>
+          </div>
+
+          <!-- Quick Filter Chips -->
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center">
+            <button class="copilot-chip" style="font-size:11px; padding:4px 10px" onclick="setDbFilter('dbFilterTier', 'all')">
+              ${t('الكل')} (${totalFilteredCount})
+            </button>
+            <button class="copilot-chip" style="font-size:11px; padding:4px 10px; color:#10B981" onclick="setDbFilter('dbFilterTier', 'excellent')">
+              🌟 (${tierExcellent.length})
+            </button>
+            <button class="copilot-chip" style="font-size:11px; padding:4px 10px; color:#F59E0B" onclick="setDbFilter('dbFilterTier', 'warning')">
+              ⚠️ (${tierWarning.length})
+            </button>
+            ${tierCritical.length > 0 ? `
+              <button class="copilot-chip" style="font-size:11px; padding:4px 10px; color:#EF4444" onclick="setDbFilter('dbFilterTier', 'critical')">
+                🚨 (${tierCritical.length})
+              </button>
+            ` : ''}
+          </div>
         </div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px">
+      </div>
+
+      <!-- APPLE BENTO KPI TILES GRID -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem">
+        
+        <!-- Tile 1: Target Clients -->
+        <div class="dash-v-card" style="padding:1rem">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <span style="font-size:12px; font-weight:700; color:var(--t3)">${t('إجمالي العملاء')}</span>
+            <span style="font-size:15px; background:var(--dash-p-glow); color:var(--dash-p); padding:6px; border-radius:10px">👥</span>
+          </div>
+          <div style="font-size:24px; font-weight:800; color:var(--t1)">${totalFilteredCount}</div>
+          <div style="font-size:11px; color:var(--t3); margin-top:4px">
+            ${t('نشط')}: <strong style="color:var(--t1)">${filteredClients.filter(c => c.status === 'نشط').length}</strong>
+          </div>
+        </div>
+
+        <!-- Tile 2: Health Index -->
+        <div class="dash-v-card" style="padding:1rem">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <span style="font-size:12px; font-weight:700; color:var(--t3)">${t('مؤشر السلامة العامة')}</span>
+            <span style="font-size:15px; background:rgba(16, 185, 129, 0.12); color:#10B981; padding:6px; border-radius:10px">❤️</span>
+          </div>
+          <div style="font-size:24px; font-weight:800; color:#10B981">${avgFilteredScore}%</div>
+          <div style="font-size:11px; color:var(--t3); margin-top:4px">
+            ${t('نقاط الصحة والتشغيل')}
+          </div>
+        </div>
+
+        <!-- Tile 3: Licensed Devices -->
+        <div class="dash-v-card" style="padding:1rem">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <span style="font-size:12px; font-weight:700; color:var(--t3)">${t('الأجهزة المرخصة')}</span>
+            <span style="font-size:15px; background:rgba(59, 130, 246, 0.12); color:#3B82F6; padding:6px; border-radius:10px">💻</span>
+          </div>
+          <div style="font-size:24px; font-weight:800; color:#3B82F6">${totalFilteredInstalls}</div>
+          <div style="font-size:11px; color:var(--t3); margin-top:4px">
+            ${t('تراخيص فعالة')}
+          </div>
+        </div>
+
+        <!-- Tile 4: Support tickets -->
+        <div class="dash-v-card" style="padding:1rem">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <span style="font-size:12px; font-weight:700; color:var(--t3)">${t('الطلبات المعلقة')}</span>
+            <span style="font-size:15px; background:rgba(239, 68, 68, 0.12); color:#EF4444; padding:6px; border-radius:10px">⚠️</span>
+          </div>
+          <div style="font-size:24px; font-weight:800; color:${totalFilteredIssues > 0 ? '#EF4444' : '#10B981'}">${totalFilteredIssues}</div>
+          <div style="font-size:11px; color:var(--t3); margin-top:4px">
+            ${t('المشاكل المفتوحة')}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RECHARTS CHART AREA -->
+      <div class="dash-v-card" style="padding:1.25rem">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem">
+          <div>
+            <h3 style="font-size:15px; font-weight:800; color:var(--t1); margin:0">
+              📈 ${S.lang === 'fr' ? 'Évolution des licences et tickets' : S.lang === 'en' ? 'License & Support Ticket Activity' : 'حركية التراخيص والطلبات الفنية'}
+            </h3>
+          </div>
           
-          <!-- Filter 1: Wilaya -->
-          <div style="display:flex; flex-direction:column; gap:5px">
-            <label style="font-size:11px; font-weight:700; color:var(--t3)">📍 الولاية الجغرافية</label>
-            <select class="premium-select" onchange="setDbFilter('dbFilterWilaya', this.value)">
-              <option value="all" ${S.dbFilterWilaya === 'all' ? 'selected' : ''}>كل الولايات الجغرافية (${uniqueWilayas.length})</option>
+          <div style="display:flex; gap:14px; font-size:11.5px; font-weight:700">
+            <div style="display:flex; align-items:center; gap:6px">
+              <span style="width:10px; height:10px; background:#8B5CF6; border-radius:50%"></span>
+              <span style="color:var(--t2)">${t('البرامج')}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px">
+              <span style="width:10px; height:10px; background:#EC4899; border-radius:50%"></span>
+              <span style="color:var(--t2)">${t('تذاكر الدعم')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="recharts-chart-container" style="width:100%; height:200px; direction: ltr;">
+          <div style="display:flex; justify-content:center; align-items:center; height:100%; color:var(--t3); font-size:12px;">
+            ${S.lang === 'fr' ? 'Chargement des graphiques...' : S.lang === 'en' ? 'Loading charts...' : 'جاري تحميل البيانات...'}
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPACT SEARCH & FILTER RIBBON -->
+      <div class="dash-v-card" style="padding:1rem">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px">
+          
+          <div>
+            <label style="font-size:11px; font-weight:700; color:var(--t3); display:block; margin-bottom:4px">📍 ${t('الولاية')}</label>
+            <select class="premium-select" style="padding:6px 10px; font-size:12px" onchange="setDbFilter('dbFilterWilaya', this.value)">
+              <option value="all" ${S.dbFilterWilaya === 'all' ? 'selected' : ''}>${t('جميع الولايات')} (${uniqueWilayas.length})</option>
               ${uniqueWilayas.map(w => `<option value="${w}" ${S.dbFilterWilaya === w ? 'selected' : ''}>${w}</option>`).join('')}
             </select>
           </div>
 
-          <!-- Filter 2: Program licensed -->
-          <div style="display:flex; flex-direction:column; gap:5px">
-            <label style="font-size:11px; font-weight:700; color:var(--t3)">💻 فئة الترخيص النشط</label>
-            <select class="premium-select" onchange="setDbFilter('dbFilterProg', this.value)">
-              <option value="all" ${S.dbFilterProg === 'all' ? 'selected' : ''}>كل البرامج المرخصة (${uniquePrograms.length})</option>
+          <div>
+            <label style="font-size:11px; font-weight:700; color:var(--t3); display:block; margin-bottom:4px">💻 ${t('البرامج المرخصة')}</label>
+            <select class="premium-select" style="padding:6px 10px; font-size:12px" onchange="setDbFilter('dbFilterProg', this.value)">
+              <option value="all" ${S.dbFilterProg === 'all' ? 'selected' : ''}>${t('جميع البرامج')} (${uniquePrograms.length})</option>
               ${uniquePrograms.map(p => `<option value="${p}" ${S.dbFilterProg === p ? 'selected' : ''}>${p}</option>`).join('')}
             </select>
           </div>
 
-          <!-- Filter 3: Health Tier -->
-          <div style="display:flex; flex-direction:column; gap:5px">
-            <label style="font-size:11px; font-weight:700; color:var(--t3)">🛡️ مؤشر السلامة والأداء</label>
-            <select class="premium-select" onchange="setDbFilter('dbFilterTier', this.value)">
-              <option value="all" ${S.dbFilterTier === 'all' ? 'selected' : ''}>جميع مستويات الصحة</option>
-              <option value="excellent" ${S.dbFilterTier === 'excellent' ? 'selected' : ''}>🌟 ممتاز (75 - 100)</option>
-              <option value="good" ${S.dbFilterTier === 'good' ? 'selected' : ''}>👍 مستقر (50 - 74)</option>
-              <option value="warning" ${S.dbFilterTier === 'warning' ? 'selected' : ''}>⚠️ متابعة لازمة (25 - 49)</option>
-              <option value="critical" ${S.dbFilterTier === 'critical' ? 'selected' : ''}>🚨 خطر مرتفع (0 - 24)</option>
+          <div>
+            <label style="font-size:11px; font-weight:700; color:var(--t3); display:block; margin-bottom:4px">🛡️ ${t('مؤشر السلامة العامة')}</label>
+            <select class="premium-select" style="padding:6px 10px; font-size:12px" onchange="setDbFilter('dbFilterTier', this.value)">
+              <option value="all" ${S.dbFilterTier === 'all' ? 'selected' : ''}>${t('جميع الفئات')}</option>
+              <option value="excellent" ${S.dbFilterTier === 'excellent' ? 'selected' : ''}>🌟 ${t('ممتاز')} (75 - 100)</option>
+              <option value="good" ${S.dbFilterTier === 'good' ? 'selected' : ''}>👍 ${t('مستقر')} (50 - 74)</option>
+              <option value="warning" ${S.dbFilterTier === 'warning' ? 'selected' : ''}>⚠️ ${t('متابعة')} (25 - 49)</option>
+              <option value="critical" ${S.dbFilterTier === 'critical' ? 'selected' : ''}>🚨 ${t('خطر')} (0 - 24)</option>
             </select>
           </div>
 
-          <!-- Filter 4: Search input -->
-          <div style="display:flex; flex-direction:column; gap:5px">
-            <label style="font-size:11px; font-weight:700; color:var(--t3)">✍️ بحث سريع ومباشر</label>
-            <div style="position:relative; display:flex; align-items:center">
-              <input type="text" class="premium-search" style="margin:0" placeholder="ابحث باسم الشريك أو الشركة..." value="${esc(S.dbSearchQuery)}" oninput="setDbFilter('dbSearchQuery', this.value)">
-              ${S.dbSearchQuery ? `
-                <span style="position:absolute; left:12px; cursor:pointer; color:var(--t3); font-weight:700" onclick="setDbFilter('dbSearchQuery', '')">×</span>
-              ` : `
-                <span style="position:absolute; left:12px; color:var(--t3); font-size:12px">🔍</span>
-              `}
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- PREMIUM BENTO KPI TILES GRID WITH SPARKLINE GRAPHS -->
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:1.25rem">
-        
-        <!-- Tile 1: Target Clients (Violet Glow) -->
-        <div class="dash-v-card dash-glow-purple" style="display:flex; flex-direction:column; justify-content:space-between">
           <div>
-            <div style="display:flex; justify-content:space-between; align-items:center">
-              <span style="font-size:12px; font-weight:700; color:var(--t3)">العملاء المصفّون</span>
-              <span style="font-size:16px; background:var(--dash-p-glow); color:var(--dash-p); padding:6px; border-radius:8px">👥</span>
-            </div>
-            
-            <div class="kpi-spark-container">
-              <div class="kpi-spark-meta">
-                <span class="kpi-spark-val">${totalFilteredCount}</span>
-                <span class="kpi-spark-change up">
-                  <span>من ${clients.length} إجمالي</span>
-                </span>
-              </div>
-              
-              <!-- Sparkline SVG -->
-              <svg viewBox="0 0 100 35" class="kpi-spark-chart">
-                <defs>
-                  <linearGradient id="g-purple" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.3"/>
-                    <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.0"/>
-                  </linearGradient>
-                </defs>
-                <path d="M 0 35 L 0 25 Q 15 10 30 20 T 60 5 T 90 15 T 100 8 L 100 35 Z" fill="url(#g-purple)" />
-                <path d="M 0 25 Q 15 10 30 20 T 60 5 T 90 15 T 100 8" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" />
-              </svg>
-            </div>
-          </div>
-          <div style="font-size:11px; color:var(--t2); border-top:1px solid var(--border-soft); margin-top:10px; padding-top:8px">
-            <span>•</span> النشطون تشغيلياً: <strong>${filteredClients.filter(c => c.status === 'نشط').length}</strong> شريك فعال
-          </div>
-        </div>
-
-        <!-- Tile 2: Health Index (Green Glow) -->
-        <div class="dash-v-card dash-glow-blue" style="display:flex; flex-direction:column; justify-content:space-between">
-          <div>
-            <div style="display:flex; justify-content:space-between; align-items:center">
-              <span style="font-size:12px; font-weight:700; color:var(--t3)">مؤشر السلامة العام</span>
-              <span style="font-size:16px; background:rgba(16, 185, 129, 0.1); color:#10B981; padding:6px; border-radius:8px">❤️</span>
-            </div>
-            
-            <div class="kpi-spark-container">
-              <div class="kpi-spark-meta">
-                <span class="kpi-spark-val" style="color:#10B981">${avgFilteredScore}%</span>
-                <span class="kpi-spark-change up">
-                  <span>امتثال ممتاز</span>
-                </span>
-              </div>
-              
-              <!-- Sparkline SVG -->
-              <svg viewBox="0 0 100 35" class="kpi-spark-chart">
-                <defs>
-                  <linearGradient id="g-green" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#10B981" stop-opacity="0.3"/>
-                    <stop offset="100%" stop-color="#10B981" stop-opacity="0.0"/>
-                  </linearGradient>
-                </defs>
-                <path d="M 0 35 L 0 18 Q 20 28 40 10 T 80 15 T 100 5 L 100 35 Z" fill="url(#g-green)" />
-                <path d="M 0 18 Q 20 28 40 10 T 80 15 T 100 5" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" />
-              </svg>
-            </div>
-          </div>
-          <div style="font-size:11px; color:var(--t2); border-top:1px solid var(--border-soft); margin-top:10px; padding-top:8px">
-            مستوى رضا واعتمادية تشغيلية مرتفعة جداً
-          </div>
-        </div>
-
-        <!-- Tile 3: Licensed Devices (Blue Glow) -->
-        <div class="dash-v-card dash-glow-blue" style="display:flex; flex-direction:column; justify-content:space-between">
-          <div>
-            <div style="display:flex; justify-content:space-between; align-items:center">
-              <span style="font-size:12px; font-weight:700; color:var(--t3)">إجمالي التراخيص النشطة</span>
-              <span style="font-size:16px; background:rgba(59, 130, 246, 0.1); color:#3B82F6; padding:6px; border-radius:8px">💻</span>
-            </div>
-            
-            <div class="kpi-spark-container">
-              <div class="kpi-spark-meta">
-                <span class="kpi-spark-val" style="color:#3B82F6">${totalFilteredInstalls}</span>
-                <span class="kpi-spark-change up">
-                  <span>جهاز مرخص</span>
-                </span>
-              </div>
-              
-              <!-- Sparkline SVG -->
-              <svg viewBox="0 0 100 35" class="kpi-spark-chart">
-                <defs>
-                  <linearGradient id="g-blue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.3"/>
-                    <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.0"/>
-                  </linearGradient>
-                </defs>
-                <path d="M 0 35 L 0 30 Q 25 5 50 22 T 85 10 T 100 15 L 100 35 Z" fill="url(#g-blue)" />
-                <path d="M 0 30 Q 25 5 50 22 T 85 10 T 100 15" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" />
-              </svg>
-            </div>
-          </div>
-          <div style="font-size:11px; color:var(--t2); border-top:1px solid var(--border-soft); margin-top:10px; padding-top:8px">
-            معدل: <strong>${totalFilteredCount ? Math.round(totalFilteredInstalls / totalFilteredCount) : 0}</strong> ترخيص مبيعات/شريك
-          </div>
-        </div>
-
-        <!-- Tile 4: Support tickets (Pink/Red Glow) -->
-        <div class="dash-v-card dash-glow-pink" style="display:flex; flex-direction:column; justify-content:space-between">
-          <div>
-            <div style="display:flex; justify-content:space-between; align-items:center">
-              <span style="font-size:12px; font-weight:700; color:var(--t3)">المشاكل والطلبات المعلقة</span>
-              <span style="font-size:16px; background:rgba(239, 68, 68, 0.1); color:#EF4444; padding:6px; border-radius:8px">⚠️</span>
-            </div>
-            
-            <div class="kpi-spark-container">
-              <div class="kpi-spark-meta">
-                <span class="kpi-spark-val" style="color:${totalFilteredIssues > 0 ? '#EF4444' : '#10B981'}">${totalFilteredIssues}</span>
-                <span class="kpi-spark-change down" style="color:${totalFilteredIssues > 0 ? '#EF4444' : '#10B981'}">
-                  <span>تذاكر مفتوحة حالياً</span>
-                </span>
-              </div>
-              
-              <!-- Sparkline SVG -->
-              <svg viewBox="0 0 100 35" class="kpi-spark-chart">
-                <defs>
-                  <linearGradient id="g-red" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#EF4444" stop-opacity="0.3"/>
-                    <stop offset="100%" stop-color="#EF4444" stop-opacity="0.0"/>
-                  </linearGradient>
-                </defs>
-                <path d="M 0 35 L 0 10 Q 15 25 35 15 T 70 30 T 100 20 L 100 35 Z" fill="url(#g-red)" />
-                <path d="M 0 10 Q 15 25 35 15 T 70 30 T 100 20" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" />
-              </svg>
-            </div>
-          </div>
-          <div style="font-size:11px; color:var(--t2); border-top:1px solid var(--border-soft); margin-top:10px; padding-top:8px">
-            منها <strong>${filteredClients.flatMap(c => c.issues || []).filter(i => i.priority === 'عاجل' && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length}</strong> مشكلة حرجة للغاية
-          </div>
-        </div>
-
-      </div>
-
-      <!-- HIGH-FIDELITY MAIN COMPARATIVE AREA CHART GRAPH -->
-      <div class="dash-v-card dash-glow-purple" style="padding:1.5rem">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px">
-          <div>
-            <h3 style="font-size:15px; font-weight:800; color:var(--t1); margin:0; display:flex; align-items:center; gap:8px">
-              <span>📈</span> معدل تراخيص الأجهزة والنشاط الشهري (تحديث حي)
-            </h3>
-            <p style="font-size:11.5px; color:var(--t3); margin:4px 0 0 0">تحليل مقارن لنشاط مبيعات البرامج الفعالة في المقابل وتيرة الاتصالات والطلبات الفنية للعملاء المصفين</p>
-          </div>
-          
-          <!-- Legend -->
-          <div style="display:flex; gap:16px; font-size:11px; font-weight:700">
-            <div style="display:flex; align-items:center; gap:6px">
-              <span style="width:12px; height:4px; background:#8B5CF6; border-radius:2px; display:inline-block"></span>
-              <span style="color:var(--t2)">تراخيص الأجهزة النشطة (معدل)</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:6px">
-              <span style="width:12px; height:4px; background:#EC4899; border-radius:2px; display:inline-block"></span>
-              <span style="color:var(--t2)">تذاكر ومكالمات الدعم الفني</span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Interactive Recharts Graph Container -->
-        <div id="recharts-chart-container" style="width:100%; height:230px; direction: ltr; margin-top: 10px;">
-          <div style="display:flex; justify-content:center; align-items:center; height:100%; color:var(--t3); font-size:12px;">
-            جاري تشغيل المخطط البياني التفاعلي Recharts...
-          </div>
-        </div>
-      </div>
-
-      <!-- SPENDING PARAMETERS - CONCENTRIC RADIAL PROGRESS RINGS -->
-      <div class="dash-v-card" style="padding:1.5rem">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem">
-          <div>
-            <h3 style="font-size:15px; font-weight:800; color:var(--t1); margin:0">📊 توزيع جودة وصحة حسابات الشركاء (Concentric Gauges)</h3>
-            <p style="font-size:11.5px; color:var(--t3); margin:4px 0 0 0">مستويات السلامة والأداء مجمعة للعملاء النشطين بنسب مئوية تفاعلية</p>
-          </div>
-          <span style="font-size:11px; background:var(--dash-p-light); color:var(--dash-p-dark); padding:3px 9px; border-radius:12px; font-weight:700">محدثة دورياً</span>
-        </div>
-        
-        <div class="radial-params-container">
-          
-          <!-- Gauge 1: Excellent -->
-          <div class="radial-param-card" style="cursor:pointer" onclick="setDbFilter('dbFilterTier', 'excellent')" title="انقر لعرض عملاء الفئة الممتازة">
-            <div class="radial-svg-box">
-              <svg viewBox="0 0 80 80" width="100%" height="100%">
-                <circle class="radial-svg-circle-bg" cx="40" cy="40" r="35"/>
-                <circle class="radial-svg-circle-fill" cx="40" cy="40" r="35" stroke="#10B981" 
-                  stroke-dasharray="220" stroke-dashoffset="${220 - (220 * pctExcellent) / 100}"/>
-              </svg>
-              <div class="radial-percentage">${pctExcellent}%</div>
-            </div>
-            <div style="font-size:13px; font-weight:700; color:#10B981">🌟 ممتاز (75-100)</div>
-            <div style="font-size:11px; color:var(--t3)">${tierExcellent.length} عملاء</div>
-          </div>
-
-          <!-- Gauge 2: Stable -->
-          <div class="radial-param-card" style="cursor:pointer" onclick="setDbFilter('dbFilterTier', 'good')" title="انقر لعرض عملاء الفئة المستقرة">
-            <div class="radial-svg-box">
-              <svg viewBox="0 0 80 80" width="100%" height="100%">
-                <circle class="radial-svg-circle-bg" cx="40" cy="40" r="35"/>
-                <circle class="radial-svg-circle-fill" cx="40" cy="40" r="35" stroke="#3B82F6" 
-                  stroke-dasharray="220" stroke-dashoffset="${220 - (220 * pctGood) / 100}"/>
-              </svg>
-              <div class="radial-percentage">${pctGood}%</div>
-            </div>
-            <div style="font-size:13px; font-weight:700; color:#3B82F6">👍 مستقر (50-74)</div>
-            <div style="font-size:11px; color:var(--t3)">${tierGood.length} عملاء</div>
-          </div>
-
-          <!-- Gauge 3: Warning -->
-          <div class="radial-param-card" style="cursor:pointer" onclick="setDbFilter('dbFilterTier', 'warning')" title="انقر لعرض عملاء المتابعة">
-            <div class="radial-svg-box">
-              <svg viewBox="0 0 80 80" width="100%" height="100%">
-                <circle class="radial-svg-circle-bg" cx="40" cy="40" r="35"/>
-                <circle class="radial-svg-circle-fill" cx="40" cy="40" r="35" stroke="#F59E0B" 
-                  stroke-dasharray="220" stroke-dashoffset="${220 - (220 * pctWarning) / 100}"/>
-              </svg>
-              <div class="radial-percentage">${pctWarning}%</div>
-            </div>
-            <div style="font-size:13px; font-weight:700; color:#F59E0B">⚠️ متابعة (25-49)</div>
-            <div style="font-size:11px; color:var(--t3)">${tierWarning.length} عملاء</div>
-          </div>
-
-          <!-- Gauge 4: High Risk -->
-          <div class="radial-param-card" style="cursor:pointer" onclick="setDbFilter('dbFilterTier', 'critical')" title="انقر لعرض عملاء الخطر العالي">
-            <div class="radial-svg-box">
-              <svg viewBox="0 0 80 80" width="100%" height="100%">
-                <circle class="radial-svg-circle-bg" cx="40" cy="40" r="35"/>
-                <circle class="radial-svg-circle-fill" cx="40" cy="40" r="35" stroke="#EF4444" 
-                  stroke-dasharray="220" stroke-dashoffset="${220 - (220 * pctCritical) / 100}"/>
-              </svg>
-              <div class="radial-percentage">${pctCritical}%</div>
-            </div>
-            <div style="font-size:13px; font-weight:700; color:#EF4444">🚨 خطر (0-24)</div>
-            <div style="font-size:11px; color:var(--t3)">${tierCritical.length} عملاء</div>
+            <label style="font-size:11px; font-weight:700; color:var(--t3); display:block; margin-bottom:4px">🔍 ${t('بحث عن عميل أو رقم هاتف...')}</label>
+            <input type="text" class="premium-search" style="margin:0; padding:6px 12px; font-size:12px" placeholder="${t('بحث سريع في اللوحة...')}" value="${esc(S.dbSearchQuery)}" oninput="setDbFilter('dbSearchQuery', this.value)">
           </div>
 
         </div>
@@ -1419,11 +1260,11 @@ export function renderDashboard() {
       <div class="dash-v-card" style="padding:1.5rem; overflow:hidden">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:8px">
           <div>
-            <h3 style="font-size:15px; font-weight:800; color:var(--t1); margin:0">📋 سجل ومؤشرات أداء الحسابات والشركاء</h3>
-            <p style="font-size:11.5px; color:var(--t3); margin:4px 0 0 0">انقر على عناوين الأعمدة لترتيب الحسابات. انقر على أي شريك لاستعراض ملفه الفني المتكامل.</p>
+            <h3 style="font-size:15px; font-weight:800; color:var(--t1); margin:0">📋 ${t('قائمة المتابعة الاستباقية للعملاء')}</h3>
+            <p style="font-size:11.5px; color:var(--t3); margin:4px 0 0 0">${S.lang === 'fr' ? 'Cliquez sur les colonnes pour trier. Cliquez sur un client pour consulter son profil.' : S.lang === 'en' ? 'Click columns to sort. Click any client to open full profile.' : 'انقر على عناوين الأعمدة لترتيب الحسابات. انقر على أي شريك لاستعراض ملفه الفني المتكامل.'}</p>
           </div>
           <span style="font-size:11.5px; background:var(--dash-p-glow); color:var(--dash-p-dark); padding:4px 10px; border-radius:8px; font-weight:700">
-            طابق البحث: ${totalFilteredCount} شريك
+            ${S.lang === 'fr' ? 'Résultats :' : S.lang === 'en' ? 'Matches :' : 'طابق البحث :'} ${totalFilteredCount}
           </span>
         </div>
 
@@ -1431,27 +1272,29 @@ export function renderDashboard() {
           <table class="premium-table">
             <thead>
               <tr style="color:var(--t2); font-weight:bold">
-                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('name')">اسم الشريك والشركة ${getSortIndicator('name')}</th>
-                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('score')">نقاط الصحة والتشغيل ${getSortIndicator('score')}</th>
-                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('programs')">البرامج المرخصة ${getSortIndicator('programs')}</th>
-                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('issues')">الطلبات الفنية المعلقة ${getSortIndicator('issues')}</th>
-                <th style="padding:12px 8px">الولاية الجغرافية</th>
-                <th style="padding:12px 8px">آخر نشاط</th>
-                <th style="padding:12px 8px; text-align:center">الملف</th>
+                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('name')">${t('اسم الشريك والشركة')} ${getSortIndicator('name')}</th>
+                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('score')">${t('نقاط الصحة والتشغيل')} ${getSortIndicator('score')}</th>
+                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('programs')">${t('البرامج المرخصة')} ${getSortIndicator('programs')}</th>
+                <th style="padding:12px 8px; cursor:pointer" onclick="toggleDbSort('issues')">${t('الطلبات الفنية المعلقة')} ${getSortIndicator('issues')}</th>
+                <th style="padding:12px 8px">${t('الولاية الجغرافية')}</th>
+                <th style="padding:12px 8px">${t('آخر نشاط')}</th>
+                <th style="padding:12px 8px; text-align:center">${t('الملف')}</th>
               </tr>
             </thead>
             <tbody>
               ${sortedClients.length === 0 ? `
                 <tr>
                   <td colspan="7" style="padding:3.5rem; text-align:center; color:var(--t3)">
-                    ⚠️ لا توجد حسابات شركاء مطابقة لمعايير البحث والتصفية النشطة حالياً.
+                    ⚠️ ${S.lang === 'fr' ? 'Aucun client ne correspond aux filtres appliqués.' : S.lang === 'en' ? 'No clients match the active filter criteria.' : 'لا توجد حسابات شركاء مطابقة لمعايير البحث والتصفية النشطة حالياً.'}
                   </td>
                 </tr>
-              ` : sortedClients.map(c => {
-                const sc = computeScore(c);
+              ` : sortedClients.filter(Boolean).map(c => {
+                const sc = computeScore(c) || { total: 0 };
                 const scoreStyle = getScoreStyle(sc.total);
-                const openIssCount = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-                const urgentCount = (c.issues || []).filter(i => i.priority === 'عاجل' && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
+                const clientIssues = Array.isArray(c?.issues) ? c.issues : [];
+                const clientPrograms = Array.isArray(c?.programs) ? c.programs : [];
+                const openIssCount = clientIssues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
+                const urgentCount = clientIssues.filter(i => i && i.priority === 'عاجل' && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
 
                 // Color based initials
                 let initialBg = '#8B5CF6';
@@ -1469,8 +1312,8 @@ export function renderDashboard() {
                           ${(c.fullName || 'أ').substring(0, 1)}
                         </div>
                         <div>
-                          <div style="font-weight:700; color:var(--t1)">${esc(c.fullName)}</div>
-                          <div style="font-size:11.5px; color:var(--t3)">${esc(c.company || 'مؤسسة فردية')}</div>
+                          <div style="font-weight:700; color:var(--t1)">${esc(c.fullName || '—')}</div>
+                          <div style="font-size:11.5px; color:var(--t3)">${esc(c.company || '—')}</div>
                         </div>
                       </div>
                     </td>
@@ -1480,7 +1323,7 @@ export function renderDashboard() {
                       <div style="display:flex; align-items:center; gap:8px">
                         <span style="font-size:14px; font-weight:800; color:${scoreStyle.color}">${sc.total}%</span>
                         <span style="font-size:10.5px; font-weight:700; color:${scoreStyle.color}; background:${scoreStyle.bg}; border:1px solid rgba(255,255,255,0.05); padding:2px 7px; border-radius:6px">
-                          ${scoreStyle.text}
+                          ${t(scoreStyle.text)}
                         </span>
                       </div>
                     </td>
@@ -1488,10 +1331,10 @@ export function renderDashboard() {
                     <!-- Programs licensed count -->
                     <td style="padding:12px 8px">
                       <div style="font-weight:700; color:var(--t2)">
-                        ${(c.programs || []).length} برامج مرخصة
+                        ${clientPrograms.length} ${t('برامج')}
                       </div>
                       <div style="font-size:10.5px; color:var(--t3); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
-                        ${(c.programs || []).map(p => p.programName).join('، ') || 'لم تفعل تراخيص'}
+                        ${clientPrograms.map(p => p?.programName).filter(Boolean).join('، ') || t('لا برامج')}
                       </div>
                     </td>
 
@@ -1499,11 +1342,11 @@ export function renderDashboard() {
                     <td style="padding:12px 8px">
                       <div style="display:flex; align-items:center; gap:4px">
                         <span class="bdg ${openIssCount > 0 ? 'bdg-r' : 'bdg-g'}" style="font-size:11px; font-weight:bold; border-radius:6px; padding:3px 8px">
-                          ${openIssCount} طلبات
+                          ${openIssCount} ${t('الطلبات')}
                         </span>
                         ${urgentCount > 0 ? `
-                          <span class="bdg bdg-p" style="font-size:10px; font-weight:bold; border-radius:6px; padding:3px 8px animate-pulse" title="مشاكل ذات أولوية عاجلة">
-                            ⚡ ${urgentCount} حرجة
+                          <span class="bdg bdg-p" style="font-size:10px; font-weight:bold; border-radius:6px; padding:3px 8px animate-pulse" title="${t('عاجل')}">
+                            ⚡ ${urgentCount} ${t('عاجل')}
                           </span>
                         ` : ''}
                       </div>
@@ -1511,18 +1354,18 @@ export function renderDashboard() {
 
                     <!-- Wilaya -->
                     <td style="padding:12px 8px; color:var(--t2); font-weight:600">
-                      📍 ${esc(c.wilaya || 'الجزائر العاصمة')}
+                      📍 ${esc(c.wilaya || '—')}
                     </td>
 
                     <!-- Last contact -->
                     <td style="padding:12px 8px; color:var(--t2); font-size:11px">
-                      ${fmtD(c.lastContact) || '<span style="color:var(--t3)">لم يسجل اتصال</span>'}
+                      ${fmtD(c.lastContact) || `<span style="color:var(--t3)">—</span>`}
                     </td>
 
                     <!-- Direct link button -->
                     <td style="padding:12px 8px; text-align:center">
                       <button class="btn btn-xs" style="background:var(--dash-p-glow); color:var(--dash-p-dark); border:none; border-radius:8px; font-weight:700; padding:5px 10px">
-                        استعراض 🔑
+                        ${t('استعراض')} 🔑
                       </button>
                     </td>
 
@@ -1537,28 +1380,28 @@ export function renderDashboard() {
       <!-- ANALYTICS GRID: GEOGRAPHIC MAP & PROGRAM PILLS SIDE-BY-SIDE -->
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.25rem">
         
-        <!-- Region Concentration Chart (Light & Dark adaptation) -->
+        <!-- Region Concentration Chart -->
         <div class="dash-v-card dash-glow-purple" style="padding:1.5rem">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.15rem">
             <h3 style="font-size:14px; font-weight:800; color:var(--t1); margin:0; display:flex; align-items:center; gap:6px">
-              <span>📍</span> الكثافة والتوزيع الجغرافي للشركاء (الولايات)
+              <span>📍</span> ${t('التوزيع الجغرافي للعملاء')}
             </h3>
-            <span style="font-size:11px; color:var(--t3)">أعلى 5 ولايات</span>
+            <span style="font-size:11px; color:var(--t3)">${S.lang === 'fr' ? 'Top 5 wilayas' : S.lang === 'en' ? 'Top 5 Regions' : 'أعلى 5 ولايات'}</span>
           </div>
           
-          ${sortedWilayas.length === 0 ? `
-            <div style="text-align:center; padding:2rem 0; color:var(--t3); font-size:12px">لا تتوفر ولايات تطابق الفلترة الحالية</div>
+          ${!sortedWilayas || sortedWilayas.length === 0 ? `
+            <div style="text-align:center; padding:2rem 0; color:var(--t3); font-size:12px">${S.lang === 'fr' ? 'Aucune donnée géographique disponible' : S.lang === 'en' ? 'No regional data available' : 'لا تتوفر ولايات تطابق الفلترة الحالية'}</div>
           ` : `
             <div style="display:flex; flex-direction:column; gap:12px">
-              ${sortedWilayas.map((w, idx) => {
-                const maxVal = sortedWilayas[0].count || 1;
-                const widthPct = Math.round((w.count / maxVal) * 100);
-                const percentOfFiltered = Math.round((w.count / (totalFilteredCount || 1)) * 100);
+              ${sortedWilayas.filter(Boolean).map((w, idx) => {
+                const maxVal = Math.max(1, sortedWilayas[0]?.count || 1);
+                const widthPct = Math.min(100, Math.max(0, Math.round(((w?.count || 0) / maxVal) * 100)));
+                const percentOfFiltered = Math.min(100, Math.max(0, Math.round(((w?.count || 0) / (totalFilteredCount || 1)) * 100)));
                 return `
                   <div>
                     <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px">
-                      <span style="font-weight:700; color:var(--t1)">${idx+1}. ${w.name}</span>
-                      <span style="color:var(--dash-p); font-weight:800">${w.count} عملاء (${percentOfFiltered}%)</span>
+                      <span style="font-weight:700; color:var(--t1)">${idx+1}. ${esc(w?.name || '—')}</span>
+                      <span style="color:var(--dash-p); font-weight:800">${w?.count || 0} (${percentOfFiltered}%)</span>
                     </div>
                     <div style="width:100%; height:8px; background:var(--border-soft); border-radius:4px; overflow:hidden">
                       <div style="width:${widthPct}%; height:100%; background:linear-gradient(90deg, var(--dash-p-dark), var(--dash-p)); border-radius:4px"></div>
@@ -1574,23 +1417,23 @@ export function renderDashboard() {
         <div class="dash-v-card dash-glow-blue" style="padding:1.5rem">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.15rem">
             <h3 style="font-size:14px; font-weight:800; color:var(--t1); margin:0; display:flex; align-items:center; gap:6px">
-              <span>💻</span> الحصة السوقية وتحليل توزيع تراخيص البرمجيات
+              <span>💻</span> ${t('توزيع البرامج والتراخيص')}
             </h3>
-            <span style="font-size:11px; color:var(--t3)">أعلى 5 برمجيات</span>
+            <span style="font-size:11px; color:var(--t3)">${S.lang === 'fr' ? 'Top 5 programmes' : S.lang === 'en' ? 'Top 5 Software' : 'أعلى 5 برمجيات'}</span>
           </div>
 
-          ${sortedPrograms.length === 0 ? `
-            <div style="text-align:center; padding:2rem 0; color:var(--t3); font-size:12px">لا تتوفر تراخيص مطابقة للفلترة الحالية</div>
+          ${!sortedPrograms || sortedPrograms.length === 0 ? `
+            <div style="text-align:center; padding:2rem 0; color:var(--t3); font-size:12px">${S.lang === 'fr' ? 'Aucun programme disponible' : S.lang === 'en' ? 'No software data available' : 'لا تتوفر تراخيص مطابقة للفلترة الحالية'}</div>
           ` : `
             <div style="display:flex; flex-direction:column; gap:12px">
-              ${sortedPrograms.map((p, idx) => {
-                const maxCount = sortedPrograms[0].count || 1;
-                const widthPct = Math.round((p.count / maxCount) * 100);
+              ${sortedPrograms.filter(Boolean).map((p, idx) => {
+                const maxCount = Math.max(1, sortedPrograms[0]?.count || 1);
+                const widthPct = Math.min(100, Math.max(0, Math.round(((p?.count || 0) / maxCount) * 100)));
                 return `
                   <div>
                     <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px">
-                      <span style="font-weight:700; color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px">${idx+1}. ${esc(p.name)}</span>
-                      <span style="color:#3B82F6; font-size:11.5px; font-weight:700">${p.count} حساب · ${p.installs} جهاز</span>
+                      <span style="font-weight:700; color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px">${idx+1}. ${esc(p?.name || '—')}</span>
+                      <span style="color:#3B82F6; font-size:11.5px; font-weight:700">${p?.count || 0} · ${p?.installs || 0} ${t('جهاز')}</span>
                     </div>
                     <div style="width:100%; height:8px; background:var(--border-soft); border-radius:4px; overflow:hidden">
                       <div style="width:${widthPct}%; height:100%; background:linear-gradient(90deg, #2563EB, #60A5FA); border-radius:4px"></div>
@@ -1605,24 +1448,25 @@ export function renderDashboard() {
       </div>
 
       <!-- AI SENTINEL PROACTIVE ADVISOR PANEL (Microsoft Sentinel Style) -->
-      <div class="dash-v-card" style="padding:1.5rem">
+      <div class="dash-v-card" style="padding:1.5rem" data-testid="ai-sentinel-advisor">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem">
           <h3 style="font-size:15px; font-weight:800; color:var(--t1); margin:0; display:flex; align-items:center; gap:8px">
-            <span>🧠</span> مركز الاستشارات والتوصيات الذكية (AI Sentinel Advisor)
+            <span>🧠</span> ${t('مرصاد PROGILIC الذكي')}
+            <span style="font-size:11px; opacity:0.85; font-weight:600">(AI Sentinel Advisor)</span>
           </h3>
-          <span style="font-size:11px; background:var(--dash-g); color:#fff; padding:2.5px 9px; border-radius:12px; font-weight:700">مراقبة حية ونشطة</span>
+          <span style="font-size:11px; background:var(--dash-g); color:#fff; padding:2.5px 9px; border-radius:12px; font-weight:700">${S.lang === 'fr' ? 'Surveillance active' : S.lang === 'en' ? 'Live Monitoring' : 'مراقبة حية ونشطة'}</span>
         </div>
         <p style="font-size:12.5px; color:var(--t3); margin:0 0 1.25rem 0">
-          يقوم الذكاء الاصطناعي بنشاط وبشكل دائم بتحليل العقود المنتهية، الفترات الزمنية للتواصل، ومؤشرات الأداء للعملاء المصفين لإصدار إرشادات استباقية.
+          ${t('تنبيهات استباقية وتوصيات وقائية مبنية على تحليل المخاطر')}
         </p>
 
         ${visibleRecs.length === 0 ? `
           <div style="text-align:center; padding:2.5rem; color:#10B981; font-size:13.5px; font-weight:700">
-            ✨ رائع! لا تتوفر أي مخاطر أو تذاكر حرجة معلقة للعملاء المصفين حالياً. جميع الحسابات نشطة ومستقرة تماماً.
+            ✨ ${S.lang === 'fr' ? 'Parfait ! Aucun risque critique ni ticket en attente.' : S.lang === 'en' ? 'Great! No critical risks or urgent tickets pending.' : 'رائع! لا تتوفر أي مخاطر أو تذاكر حرجة معلقة للعملاء المصفين حالياً. جميع الحسابات نشطة ومستقرة تماماً.'}
           </div>
         ` : `
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(290px, 1fr)); gap:14px">
-            ${visibleRecs.map(r => {
+            ${visibleRecs.filter(Boolean).map(r => {
               let alertClass = 'sentinel-alert-info';
               if (r.type === 'danger') alertClass = 'sentinel-alert-danger';
               else if (r.type === 'urgent') alertClass = 'sentinel-alert-urgent';
@@ -1638,7 +1482,7 @@ export function renderDashboard() {
                     <div style="font-size:11.5px; color:var(--t2); line-height:1.6; margin-top:6px">${esc(r.desc)}</div>
                   </div>
                   <div style="font-size:10.5px; color:var(--dash-p-dark); font-weight:800; margin-top:10px; display:flex; justify-content:flex-end">
-                    متابعة إجراء الدعم الفني للشريك ←
+                    ${S.lang === 'fr' ? 'Consulter la fiche client →' : S.lang === 'en' ? 'Open client profile →' : 'متابعة إجراء الدعم الفني للشريك ←'}
                   </div>
                 </div>
               `;
@@ -1649,6 +1493,32 @@ export function renderDashboard() {
 
     </div>
   `;
+  } catch (err) {
+    console.error("Dashboard Render Error Boundary caught exception:", err);
+    return `
+      <div class="dash-error-boundary dash-v-card" style="padding:2.5rem; text-align:center; margin:1.5rem auto; max-width:680px; border:1px solid #EF4444; border-radius:12px; background:rgba(239,68,68,0.05); text-align:${S.lang === 'ar' ? 'right' : 'left'}">
+        <div style="font-size:40px; margin-bottom:1rem; text-align:center">⚠️</div>
+        <h2 style="font-size:18px; font-weight:800; color:#EF4444; margin:0 0 8px 0; text-align:center">
+          ${S.lang === 'fr' ? 'Erreur lors du chargement du tableau de bord' : S.lang === 'en' ? 'Dashboard Rendering Error' : 'حدث خطأ أثناء تحميل لوحة القيادة'}
+        </h2>
+        <p style="font-size:13px; color:var(--t2); margin-bottom:1.25rem; text-align:center">
+          ${S.lang === 'fr' ? 'Une exception inattendue a été interceptée par le gestionnaire d’erreurs du tableau de bord.' : S.lang === 'en' ? 'An unexpected error occurred while rendering the dashboard metrics.' : 'تم اعتراض استثناء غير متوقع أثناء معالجة بيانات ومؤشرات لوحة القيادة.'}
+        </p>
+        <div style="display:flex; justify-content:center; gap:10px">
+          <button class="btn btn-primary" onclick="resetDbFilters(); if(window.R) window.R();" style="font-size:12.5px; padding:8px 16px; border-radius:8px">
+            🔄 ${S.lang === 'fr' ? 'Réinitialiser les filtres' : S.lang === 'en' ? 'Reset Filters & Retry' : 'إعادة ضبط الفلاتر والمحاولة'}
+          </button>
+          <button class="btn btn-outline" onclick="S.view='list'; if(window.R) window.R();" style="font-size:12.5px; padding:8px 16px; border-radius:8px">
+            📋 ${S.lang === 'fr' ? 'Retour à la liste des clients' : S.lang === 'en' ? 'Return to Clients List' : 'العودة لقائمة العملاء'}
+          </button>
+        </div>
+        <details style="margin-top:1.5rem; text-align:left; font-size:11px; color:var(--t3); background:var(--bg2); padding:10px; border-radius:8px; overflow-x:auto">
+          <summary style="cursor:pointer; font-weight:bold">${S.lang === 'fr' ? 'Détails techniques de l’erreur' : S.lang === 'en' ? 'Technical Error Details' : 'التفاصيل التقنية للخطأ'}</summary>
+          <pre style="margin-top:8px; white-space:pre-wrap; word-break:break-all">${esc(err && (err.stack || err.message || String(err)))}</pre>
+        </details>
+      </div>
+    `;
+  }
 }
 
 // Interactive Recharts Dynamic Visualizer

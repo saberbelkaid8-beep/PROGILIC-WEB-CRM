@@ -9,20 +9,28 @@ let miniSearch = new MiniSearch({
     prefix: true // prefix matching
   },
   extractField: (document, fieldName) => {
+    if (!document || typeof document !== 'object') return '';
     if (fieldName === 'phone') {
       return normalizePhone(document.phone);
     }
     if (fieldName === 'programsList') {
-      const progNames = document.programNames || (document.programs || []).map(p => p.programName);
+      const progNames = document.programNames || (Array.isArray(document.programs) ? document.programs.map(p => p?.programName).filter(Boolean) : []);
       return progNames.join(' ');
     }
-    return document[fieldName];
+    return document[fieldName] || '';
   }
 });
 
 export function buildSearchIndex(clients) {
   miniSearch.removeAll();
-  miniSearch.addAll(clients);
+  const validDocs = Array.isArray(clients) ? clients.filter(c => c && typeof c === 'object' && c.id != null) : [];
+  if (validDocs.length > 0) {
+    try {
+      miniSearch.addAll(validDocs);
+    } catch (e) {
+      console.warn("Search index addAll error:", e);
+    }
+  }
 }
 
 export function performSearch(query) {

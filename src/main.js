@@ -49,13 +49,14 @@ window.addEventListener('error', event => {
 import './firebase/config.js';
 import * as actions from './business/actions.js';
 import { R } from './presentation/render-core.js';
-import { updateActTypeOpts, updateCommunesOpts } from './utils/index.js';
+import { updateActTypeOpts, updateCommunesOpts, onClientStatusChange } from './utils/index.js';
 import { exportData, exportToCSV, importData, clearAllData, resolveConflict } from './business/storage.js';
-import { toggleLanguage } from './utils/i18n.js';
+import { toggleLanguage, setLanguage } from './utils/i18n.js';
+import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
 
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase/config.js';
-import { S, setCurrentUser, setClients, subscribe } from './state/store.js';
+import { S, setCurrentUser, setClients, subscribe, updateState } from './state/store.js';
 import { loadDataFromFirestore, stopRealtimeSync, loadCache } from './business/storage.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
@@ -64,22 +65,27 @@ subscribe(R);
 // Expose all actions and utils to the global window object for inline HTML event handlers
 Object.assign(window, actions);
 window.S = S;
+window.updateState = updateState;
 window.updateActTypeOpts = updateActTypeOpts;
 window.updateCommunesOpts = updateCommunesOpts;
+window.onClientStatusChange = onClientStatusChange;
 window.exportData = exportData;
 window.exportToCSV = exportToCSV;
 window.importData = importData;
 window.clearAllData = clearAllData;
 window.toggleLanguage = toggleLanguage;
+window.setLanguage = setLanguage;
 window.R = R;
 window.resolveConflict = resolveConflict;
 
 // Boot application
 function boot() {
-  document.documentElement.dir = 'rtl';
-  document.documentElement.lang = 'ar';
+  const curLang = S.lang || 'ar';
+  document.documentElement.dir = curLang === 'ar' ? 'rtl' : 'ltr';
+  document.documentElement.lang = curLang;
   actions.initDark();
   loadCache(); // Restore offline local cache immediately on startup
+  initAiAssistantWidget();
   const app = document.getElementById('app');
 
   // Detect password reset flow from URL on load

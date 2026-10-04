@@ -1,6 +1,53 @@
 import { describe, it, expect } from 'vitest';
 import { computeScore } from '../../src/business/intelligence.js';
 import { searchMatch, normalizePhone } from '../../src/utils/index.js';
+import { t, setLanguage, toggleLanguage, SUPPORTED_LANGUAGES } from '../../src/utils/i18n.js';
+import { S } from '../../src/state/store.js';
+
+describe('i18n Trilingual Engine', () => {
+  it('should support Arabic, French, and English', () => {
+    expect(SUPPORTED_LANGUAGES).toEqual(['ar', 'fr', 'en']);
+  });
+
+  it('should translate correctly in Arabic (default)', () => {
+    setLanguage('ar');
+    expect(S.lang).toBe('ar');
+    expect(t('لوحة القيادة')).toBe('لوحة القيادة');
+    expect(t('العملاء')).toBe('العملاء');
+    expect(document.documentElement.dir).toBe('rtl');
+    expect(document.documentElement.lang).toBe('ar');
+  });
+
+  it('should translate correctly in French', () => {
+    setLanguage('fr');
+    expect(S.lang).toBe('fr');
+    expect(t('لوحة القيادة')).toBe('Tableau de bord');
+    expect(t('العملاء')).toBe('Clients');
+    expect(t('إضافة عميل')).toBe('Ajouter un client');
+    expect(document.documentElement.dir).toBe('ltr');
+    expect(document.documentElement.lang).toBe('fr');
+  });
+
+  it('should translate correctly in English', () => {
+    setLanguage('en');
+    expect(S.lang).toBe('en');
+    expect(t('لوحة القيادة')).toBe('Dashboard');
+    expect(t('العملاء')).toBe('Clients');
+    expect(t('إضافة عميل')).toBe('Add Client');
+    expect(document.documentElement.dir).toBe('ltr');
+    expect(document.documentElement.lang).toBe('en');
+  });
+
+  it('should toggle language cyclically across ar -> fr -> en -> ar', () => {
+    setLanguage('ar');
+    toggleLanguage();
+    expect(S.lang).toBe('fr');
+    toggleLanguage();
+    expect(S.lang).toBe('en');
+    toggleLanguage();
+    expect(S.lang).toBe('ar');
+  });
+});
 
 describe('Intelligence Utils', () => {
   it('should normalize phone numbers correctly', () => {

@@ -1,4 +1,6 @@
 import { esc } from './index.js';
+import { t } from './i18n.js';
+import { S } from '../state/store.js';
 
 export function showConfirm(message, title = 'تأكيد الإجراء') {
   return new Promise((resolve) => {
@@ -18,21 +20,21 @@ export function showConfirm(message, title = 'تأكيد الإجراء') {
     card.style.padding = '1.5rem';
     card.style.boxShadow = '0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)';
     card.style.margin = '1rem';
-    card.style.direction = 'rtl';
-    card.style.textAlign = 'right';
+    card.style.direction = S.lang === 'ar' ? 'rtl' : 'ltr';
+    card.style.textAlign = S.lang === 'ar' ? 'right' : 'left';
     card.style.border = '1px solid var(--border)';
     
     card.innerHTML = `
       <div style="font-size: 16px; font-weight: 700; color: var(--t1); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px;">
         <span>⚠️</span>
-        <span>${esc(title)}</span>
+        <span>${esc(t(title))}</span>
       </div>
       <div style="font-size: 13px; color: var(--t2); margin-bottom: 1.5rem; line-height: 1.6;">
-        ${esc(message).replace(/\n/g, '<br>')}
+        ${esc(t(message)).replace(/\n/g, '<br>')}
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
-        <button class="btn btn-outline confirm-cancel" style="padding: 6px 14px; font-size: 12px;">إلغاء</button>
-        <button class="btn btn-primary confirm-ok" style="padding: 6px 14px; font-size: 12px; background: var(--r) !important; color: white !important;">تأكيد</button>
+        <button class="btn btn-outline confirm-cancel" style="padding: 6px 14px; font-size: 12px;">${t('إلغاء')}</button>
+        <button class="btn btn-primary confirm-ok" style="padding: 6px 14px; font-size: 12px; background: var(--r) !important; color: white !important;">${t('تأكيد')}</button>
       </div>
     `;
     

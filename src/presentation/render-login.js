@@ -7,11 +7,12 @@ import {
   updateProfile,
   signInWithPopup
 } from 'firebase/auth';
-import { setCurrentUser } from '../state/store.js';
+import { setCurrentUser, S } from '../state/store.js';
 import { R } from './render-core.js';
 import { showToast } from '../utils/toast.js';
 import { checkPasswordStrength, logout } from '../business/actions/authActions.js';
 import { stopRealtimeSync } from '../business/storage.js';
+import { t, setLanguage } from '../utils/i18n.js';
 
 window.loginMode = window.loginMode || 'login';
 
@@ -36,23 +37,23 @@ window.updatePassStrengthUI = function(val) {
   bar.style.width = (score * 25) + '%';
   if (score === 0) {
     bar.style.backgroundColor = '#e0e0e0';
-    text.innerText = 'قصيرة جداً';
+    text.innerText = t('قصيرة جداً');
     text.style.color = 'var(--t3)';
   } else if (score === 1) {
     bar.style.backgroundColor = '#ef4444';
-    text.innerText = 'ضعيفة';
+    text.innerText = t('ضعيفة');
     text.style.color = '#ef4444';
   } else if (score === 2) {
     bar.style.backgroundColor = '#f59e0b';
-    text.innerText = 'متوسطة';
+    text.innerText = t('متوسطة');
     text.style.color = '#f59e0b';
   } else if (score === 3) {
     bar.style.backgroundColor = '#10b981';
-    text.innerText = 'قوية';
+    text.innerText = t('قوية');
     text.style.color = '#10b981';
   } else if (score === 4) {
     bar.style.backgroundColor = '#059669';
-    text.innerText = 'قوية جداً';
+    text.innerText = t('قوية جداً');
     text.style.color = '#059669';
   }
 };
@@ -451,44 +452,59 @@ export function renderLogin() {
     </style>
   `;
 
+  // Language Switcher Component for Auth Screens
+  const langSwitcherHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+      <div style="font-size:0.8rem; font-weight:700; color:var(--auth-text-muted); display:flex; align-items:center; gap:6px;">
+        <span>🌐</span> <span>${t('اللغة')}</span>
+      </div>
+      <div style="display:inline-flex; background:rgba(128,128,128,0.12); padding:3px; border-radius:10px; gap:4px;">
+        <button type="button" onclick="setLanguage('ar')" style="padding:4px 10px; font-size:0.78rem; font-weight:700; border-radius:8px; border:none; cursor:pointer; transition:all 0.2s; ${S.lang==='ar' ? 'background:var(--auth-primary); color:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.1);' : 'background:transparent; color:var(--auth-text-muted);'}">العربية</button>
+        <button type="button" onclick="setLanguage('fr')" style="padding:4px 10px; font-size:0.78rem; font-weight:700; border-radius:8px; border:none; cursor:pointer; transition:all 0.2s; ${S.lang==='fr' ? 'background:var(--auth-primary); color:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.1);' : 'background:transparent; color:var(--auth-text-muted);'}">Français</button>
+        <button type="button" onclick="setLanguage('en')" style="padding:4px 10px; font-size:0.78rem; font-weight:700; border-radius:8px; border:none; cursor:pointer; transition:all 0.2s; ${S.lang==='en' ? 'background:var(--auth-primary); color:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.1);' : 'background:transparent; color:var(--auth-text-muted);'}">English</button>
+      </div>
+    </div>
+  `;
+
   // Left Content rendering based on current screen mode
   let leftContentHTML = '';
 
   if (mode === 'login') {
     leftContentHTML = `
+      ${langSwitcherHTML}
       <div class="auth-header">
-        <h1 class="auth-title">تسجيل الدخول</h1>
-        <p class="auth-subtitle">أهلاً بك مجدداً! يرجى إدخال بياناتك للوصول إلى لوحة التحكم.</p>
+        <h1 class="auth-title">${t('تسجيل الدخول')}</h1>
+        <p class="auth-subtitle">${t('أهلاً بك مجدداً! يرجى إدخال بياناتك للوصول إلى لوحة التحكم.')}</p>
       </div>
 
       <div class="auth-tabs">
-        <button class="auth-tab active" onclick="window.loginMode='login'; R()">تسجيل الدخول</button>
-        <button class="auth-tab" onclick="window.loginMode='register'; R()">إنشاء حساب جديد</button>
+        <button class="auth-tab active" onclick="window.loginMode='login'; R()">${t('تسجيل الدخول')}</button>
+        <button class="auth-tab" onclick="window.loginMode='register'; R()">${t('إنشاء حساب جديد')}</button>
       </div>
 
       <form class="auth-form" onsubmit="event.preventDefault(); loginUser(this.username.value, this.password.value)">
         <div class="auth-input-group">
-          <input name="username" type="email" placeholder="البريد الإلكتروني للشركة" required autocomplete="username">
+          <input name="username" type="email" placeholder="${t('البريد الإلكتروني للشركة')}" required autocomplete="username">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
         </div>
         
         <div class="auth-input-group">
-          <input name="password" type="password" placeholder="كلمة المرور" required autocomplete="current-password">
+          <input name="password" type="password" placeholder="${t('كلمة المرور')}" required autocomplete="current-password">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </div>
         
         <div class="auth-options">
           <label class="auth-checkbox">
             <input type="checkbox" name="remember" checked>
-            تذكرني
+            ${t('تذكرني')}
           </label>
-          <a href="#" class="auth-forgot" onclick="event.preventDefault(); window.loginMode='forgot'; R()">نسيت كلمة المرور؟</a>
+          <a href="#" class="auth-forgot" onclick="event.preventDefault(); window.loginMode='forgot'; R()">${t('نسيت كلمة المرور؟')}</a>
         </div>
 
-        <button type="submit" class="auth-btn">تسجيل الدخول</button>
+        <button type="submit" class="auth-btn">${t('تسجيل الدخول')}</button>
       </form>
 
-      <div class="auth-divider">أو الدخول بواسطة</div>
+      <div class="auth-divider">${t('أو الدخول بواسطة')}</div>
 
       <div class="auth-social">
         <button type="button" class="social-btn" onclick="loginWithGoogle()" title="Google Workspace">
@@ -503,29 +519,30 @@ export function renderLogin() {
     `;
   } else if (mode === 'register') {
     leftContentHTML = `
+      ${langSwitcherHTML}
       <div class="auth-header">
-        <h1 class="auth-title">إنشاء حساب جديد</h1>
-        <p class="auth-subtitle">سجل بياناتك للانضمام إلى منصة PROGILIC CRM.</p>
+        <h1 class="auth-title">${t('إنشاء حساب جديد')}</h1>
+        <p class="auth-subtitle">${t('سجل بياناتك للانضمام إلى منصة PROGILIC CRM.')}</p>
       </div>
 
       <div class="auth-tabs">
-        <button class="auth-tab" onclick="window.loginMode='login'; R()">تسجيل الدخول</button>
-        <button class="auth-tab active" onclick="window.loginMode='register'; R()">إنشاء حساب جديد</button>
+        <button class="auth-tab" onclick="window.loginMode='login'; R()">${t('تسجيل الدخول')}</button>
+        <button class="auth-tab active" onclick="window.loginMode='register'; R()">${t('إنشاء حساب جديد')}</button>
       </div>
 
       <form class="auth-form" onsubmit="event.preventDefault(); loginUser(this.username.value, this.password.value, this.fullname.value)">
         <div class="auth-input-group">
-          <input name="fullname" type="text" placeholder="الاسم الكامل" required autocomplete="name">
+          <input name="fullname" type="text" placeholder="${t('الاسم الكامل')}" required autocomplete="name">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
         </div>
 
         <div class="auth-input-group">
-          <input name="username" type="email" placeholder="البريد الإلكتروني" required autocomplete="email">
+          <input name="username" type="email" placeholder="${t('البريد الإلكتروني')}" required autocomplete="email">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
         </div>
         
         <div class="auth-input-group">
-          <input name="password" type="password" placeholder="كلمة المرور" required autocomplete="new-password" oninput="updatePassStrengthUI(this.value)">
+          <input name="password" type="password" placeholder="${t('كلمة المرور')}" required autocomplete="new-password" oninput="updatePassStrengthUI(this.value)">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </div>
 
@@ -534,15 +551,15 @@ export function renderLogin() {
             <div id="pass-strength-bar" class="pass-strength-bar"></div>
           </div>
           <div class="pass-strength-label">
-            <span>قوة كلمة المرور:</span>
-            <span id="pass-strength-text">قصيرة جداً</span>
+            <span>${t('قوة كلمة المرور:')}</span>
+            <span id="pass-strength-text">${t('قصيرة جداً')}</span>
           </div>
         </div>
 
-        <button type="submit" class="auth-btn" style="margin-top: 0.5rem;">إنشاء الحساب وتفعيل البريد</button>
+        <button type="submit" class="auth-btn" style="margin-top: 0.5rem;">${t('إنشاء الحساب وتفعيل البريد')}</button>
       </form>
 
-      <div class="auth-divider">أو التسجيل بواسطة</div>
+      <div class="auth-divider">${t('أو التسجيل بواسطة')}</div>
 
       <div class="auth-social">
         <button type="button" class="social-btn" onclick="loginWithGoogle()" title="Google Workspace">
@@ -557,34 +574,36 @@ export function renderLogin() {
     `;
   } else if (mode === 'forgot') {
     leftContentHTML = `
+      ${langSwitcherHTML}
       <div class="auth-header">
-        <h1 class="auth-title">إعادة تعيين كلمة المرور</h1>
-        <p class="auth-subtitle">أدخل بريدك الإلكتروني المسجل وسنقوم بإرسال رابط فوري لإعادة تعيين كلمة المرور الخاصة بك.</p>
+        <h1 class="auth-title">${t('إعادة تعيين كلمة المرور')}</h1>
+        <p class="auth-subtitle">${t('أدخل بريدك الإلكتروني المسجل وسنقوم بإرسال رابط فوري لإعادة تعيين كلمة المرور الخاصة بك.')}</p>
       </div>
 
       <form class="auth-form" onsubmit="event.preventDefault(); sendPasswordReset(this.username.value)">
         <div class="auth-input-group">
-          <input name="username" type="email" placeholder="البريد الإلكتروني" required autocomplete="email">
+          <input name="username" type="email" placeholder="${t('البريد الإلكتروني')}" required autocomplete="email">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
         </div>
 
-        <button type="submit" class="auth-btn" style="margin-top: 0.5rem;">إرسال رابط إعادة التعيين</button>
+        <button type="submit" class="auth-btn" style="margin-top: 0.5rem;">${t('إرسال رابط إعادة التعيين')}</button>
         
         <div style="text-align: center; margin-top: 1rem;">
-          <a href="#" class="auth-forgot" onclick="event.preventDefault(); window.loginMode='login'; R()">العودة لصفحة تسجيل الدخول</a>
+          <a href="#" class="auth-forgot" onclick="event.preventDefault(); window.loginMode='login'; R()">${t('العودة لصفحة تسجيل الدخول')}</a>
         </div>
       </form>
     `;
   } else if (mode === 'resetPassword') {
     leftContentHTML = `
+      ${langSwitcherHTML}
       <div class="auth-header">
-        <h1 class="auth-title">تعيين كلمة المرور الجديدة</h1>
-        <p class="auth-subtitle">يرجى تعيين كلمة مرور قوية وجديدة لحسابك المسجل: <strong style="color:var(--auth-primary)">${window.resetEmail || ''}</strong></p>
+        <h1 class="auth-title">${t('تعيين كلمة المرور الجديدة')}</h1>
+        <p class="auth-subtitle">${t('يرجى تعيين كلمة مرور قوية وجديدة لحسابك المسجل:')} <strong style="color:var(--auth-primary)">${window.resetEmail || ''}</strong></p>
       </div>
 
-      <form class="auth-form" onsubmit="event.preventDefault(); if (this.password.value !== this.confirmPassword.value) { showToast('كلمتا المرور غير متطابقتين.', 'error'); return; }; confirmNewPassword(this.password.value)">
+      <form class="auth-form" onsubmit="event.preventDefault(); if (this.password.value !== this.confirmPassword.value) { showToast(t('كلمتا المرور غير متطابقتين.'), 'error'); return; }; confirmNewPassword(this.password.value)">
         <div class="auth-input-group">
-          <input name="password" type="password" placeholder="كلمة المرور الجديدة" required autocomplete="new-password" oninput="updatePassStrengthUI(this.value)">
+          <input name="password" type="password" placeholder="${t('كلمة المرور الجديدة')}" required autocomplete="new-password" oninput="updatePassStrengthUI(this.value)">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </div>
 
@@ -593,54 +612,55 @@ export function renderLogin() {
             <div id="pass-strength-bar" class="pass-strength-bar"></div>
           </div>
           <div class="pass-strength-label">
-            <span>قوة كلمة المرور:</span>
-            <span id="pass-strength-text">قصيرة جداً</span>
+            <span>${t('قوة كلمة المرور:')}</span>
+            <span id="pass-strength-text">${t('قصيرة جداً')}</span>
           </div>
         </div>
 
         <div class="auth-input-group">
-          <input name="confirmPassword" type="password" placeholder="تأكيد كلمة المرور الجديدة" required autocomplete="new-password">
+          <input name="confirmPassword" type="password" placeholder="${t('تأكيد كلمة المرور الجديدة')}" required autocomplete="new-password">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </div>
 
-        <button type="submit" class="auth-btn" style="margin-top: 0.5rem;">حفظ كلمة المرور الجديدة</button>
+        <button type="submit" class="auth-btn" style="margin-top: 0.5rem;">${t('حفظ كلمة المرور الجديدة')}</button>
         
         <div style="text-align: center; margin-top: 1rem;">
-          <a href="#" class="auth-forgot" onclick="event.preventDefault(); window.loginMode='login'; R()">إلغاء والعودة للدخول</a>
+          <a href="#" class="auth-forgot" onclick="event.preventDefault(); window.loginMode='login'; R()">${t('إلغاء والعودة للدخول')}</a>
         </div>
       </form>
     `;
   } else if (mode === 'verificationPending') {
     leftContentHTML = `
+      ${langSwitcherHTML}
       <div style="text-align: center;">
         <div class="ver-icon-box">
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
         </div>
         
-        <h1 class="auth-title">تفعيل الحساب مطلوب</h1>
+        <h1 class="auth-title">${t('تفعيل الحساب مطلوب')}</h1>
         <p class="auth-subtitle" style="margin-bottom: 1.5rem;">
-          لقد أرسلنا رابط تفعيل إلى البريد الإلكتروني:<br>
+          ${t('لقد أرسلنا رابط تفعيل إلى البريد الإلكتروني:')}<br>
           <strong style="color: var(--auth-primary); word-break: break-all;">${auth.currentUser ? auth.currentUser.email : ''}</strong>
         </p>
         
-        <p class="auth-subtitle" style="background: var(--auth-bg); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--auth-border); font-size: 0.85rem; margin-bottom: 2rem; text-align: right; line-height: 1.6;">
-          💡 <strong>التعليمات:</strong><br>
-          1. افتح علبة الوارد لبريدك الإلكتروني واضغط على الرابط المرسل لتفعيل حسابك.<br>
-          2. إذا تم التفعيل بنجاح، انقر على زر <strong>"التحقق من حالة التفعيل"</strong> بالأسفل.<br>
-          3. إذا لم تصلك الرسالة بعد بضع دقائق، تفقّد مجلد "الرسائل غير المرغوب فيها (Spam)" أو اضغط على <strong>"إعادة إرسال رابط التفعيل"</strong>.
+        <p class="auth-subtitle" style="background: var(--auth-bg); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--auth-border); font-size: 0.85rem; margin-bottom: 2rem; text-align: ${S.lang==='ar'?'right':'left'}; line-height: 1.6;">
+          💡 <strong>${t('التعليمات:')}</strong><br>
+          ${t('1. افتح علبة الوارد لبريدك الإلكتروني واضغط على الرابط المرسل لتفعيل حسابك.')}<br>
+          ${t('2. إذا تم التفعيل بنجاح، انقر على زر "التحقق من حالة التفعيل" بالأسفل.')}<br>
+          ${t('3. إذا لم تصلك الرسالة بعد بضع دقائق، تفقّد مجلد "الرسائل غير المرغوب فيها (Spam)" أو اضغط على "إعادة إرسال رابط التفعيل".')}
         </p>
 
         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
           <button id="check-ver-btn" class="auth-btn" onclick="checkVerificationStatus()">
-            ⚡ التحقق من حالة التفعيل والدخول
+            ${t('⚡ التحقق من حالة التفعيل والدخول')}
           </button>
           
-          <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 0.75rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
             <button id="resend-ver-btn" class="social-btn" onclick="resendVerificationEmail()">
-              ✉️ إعادة إرسال الرابط
+              ${t('✉️ إعادة إرسال الرابط')}
             </button>
             <button class="social-btn" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="logout(true)">
-              🚪 تسجيل الخروج
+              ${t('🚪 تسجيل الخروج')}
             </button>
           </div>
         </div>
@@ -651,7 +671,7 @@ export function renderLogin() {
   return `
     ${styleBlock}
     <div class="auth-wrapper">
-      <div class="auth-card" style="direction: rtl;">
+      <div class="auth-card" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'};">
         <div class="auth-left">
           ${leftContentHTML}
         </div>
@@ -665,7 +685,7 @@ export function renderLogin() {
             </svg>
           </div>
           <div class="auth-right-brand">PROGILIC</div>
-          <p class="auth-right-desc">لوحة التحكم والمتابعة الذكية وإدارة علاقات العملاء في بيئة سحابية فائقة الأداء وعالية الأمان.</p>
+          <p class="auth-right-desc">${t('لوحة التحكم والمتابعة الذكية وإدارة علاقات العملاء في بيئة سحابية فائقة الأداء وعالية الأمان.')}</p>
         </div>
       </div>
     </div>
@@ -676,7 +696,7 @@ export function renderLogin() {
 window.loginUser = async function(username, password, fullname = '') {
   const email = username.trim().toLowerCase();
   if (!email || !password.trim()) {
-    showToast("يرجى إدخال البريد الإلكتروني وكلمة المرور.", 'error');
+    showToast(t("يرجى إدخال البريد الإلكتروني وكلمة المرور."), 'error');
     return;
   }
   
@@ -686,13 +706,13 @@ window.loginUser = async function(username, password, fullname = '') {
   const originalText = btn ? btn.innerText : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerText = window.loginMode === 'register' ? 'جاري إنشاء الحساب...' : 'جاري تسجيل الدخول...';
+    btn.innerText = window.loginMode === 'register' ? t('جاري إنشاء الحساب...') : t('جاري تسجيل الدخول...');
   }
 
   if (window.loginMode === 'register') {
     const strength = checkPasswordStrength(password);
     if (strength.score < 2) {
-      showToast("يرجى استخدام كلمة مرور أقوى (متوسطة على الأقل).", 'error');
+      showToast(t("يرجى استخدام كلمة مرور أقوى (متوسطة على الأقل)."), 'error');
       if (btn) {
         btn.disabled = false;
         btn.innerText = originalText;
@@ -715,10 +735,10 @@ window.loginUser = async function(username, password, fullname = '') {
 
       try {
         await sendEmailVerification(user);
-        showToast("تم إنشاء الحساب بنجاح وإرسال بريد تفعيل الحساب!", "success");
+        showToast(t("تم إنشاء الحساب بنجاح وإرسال بريد تفعيل الحساب!"), "success");
       } catch (err) {
         console.error("Error sending verification email:", err);
-        showToast("تم إنشاء الحساب ولكن فشل إرسال بريد التفعيل: " + err.message, "warning");
+        showToast(t("تم إنشاء الحساب ولكن فشل إرسال بريد التفعيل: ") + err.message, "warning");
       }
 
       setCurrentUser({
@@ -730,13 +750,13 @@ window.loginUser = async function(username, password, fullname = '') {
       R();
     } catch (error) {
       console.error("Registration error:", error);
-      let errorMsg = "حدث خطأ أثناء إنشاء حسابك.";
+      let errorMsg = t("حدث خطأ أثناء إنشاء حسابك.");
       if (error.code === 'auth/email-already-in-use') {
-        errorMsg = "البريد الإلكتروني مستخدم بالفعل. يرجى تسجيل الدخول.";
+        errorMsg = t("البريد الإلكتروني مستخدم بالفعل. يرجى تسجيل الدخول.");
       } else if (error.code === 'auth/invalid-email') {
-        errorMsg = "البريد الإلكتروني غير صحيح.";
+        errorMsg = t("البريد الإلكتروني غير صحيح.");
       } else if (error.code === 'auth/weak-password') {
-        errorMsg = "كلمة المرور ضعيفة للغاية.";
+        errorMsg = t("كلمة المرور ضعيفة للغاية.");
       }
       showToast(errorMsg, 'error');
       if (btn) {
@@ -752,7 +772,7 @@ window.loginUser = async function(username, password, fullname = '') {
       const isVerified = user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com');
       
       if (!isVerified) {
-        showToast("يرجى تفعيل بريدك الإلكتروني أولاً للوصول إلى النظام.", "warning");
+        showToast(t("يرجى تفعيل بريدك الإلكتروني أولاً للوصول إلى النظام."), "warning");
         setCurrentUser({
           uid: user.uid,
           email: user.email,
@@ -763,7 +783,7 @@ window.loginUser = async function(username, password, fullname = '') {
         return;
       }
 
-      showToast("تم تسجيل الدخول بنجاح!", "success");
+      showToast(t("تم تسجيل الدخول بنجاح!"), "success");
       setCurrentUser({
         uid: user.uid,
         email: user.email,
@@ -775,11 +795,11 @@ window.loginUser = async function(username, password, fullname = '') {
       R();
     } catch (error) {
       console.error("Login error:", error);
-      let errorMsg = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
+      let errorMsg = t("البريد الإلكتروني أو كلمة المرور غير صحيحة.");
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMsg = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
+        errorMsg = t("البريد الإلكتروني أو كلمة المرور غير صحيحة.");
       } else if (error.code === 'auth/invalid-email') {
-        errorMsg = "صيغة البريد الإلكتروني غير صحيحة.";
+        errorMsg = t("صيغة البريد الإلكتروني غير صحيحة.");
       }
       showToast(errorMsg, 'error');
       if (btn) {
@@ -795,21 +815,21 @@ window.sendPasswordReset = async function(email) {
   const originalText = btn ? btn.innerText : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerText = 'جاري إرسال رابط إعادة التعيين...';
+    btn.innerText = t('جاري إرسال رابط إعادة التعيين...');
   }
   try {
     const cleanEmail = email.trim().toLowerCase();
     await sendPasswordResetEmail(auth, cleanEmail);
-    showToast("تم إرسال بريد إعادة تعيين كلمة المرور بنجاح. يرجى مراجعة بريدك الوارد.", "success");
+    showToast(t("تم إرسال بريد إعادة تعيين كلمة المرور بنجاح. يرجى مراجعة بريدك الوارد."), "success");
     window.loginMode = 'login';
     R();
   } catch (err) {
     console.error("Send password reset error:", err);
-    let errMsg = "فشل إرسال بريد إعادة التعيين.";
+    let errMsg = t("فشل إرسال بريد إعادة التعيين.");
     if (err.code === 'auth/user-not-found') {
-      errMsg = "لا يوجد حساب مسجل بهذا البريد الإلكتروني.";
+      errMsg = t("لا يوجد حساب مسجل بهذا البريد الإلكتروني.");
     } else if (err.code === 'auth/invalid-email') {
-      errMsg = "البريد الإلكتروني غير صحيح.";
+      errMsg = t("البريد الإلكتروني غير صحيح.");
     }
     showToast(errMsg, "error");
   } finally {
@@ -825,20 +845,20 @@ window.resendVerificationEmail = async function() {
   const originalText = btn ? btn.innerText : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerText = 'جاري الإرسال...';
+    btn.innerText = t('جاري الإرسال...');
   }
   try {
     if (auth.currentUser) {
       await sendEmailVerification(auth.currentUser);
-      showToast("تم إعادة إرسال رابط التفعيل بنجاح. يرجى تفقّد بريدك الإلكتروني.", "success");
+      showToast(t("تم إعادة إرسال رابط التفعيل بنجاح. يرجى تفقّد بريدك الإلكتروني."), "success");
     } else {
-      showToast("لم نتمكن من العثور على حسابك الحالي.", "error");
+      showToast(t("لم نتمكن من العثور على حسابك الحالي."), "error");
     }
   } catch (err) {
     console.error("Error resending verification email:", err);
-    let errMsg = "فشل إرسال البريد: " + err.message;
+    let errMsg = err.message;
     if (err.code === 'auth/too-many-requests') {
-      errMsg = "تم إرسال عدد كبير من طلبات التفعيل مؤخراً. يرجى الانتظار دقيقة قبل المحاولة مرة أخرى.";
+      errMsg = t("تم إرسال عدد كبير من طلبات التفعيل مؤخراً. يرجى الانتظار دقيقة قبل المحاولة مرة أخرى.");
     }
     showToast(errMsg, "error");
   } finally {
@@ -854,7 +874,7 @@ window.checkVerificationStatus = async function() {
   const originalText = btn ? btn.innerText : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerText = 'جاري التحقق...';
+    btn.innerText = t('جاري التحقق...');
   }
   try {
     if (auth.currentUser) {
@@ -869,7 +889,7 @@ window.checkVerificationStatus = async function() {
       });
 
       if (isVerified) {
-        showToast("تم تفعيل حسابك بنجاح! جاري تحميل البيانات...", "success");
+        showToast(t("تم تفعيل حسابك بنجاح! جاري تحميل البيانات..."), "success");
         try {
           await user.getIdToken(true);
         } catch (tokErr) {
@@ -880,12 +900,12 @@ window.checkVerificationStatus = async function() {
         window.loginMode = 'main';
         R();
       } else {
-        showToast("لم يتم تفعيل البريد الإلكتروني بعد. يرجى فتح الرسالة المرسلة وتأكيد حسابك.", "info");
+        showToast(t("لم يتم تفعيل البريد الإلكتروني بعد. يرجى فتح الرسالة المرسلة وتأكيد حسابك."), "info");
       }
     }
   } catch (err) {
     console.error("Error checking verification status:", err);
-    showToast("فشل التحقق: " + err.message, "error");
+    showToast(err.message, "error");
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -899,16 +919,16 @@ window.loginWithGoogle = async function() {
   const originalText = btn ? btn.innerText : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerText = 'Redirecting to Google...';
+    btn.innerText = 'Google...';
   }
   try {
     stopRealtimeSync();
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
     if (error.code === 'auth/popup-closed-by-user') {
-      showToast("تم إلغاء عملية الدخول بواسطة المستخدم.", "warning");
+      showToast(t("تم إلغاء عملية الدخول بواسطة المستخدم."), "warning");
     } else {
-      showToast("فشل تسجيل الدخول باستخدام Google: " + error.message, "error");
+      showToast(t("فشل تسجيل الدخول باستخدام Google: ") + error.message, "error");
     }
   } finally {
     if (btn) {
@@ -924,9 +944,9 @@ window.loginWithFacebook = async function() {
     await signInWithPopup(auth, facebookProvider);
   } catch (error) {
     if (error.code === 'auth/popup-closed-by-user') {
-      showToast("تم إلغاء عملية الدخول بواسطة المستخدم.", "warning");
+      showToast(t("تم إلغاء عملية الدخول بواسطة المستخدم."), "warning");
     } else {
-      showToast("فشل تسجيل الدخول باستخدام Facebook: " + error.message, "error");
+      showToast(t("فشل تسجيل الدخول باستخدام Facebook: ") + error.message, "error");
     }
   }
 };

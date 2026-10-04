@@ -10,6 +10,7 @@ import { gv, gc2, gc, gn, td } from '../../utils/index.js';
 import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
+import { t } from '../../utils/i18n.js';
 import { 
   addClientTransaction, 
   updateClientTransaction, 
@@ -23,8 +24,8 @@ import {
 export async function saveContact() {
   const date = gv('fch_d');
   const note = (document.getElementById('fch_n') || {}).value || '';
-  if (!date) { showToast('الرجاء اختيار تاريخ التواصل', 'error'); return; }
-  if (!note.trim()) { showToast('الرجاء إدخال ملاحظة التواصل', 'error'); return; }
+  if (!date) { showToast(t('الرجاء اختيار تاريخ التواصل'), 'error'); return; }
+  if (!note.trim()) { showToast(t('الرجاء إدخال ملاحظة التواصل'), 'error'); return; }
   
   const c = gc(); if (!c) return;
   if (!Array.isArray(c.contactHistory)) c.contactHistory = [];
@@ -59,7 +60,12 @@ export async function saveContact() {
 }
 
 export async function delContact(cid, hid) {
-  const confirmed = await showConfirm('هل أنت متأكد من حذف هذا السجل نهائياً؟', 'تأكيد الحذف');
+  const confirmMsg = S.lang === 'fr' 
+    ? 'Êtes-vous certain de vouloir supprimer cet enregistrement ?'
+    : (S.lang === 'en' 
+      ? 'Are you sure you want to permanently delete this contact record?'
+      : 'هل أنت متأكد من حذف هذا السجل نهائياً؟');
+  const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
   const c = clients.find(x => x.id === cid); if (!c) return;
   
@@ -110,7 +116,7 @@ export function autoFillConf() {
 // 3. Client Registration & General Operations (Transactional - Now Enqueued with Optimistic Updates)
 
 export async function saveIssue(editId) {
-  const title = gv('fi_t'); if (!title) { showToast('الرجاء إدخال عنوان المشكلة', 'error'); return; }
+  const title = gv('fi_t'); if (!title) { showToast(t('الرجاء إدخال عنوان المشكلة'), 'error'); return; }
   const c = gc(); if (!c) return;
   
   const rc = gn('fi_rc', 1);
@@ -190,11 +196,21 @@ export async function saveIssue(editId) {
 }
 
 export async function markSolved(cid, iid) {
-  const sol = await showPrompt('أدخل وصف الحل المقدم للتذكرة:', 'إغلاق وحل تذكرة الدعم', '', 'مثال: تم تحديث البرنامج وتثبيت رخصة جديدة'); if (sol === null) return;
+  const promptMsg = S.lang === 'fr'
+    ? 'Entrez la description de la solution apportée :'
+    : (S.lang === 'en'
+      ? 'Enter description of the solution provided:'
+      : 'أدخل وصف الحل المقدم للتذكرة:');
+  const promptPlaceholder = S.lang === 'fr'
+    ? 'Ex: Logiciel mis à jour et nouvelle licence activée'
+    : (S.lang === 'en'
+      ? 'E.g.: Software updated and new license installed'
+      : 'مثال: تم تحديث البرنامج وتثبيت رخصة جديدة');
+  const sol = await showPrompt(promptMsg, t('حل التذكرة'), '', promptPlaceholder); if (sol === null) return;
   const c = clients.find(x => x.id === cid); if (!c) return;
   const iss = (c.issues || []).find(x => x.id === iid); if (!iss) return;
 
-  const updatedIssue = { ...iss, status: 'محلول', solution: sol || 'تم الحل' };
+  const updatedIssue = { ...iss, status: 'محلول', solution: sol || t('تم الحل') };
   const nextIssues = c.issues.map(i => i.id === iid ? updatedIssue : i);
   const nextOpenCount = nextIssues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
 
@@ -231,7 +247,12 @@ export async function markSolved(cid, iid) {
 }
 
 export async function delIssue(cid, iid) {
-  const confirmed = await showConfirm('هل أنت متأكد من حذف هذه المشكلة نهائياً؟', 'تأكيد الحذف');
+  const confirmMsg = S.lang === 'fr'
+    ? 'Êtes-vous certain de vouloir supprimer définitivement cette anomalie ?'
+    : (S.lang === 'en'
+      ? 'Are you sure you want to permanently delete this issue?'
+      : 'هل أنت متأكد من حذف هذه المشكلة نهائياً؟');
+  const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
   const c = clients.find(x => x.id === cid); if (!c) return;
   const issToDelete = (c.issues || []).find(i => i.id === iid);
@@ -276,7 +297,7 @@ export async function delIssue(cid, iid) {
 // 5. Client Requirements Operations (Transactional - Now Enqueued with Optimistic Updates)
 
 export async function saveReq(editId) {
-  const title = gv('fr_t'); if (!title) { showToast('الرجاء إدخال عنوان الطلب', 'error'); return; }
+  const title = gv('fr_t'); if (!title) { showToast(t('الرجاء إدخال عنوان الطلب'), 'error'); return; }
   const c = gc(); if (!c) return;
   
   const d = {
@@ -331,7 +352,12 @@ export async function saveReq(editId) {
 }
 
 export async function delReq(cid, rid) {
-  const confirmed = await showConfirm('هل أنت متأكد من حذف هذا الطلب نهائياً؟', 'تأكيد الحذف');
+  const confirmMsg = S.lang === 'fr'
+    ? 'Êtes-vous certain de vouloir supprimer cette demande ?'
+    : (S.lang === 'en'
+      ? 'Are you sure you want to permanently delete this requirement?'
+      : 'هل أنت متأكد من حذف هذا الطلب نهائياً؟');
+  const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
   const c = clients.find(x => x.id === cid); if (!c) return;
 

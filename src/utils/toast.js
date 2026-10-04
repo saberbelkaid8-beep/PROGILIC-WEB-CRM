@@ -1,10 +1,13 @@
 import { esc } from './index.js';
+import { t } from './i18n.js';
+import { S } from '../state/store.js';
 
 export function showToast(message, type = 'success', duration = 3000) {
   let container = document.querySelector('.toast-container');
   if (!container) {
     container = document.createElement('div');
     container.className = 'toast-container';
+    container.dir = S.lang === 'ar' ? 'rtl' : 'ltr';
     document.body.appendChild(container);
   }
 
@@ -17,7 +20,7 @@ export function showToast(message, type = 'success', duration = 3000) {
 
   toast.innerHTML = `
     <div class="toast-icon">${icon}</div>
-    <div class="toast-body">${esc(message)}</div>
+    <div class="toast-body">${esc(t(message))}</div>
   `;
 
   container.appendChild(toast);

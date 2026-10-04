@@ -1,5 +1,6 @@
 import { S, clients } from '../state/store.js';
 import { WILAYAS, ACTIVITY_TYPES } from '../constants/index.js';
+import { t } from './i18n.js';
 
 export function esc(str) {
   if (str === null || str === undefined) return '';
@@ -18,24 +19,34 @@ export function esc(str) {
 
 export const gc = () => clients.find(c => c.id === S.selId) || null;
 export const init = (n) => { const p = (n || '').trim().split(' '); return p.length >= 2 ? (p[0][0] || '') + (p[1][0] || '') : (n || '').substring(0, 2).toUpperCase() };
-export const fmtD = (d) => { if (!d) return '—'; try { const dt = new Date(d + 'T00:00'); return dt.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short', year: 'numeric' }) } catch { return d } };
+export const fmtD = (d) => {
+  if (!d) return '—';
+  try {
+    const dt = new Date(d + 'T00:00');
+    const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
+    return dt.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return d;
+  }
+};
 export const td = () => new Date().toISOString().split('T')[0];
 
-export function sBdg(s) { const m = { 'نشط': 'bdg-g', 'محتمل': 'bdg-b', 'متوقف': 'bdg-y' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${s}</span>` }
-export function pBdg(p) { const m = { 'عاجل': 'bdg-r', 'عالية': 'bdg-o', 'متوسطة': 'bdg-y', 'منخفضة': 'bdg-g' }; return `<span class="bdg ${m[p] || 'bdg-gr'}">${p}</span>` }
-export function isBdg(s) { const m = { 'مفتوح': 'bdg-r', 'قيد المعالجة': 'bdg-y', 'محلول': 'bdg-g', 'مغلق': 'bdg-gr' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${s}</span>` }
-export function rBdg(s) { const m = { 'مقترح': 'bdg-b', 'قيد الدراسة': 'bdg-y', 'مخطط': 'bdg-o', 'منفذ': 'bdg-g', 'مرفوض': 'bdg-r' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${s}</span>` }
+export function sBdg(s) { const m = { 'نشط': 'bdg-g', 'محتمل': 'bdg-b', 'متوقف': 'bdg-y' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${t(s)}</span>` }
+export function pBdg(p) { const m = { 'عاجل': 'bdg-r', 'عالية': 'bdg-o', 'متوسطة': 'bdg-y', 'منخفضة': 'bdg-g' }; return `<span class="bdg ${m[p] || 'bdg-gr'}">${t(p)}</span>` }
+export function isBdg(s) { const m = { 'مفتوح': 'bdg-r', 'قيد المعالجة': 'bdg-y', 'محلول': 'bdg-g', 'مغلق': 'bdg-gr' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${t(s)}</span>` }
+export function rBdg(s) { const m = { 'مقترح': 'bdg-b', 'قيد الدراسة': 'bdg-y', 'مخطط': 'bdg-o', 'منفذ': 'bdg-g', 'مرفوض': 'bdg-r' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${t(s)}</span>` }
 export function avCls(s) { const m = { 'نشط': 'av-g', 'محتمل': 'av-b', 'متوقف': 'av-gr' }; return m[s] || 'av-gr' }
 export function pBorder(p) { const m = { 'عاجل': 'p-urgent', 'عالية': 'p-high', 'متوسطة': 'p-med', 'منخفضة': 'p-low' }; return m[p] || '' }
 export function srcCls(s) { const m = { 'نظام': 'src-sys', 'عميل': 'src-cl', 'سوء استخدام': 'src-usr', 'شبكة': 'src-net', 'غير محدد': 'src-uk' }; return m[s] || 'src-uk' }
 
-export function selOpts(arr, cur) { return arr.map(o => `<option value="${o}"${cur === o ? ' selected' : ''}>${o}</option>`).join('') }
+export function selOpts(arr, cur) { return arr.map(o => `<option value="${o}"${cur === o ? ' selected' : ''}>${t(o)}</option>`).join('') }
 import { getWilayasList, getCommunesForWilaya, getWilayaByName } from './algeria.js';
 
 export function wOpts(cur) { 
+  const isLatin = S.lang === 'fr' || S.lang === 'en';
   return getWilayasList().map(w => {
     const val = w.name_ar; // Store the Arabic name in DB for backwards compatibility
-    const display = S.lang === 'fr' ? w.name_fr : w.name_ar;
+    const display = isLatin ? w.name_fr : w.name_ar;
     return `<option value="${val}"${cur === val ? ' selected' : ''}>${w.id} - ${display}</option>`;
   }).join('');
 }
@@ -44,9 +55,10 @@ export function cOpts(wilayaName, curCommune) {
   if (!wilayaName) return '';
   const wid = getWilayaByName(wilayaName);
   if (!wid) return '';
+  const isLatin = S.lang === 'fr' || S.lang === 'en';
   return getCommunesForWilaya(wid).map(c => {
     const val = c.name_ar;
-    const display = S.lang === 'fr' ? c.name_fr : c.name_ar;
+    const display = isLatin ? c.name_fr : c.name_ar;
     return `<option value="${val}"${curCommune === val ? ' selected' : ''}>${display}</option>`;
   }).join('');
 }
@@ -56,19 +68,32 @@ export function updateCommunesOpts() {
   const cSelect = document.getElementById('f_cm');
   if (wSelect && cSelect) {
     const wName = wSelect.value;
-    cSelect.innerHTML = `<option value="">${S.lang === 'fr' ? 'Sélectionner Commune' : 'اختر البلدية'}</option>` + cOpts(wName, '');
+    cSelect.innerHTML = `<option value="">${t('اختر البلدية')}</option>` + cOpts(wName, '');
   }
 }
 
 export function getActTypes(act) { return ACTIVITY_TYPES[act] || ACTIVITY_TYPES['أخرى']; }
-export function actTypeOpts(act, cur) { return `<option value="">اختر التخصص</option>` + getActTypes(act).map(t => `<option value="${t}"${cur === t ? ' selected' : ''}>${t}</option>`).join(''); }
+export function actTypeOpts(act, cur) { return `<option value="">${t('اختر التخصص')}</option>` + getActTypes(act).map(tOpt => `<option value="${tOpt}"${cur === tOpt ? ' selected' : ''}>${t(tOpt)}</option>`).join(''); }
 
 export function updateActTypeOpts() {
   const act = document.getElementById('f_bt')?.value || '';
   const sel = document.getElementById('f_bf');
   if (!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = actTypeOpts(act, cur);
+  sel.innerHTML = actTypeOpts(act, '');
+}
+
+export function onClientStatusChange() {
+  const st = document.getElementById('f_st')?.value;
+  const sdInput = document.getElementById('f_sd');
+  const progSec = document.getElementById('active_client_prog_sec');
+  if (st === 'نشط') {
+    if (sdInput && !sdInput.value) {
+      sdInput.value = new Date().toISOString().split('T')[0];
+    }
+    if (progSec) progSec.style.display = 'block';
+  } else {
+    if (progSec) progSec.style.display = 'none';
+  }
 }
 
 export function activityIcon(act) {
@@ -119,13 +144,13 @@ export function progStatusCls(p) {
 
 export function progStatusLabel(p) {
   const cls = progStatusCls(p);
-  if (cls === 'active-prog') return '<span class="bdg bdg-g">نشط</span>';
-  if (cls === 'expired-prog') return '<span class="bdg bdg-r">منتهي</span>';
-  return '<span class="bdg bdg-b">قادم</span>';
+  if (cls === 'active-prog') return `<span class="bdg bdg-g">${t('نشط')}</span>`;
+  if (cls === 'expired-prog') return `<span class="bdg bdg-r">${t('منتهي')}</span>`;
+  return `<span class="bdg bdg-b">${t('قادم')}</span>`;
 }
 
 export function platformIcon(pl) { const m = { 'Desktop': '🖥', 'Mobile': '📱', 'Web': '🌐', 'Hybrid': '⚡' }; return m[pl] || '💻'; }
-export function progTypeBdg(t) { const m = { 'تجاري': 'bdg-g', 'إنتاجي': 'bdg-b', 'لوحة تحكم': 'bdg-p', 'خدمي': 'bdg-o', 'أخرى': 'bdg-gr' }; return `<span class="bdg ${m[t] || 'bdg-gr'}">${t}</span>`; }
+export function progTypeBdg(tVal) { const m = { 'تجاري': 'bdg-g', 'إنتاجي': 'bdg-b', 'لوحة تحكم': 'bdg-p', 'خدمي': 'bdg-o', 'أخرى': 'bdg-gr' }; return `<span class="bdg ${m[tVal] || 'bdg-gr'}">${t(tVal)}</span>`; }
 
 export function normalizePhone(p) { return (p || '').replace(/[\s\-\.]/g, '') }
 

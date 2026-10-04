@@ -2,7 +2,7 @@
 import { buildSearchIndex } from '../business/searchIndex.js';
 
 let internalState = {
-  lang: 'ar',
+  lang: (typeof localStorage !== 'undefined' && localStorage.getItem('crm_lang')) || 'ar',
   view: 'list',
   selId: null,
   tab: 'overview',
@@ -278,11 +278,9 @@ export function updateState(newState) {
   const nextState = { ...internalState };
   
   for (const key in newState) {
-    if (key in internalState) {
-      if (JSON.stringify(internalState[key]) !== JSON.stringify(newState[key])) {
-        nextState[key] = newState[key];
-        changed = true;
-      }
+    if (JSON.stringify(internalState[key]) !== JSON.stringify(newState[key])) {
+      nextState[key] = newState[key];
+      changed = true;
     }
   }
 

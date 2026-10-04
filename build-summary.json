@@ -1,14 +1,14 @@
 {
   "appName": "crm",
-  "timestamp": "2026-07-18T22:40:28.574Z",
+  "timestamp": "2026-07-22T21:01:04.023Z",
   "nodeVersion": "v22.23.1",
   "platform": "linux",
   "build": {
-    "durationMs": 4324,
-    "durationSeconds": 4.32,
+    "durationMs": 7983,
+    "durationSeconds": 7.98,
     "totalFiles": 5,
-    "totalSizeBytes": 1262253,
-    "totalSizeFormatted": "1.2 MB"
+    "totalSizeBytes": 1329980,
+    "totalSizeFormatted": "1.27 MB"
   },
   "dependencies": {
     "productionCount": 3,
@@ -17,9 +17,9 @@
   },
   "artifacts": [
     {
-      "file": "assets/index-qM_4VQmN.js",
-      "sizeBytes": 1208533,
-      "sizeFormatted": "1.15 MB"
+      "file": "assets/index-Fx30SWd1.js",
+      "sizeBytes": 1276260,
+      "sizeFormatted": "1.22 MB"
     },
     {
       "file": "css/components.css",

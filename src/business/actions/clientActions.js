@@ -11,6 +11,7 @@ import { gv, gc2, gc, gn, td } from '../../utils/index.js';
 import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
+import { t } from '../../utils/i18n.js';
 import { 
   addClientTransaction, 
   updateClientTransaction, 
@@ -37,7 +38,12 @@ export function editProg(cid, pid) { S.modal = 'editProgram'; S.form = { eid: pi
 // 3. Program Operations (Transactional)
 
 export async function delProgram(cid, pid) {
-  const confirmed = await showConfirm('هل أنت متأكد من حذف هذا البرنامج نهائياً؟', 'تأكيد الحذف');
+  const confirmMsg = S.lang === 'fr' 
+    ? 'Êtes-vous certain de vouloir supprimer définitivement ce logiciel ?'
+    : (S.lang === 'en' 
+      ? 'Are you sure you want to permanently delete this software?'
+      : 'هل أنت متأكد من حذف هذا البرنامج نهائياً؟');
+  const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
   const c = clients.find(x => x.id === cid); if (!c) return;
   const progToDelete = (c.programs || []).find(p => p.id === pid);
@@ -81,7 +87,7 @@ export async function delProgram(cid, pid) {
 }
 
 export async function saveProgram(editId) {
-  const nm = gv('fp_nm'); if (!nm) { showToast('الرجاء اختيار اسم البرنامج', 'error'); return; }
+  const nm = gv('fp_nm'); if (!nm) { showToast(t('الرجاء اختيار اسم البرنامج'), 'error'); return; }
   const c = gc(); if (!c) return;
   
   const d = {
@@ -158,7 +164,7 @@ export async function saveClient(editId) {
   console.log("saveClient: starting with editId =", editId);
   const fn = gv('f_fn'); 
   console.log("saveClient: retrieved fullName =", fn);
-  if (!fn) { showToast('الرجاء إدخال اسم العميل', 'error'); return; }
+  if (!fn) { showToast(t('الرجاء إدخال اسم العميل'), 'error'); return; }
   const d = {
     fullName: fn,
     phone: gv('f_ph'),
@@ -215,12 +221,14 @@ export async function saveClient(editId) {
       // Log timeline activity
       logActivity(eid, ActivityType.CLIENT_EDITED, "تعديل بيانات العميل", "تم تعديل تفاصيل الملف الشخصي للعميل بنجاح.")
         .catch(err => console.error(err));
-      showToast('تم تحديث بيانات العميل');
+      showToast(t('تم تحديث بيانات العميل'));
     }
   } else {
     const nextId = Date.now();
+    const startDateVal = d.startDate || (d.status === 'نشط' ? td() : '');
     const newClient = {
       ...d,
+      startDate: startDateVal,
       id: nextId,
       score: 100,
       gps: { lat: null, lng: null },
@@ -230,6 +238,24 @@ export async function saveClient(editId) {
       contactHistory: [],
       _subcollectionsLoaded: true
     };
+
+    // Check if initial program was created in the modal
+    const pName = gv('f_p_nm');
+    if (pName) {
+      const pProg = {
+        id: Date.now() + 1,
+        programName: pName,
+        platform: gv('f_p_pl') || 'Desktop',
+        type: gv('f_p_ty') || 'تجاري',
+        installationsCount: Math.max(1, gn('f_p_ic', 1)),
+        startDate: startDateVal || td(),
+        endDate: gv('f_ed') || ''
+      };
+      newClient.programs = [pProg];
+      stats.totalPrograms = (stats.totalPrograms || 0) + 1;
+      stats.totalLicensedDevices = (stats.totalLicensedDevices || 0) + pProg.installationsCount;
+    }
+
     console.log("saveClient: inserting newClient =", JSON.stringify(newClient));
     
     // Update stats
@@ -239,9 +265,7 @@ export async function saveClient(editId) {
     else if (d.status === 'متوقف') stats.stoppedClients = (stats.stoppedClients || 0) + 1;
     
     // Optimistic Update
-    console.log("saveClient: before setClients clients list =", JSON.stringify(clients));
     setClients([...clients, newClient]);
-    console.log("saveClient: after setClients S.clients =", JSON.stringify(S.clients));
     S.stats = stats;
     
     // Enqueue Sync Action
@@ -252,16 +276,28 @@ export async function saveClient(editId) {
     // Log timeline activity
     logActivity(nextId, ActivityType.CLIENT_CREATED, "إنشاء العميل", `تم تسجيل العميل بنظام CRM بنجاح: ${newClient.fullName}.`)
       .catch(err => console.error(err));
-    showToast('تم إضافة العميل بنجاح');
+    showToast(t('تم إضافة العميل بنجاح'));
   }
   
+  const targetId = eid !== null ? eid : (clients.find(c => c.fullName === fn)?.id || S.selId);
+  if (targetId) {
+    S.selId = targetId;
+    S.view = 'detail';
+    S.tab = 'overview';
+  }
   closeModal();
+  R();
 }
 
 // 4. Client Issues Operations (Transactional - Now Enqueued with Optimistic Updates)
 
 export async function delClient(id) {
-  const confirmed = await showConfirm('هل أنت متأكد من حذف هذا العميل وجميع بياناته نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.', 'حذف العميل');
+  const confirmMsg = S.lang === 'fr'
+    ? 'Êtes-vous certain de vouloir supprimer définitivement ce client et toutes ses données ?\nCette action est irréversible.'
+    : (S.lang === 'en'
+      ? 'Are you sure you want to permanently delete this client and all their data?\nThis action cannot be undone.'
+      : 'هل أنت متأكد من حذف هذا العميل وجميع بياناته نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.');
+  const confirmed = await showConfirm(confirmMsg, t('حذف العميل'));
   if (!confirmed) return;
   const c = clients.find(x => x.id === id); if (!c) return;
 
@@ -298,7 +334,7 @@ export async function delClient(id) {
 // 7. Geo Location API Operation
 
 export async function captureGPS() {
-  if (!navigator.geolocation) { showToast('المتصفح لا يدعم تحديد الموقع الجغرافي', 'error'); return; }
+  if (!navigator.geolocation) { showToast(t('المتصفح لا يدعم تحديد الموقع الجغرافي'), 'error'); return; }
   navigator.geolocation.getCurrentPosition(
     pos => {
       const c = gc(); if (!c) return;
@@ -319,7 +355,7 @@ export async function captureGPS() {
       
       R();
     },
-    err => { showToast('تعذر تحديد الموقع: ' + err.message + '\nتأكد من منح الإذن للمتصفح', 'error'); }
+    err => { showToast(t('تعذر تحديد الموقع: ') + err.message + '\n' + t('تأكد من منح الإذن للمتصفح'), 'error'); }
   );
 }
 

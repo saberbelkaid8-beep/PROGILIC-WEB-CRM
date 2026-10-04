@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderList, renderDetail } from '../../src/presentation/render-views.js';
+import { renderList, renderDetail, renderDashboard } from '../../src/presentation/render-views.js';
 import { S, setClients, updateState } from '../../src/state/store.js';
 
 describe('Presentation Layer - Views', () => {
@@ -53,5 +53,48 @@ describe('Presentation Layer - Views', () => {
     expect(html).toContain('Ahmed Test');
     expect(html).toContain('Test Co');
     expect(html).toContain('نظرة عامة');
+  });
+
+  it('should render dashboard without errors', () => {
+    const clients = [{
+      id: 1,
+      fullName: 'Ahmed Test',
+      company: 'Test Co',
+      status: 'نشط',
+      endDate: '2026-10-10',
+      issues: [{ id: 101, title: 'Bug', priority: 'عاجل', status: 'مفتوح' }],
+      requirements: [],
+      programs: [{ id: 201, programName: 'ERP', installationsCount: 2 }],
+      wilaya: 'وهران'
+    }];
+    setClients(clients);
+    const html = renderDashboard();
+    expect(html).toContain('AI Sentinel Advisor');
+  });
+
+  it('should render dashboard gracefully when clients contain malformed or null records', () => {
+    setClients([null, undefined, {}, { id: 2, fullName: null, programs: null, issues: null, wilaya: null }]);
+    expect(() => {
+      const html = renderDashboard();
+      expect(html).toBeDefined();
+    }).not.toThrow();
+  });
+
+  it('should switch interface languages between ar, fr, and en', async () => {
+    const { setLanguage, t } = await import('../../src/utils/i18n.js');
+    setLanguage('ar');
+    expect(S.lang).toBe('ar');
+    expect(t('العملاء')).toBe('العملاء');
+
+    setLanguage('fr');
+    expect(S.lang).toBe('fr');
+    expect(t('العملاء')).toBe('Clients');
+
+    setLanguage('en');
+    expect(S.lang).toBe('en');
+    expect(t('العملاء')).toBe('Clients');
+
+    // Reset back to Arabic
+    setLanguage('ar');
   });
 });
