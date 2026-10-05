@@ -38,7 +38,7 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['v', 'updatedAt', 'nid'])
-          && data.v is number && data.v == 3
+          && data.v is number && data.v >= 1
           && data.nid is number
           && (data.updatedAt is string || data.updatedAt is timestamp)
           && (!data.keys().contains('stats') || data.stats is map);
@@ -139,7 +139,7 @@ service cloud.firestore {
 
       allow create: if isVerified(userId) && isValidId(clientId)
                     && isValidClient(incoming())
-                    && incoming().id == int(clientId); // Guard ID poisoning
+                    && (string(incoming().id) == clientId || incoming().id == int(clientId)); // Guard ID poisoning
 
       allow update: if isVerified(userId) && isValidId(clientId)
                     && isValidClient(incoming())

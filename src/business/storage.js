@@ -269,7 +269,7 @@ export function startRealtimeSync(userId) {
     });
 
     // Merge summaries with existing clients to preserve already loaded details in memory
-    const mergedClients = summaries.map(newC => {
+    let mergedClients = summaries.map(newC => {
       const existingC = clients.find(x => String(x.id) === String(newC.id));
       if (existingC && existingC._subcollectionsLoaded) {
         return {
@@ -283,6 +283,13 @@ export function startRealtimeSync(userId) {
       }
       return newC;
     });
+
+    // Safety guard: If subcollection listener reports 0 docs, but we already have loaded clients
+    // (e.g. from data.clients in the user doc or IndexedDB), preserve them!
+    if (summaries.length === 0 && clients && clients.length > 0) {
+      console.log(`[Realtime Sync] Subcollection empty but ${clients.length} clients exist in state. Preserving current client list.`);
+      mergedClients = clients;
+    }
 
     batch(() => {
       setSyncing(snapshot.metadata.hasPendingWrites);
@@ -354,8 +361,10 @@ export async function loadUserCache(uid) {
       updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
     });
     
-    // Trigger check for periodic backups (runs 24h backup or initial backup)
-    await checkAndTriggerPeriodicBackup(uid, clients, S.stats, S.nid);
+    // Trigger check for periodic backups in the background (non-blocking)
+    checkAndTriggerPeriodicBackup(uid, clients, S.stats, S.nid).catch(err => {
+      console.warn("[Backup] Background periodic check notice:", err);
+    });
 
   } catch (err) {
     console.error("[IndexedDB Cache] Error loading user cache:", err);
@@ -439,12 +448,40 @@ async function doLoadDataFromFirestore(user) {
 
     if (!fetchFailed) {
       if (data) {
-        // 1. Check if Schema Migration is required (v2 -> v3)
-        if (data.v === undefined || Number(data.v) < 3) {
+        // If data contains clients directly in the user document, hydrate state immediately!
+        if (data.clients && Array.isArray(data.clients) && data.clients.length > 0) {
+          console.log(`[Storage] Hydrating ${data.clients.length} clients directly from user document...`);
+          const migratedData = migrateSchema(data) || data;
+          const initialClients = (migratedData.clients || data.clients).map(c => ({
+            ...c,
+            programs: c.programs || [],
+            issues: c.issues || [],
+            requirements: c.requirements || [],
+            contactHistory: c.contactHistory || [],
+            gps: c.gps || { lat: null, lng: null },
+            _subcollectionsLoaded: true
+          }));
+          batch(() => {
+            setClients(initialClients);
+            updateState({ nid: data.nid || 100, stats: data.stats || S.stats });
+          });
+
+          // Run background migration to subcollections if on legacy schema version
+          if (data.v === undefined || Number(data.v) < 3) {
+            console.log("Legacy schema detected with active clients. Running background migration...");
+            migrateLegacyDataIfNeeded(user.uid, migratedData, data.nid || 100).catch(err => {
+              console.warn("[Storage] Background migration completed with notice:", err);
+            });
+          }
+        } else if (data.v === undefined || Number(data.v) < 3) {
           console.log("Legacy schema detected. Initiating automated v3 migration...");
           const migratedData = migrateSchema(data) || data;
-          const stats = await migrateLegacyDataIfNeeded(user.uid, migratedData, data.nid || 100);
-          updateState({ nid: data.nid || 100, stats });
+          updateState({ nid: data.nid || 100, stats: data.stats || S.stats });
+          migrateLegacyDataIfNeeded(user.uid, migratedData, data.nid || 100).then(stats => {
+            if (stats) updateState({ stats });
+          }).catch(err => {
+            console.warn("[Storage] Migration notice:", err);
+          });
         } else {
           updateState({ nid: data.nid || 100, stats: data.stats || {} });
         }

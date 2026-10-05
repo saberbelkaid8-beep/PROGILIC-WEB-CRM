@@ -261,7 +261,14 @@ export function setLastSyncedTime(val) {
   scheduleRender();
 }
 
+let loadingSafetyTimer = null;
+
 export function setLoading(val) {
+  if (loadingSafetyTimer) {
+    clearTimeout(loadingSafetyTimer);
+    loadingSafetyTimer = null;
+  }
+
   if (internalState.isLoading === !!val) {
     window.__renderAudit.unnecessaryRendersPrevented++;
     return;
@@ -269,6 +276,18 @@ export function setLoading(val) {
   handleRecursiveCheck('isLoading');
   internalState = Object.freeze({ ...internalState, isLoading: !!val });
   scheduleRender();
+
+  // Safety watchdog: Automatically release loading state after 1.5 seconds max
+  // to ensure users never get stuck on skeleton placeholders under any network conditions
+  if (val) {
+    loadingSafetyTimer = setTimeout(() => {
+      if (internalState.isLoading) {
+        console.warn("[Store] Loading watchdog triggered: auto-releasing S.isLoading.");
+        internalState = Object.freeze({ ...internalState, isLoading: false });
+        scheduleRender();
+      }
+    }, 1500);
+  }
 }
 
 export function setSaveError(val) {

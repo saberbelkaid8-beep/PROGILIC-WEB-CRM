@@ -15,7 +15,7 @@ export function renderList(){
   console.log("renderList: filtered clients count =", fil.length);
   const cnt=countAdvFil();
 
-  if (S.isLoading) {
+  if (S.isLoading && clients.length === 0) {
     return `
       <div class="stats-row">
         ${Array(4).fill(0).map(() => `<div class="stat-c skeleton" style="height:70px"></div>`).join('')}
@@ -130,7 +130,8 @@ export function renderList(){
 }
 
 export function renderDetail(){
-  if (S.isLoading) {
+  const c=gc();
+  if (S.isLoading && !c) {
     return `
       <div class="back skeleton" style="width:120px;height:32px;margin-bottom:1rem"></div>
       <div class="chdr skeleton" style="height:120px;margin-bottom:1rem"></div>
@@ -140,7 +141,7 @@ export function renderDetail(){
       <div class="tabs-wrap skeleton" style="height:40px"></div>
     `;
   }
-  const c=gc();if(!c)return`<p style="color:var(--t2)">${t('العميل غير موجود')}</p>`;
+  if(!c)return`<p style="color:var(--t2)">${t('العميل غير موجود')}</p>`;
   const oi=c.issues.filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة').length;
   const fo=c.issues.filter(i=>i.featureOpp).length;
   const sc=computeScore(c);

@@ -97,13 +97,23 @@ export async function migrateLegacyDataIfNeeded(userId, legacyData, currentNid) 
     };
 
     const userRef = doc(db, userPath);
-    await setDoc(userRef, {
-      v: 3,
-      updatedAt: new Date().toISOString(),
-      nid: currentNid || 100,
-      stats: globalStats,
-      clients: deleteField()
-    }, { merge: true });
+    try {
+      await setDoc(userRef, {
+        v: 3,
+        updatedAt: new Date().toISOString(),
+        nid: currentNid || 100,
+        stats: globalStats,
+        clients: deleteField()
+      }, { merge: true });
+    } catch (setErr) {
+      console.warn("[MIGRATION] setDoc with deleteField had minor issue, falling back to clean setDoc:", setErr);
+      await setDoc(userRef, {
+        v: 3,
+        updatedAt: new Date().toISOString(),
+        nid: currentNid || 100,
+        stats: globalStats
+      }, { merge: true });
+    }
 
     console.log(`[MIGRATION] Completed successfully for user: ${userId}. Migrated ${migratedClientsCount} clients.`);
     return globalStats;
