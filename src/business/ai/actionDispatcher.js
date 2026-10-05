@@ -4,7 +4,7 @@
 
 import { S, clients } from '../../state/store.js';
 import { R } from '../../presentation/render-core.js';
-import { openModal, closeModal, setDbFilter, setView, selClient } from '../actions.js';
+import { openModal, closeModal, setDbFilter, setView, selClient, delClient } from '../actions.js';
 import { logActivity, ActivityType } from '../timelineService.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm } from '../../utils/confirm.js';
@@ -167,7 +167,6 @@ export async function dispatchAiAction(aiResult, rawPrompt = '') {
       );
 
       if (confirmed) {
-        const { delClient } = await import('../actions/clientActions.js');
         await delClient(c.id);
         return { success: true, message: `تم حذف العميل "${c.fullName}" بنجاح.` };
       } else {

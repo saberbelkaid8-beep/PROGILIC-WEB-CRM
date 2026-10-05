@@ -856,14 +856,6 @@ function renderTimeline(c) {
 
 export function renderDashboard() {
   try {
-    // Ensure dashboard state properties are initialized
-    S.dbFilterWilaya = S.dbFilterWilaya || 'all';
-    S.dbFilterProg = S.dbFilterProg || 'all';
-    S.dbFilterTier = S.dbFilterTier || 'all';
-    S.dbSearchQuery = S.dbSearchQuery || '';
-    S.dbSortKey = S.dbSortKey || 'score';
-    S.dbSortDir = S.dbSortDir || 'desc';
-
     // 0. Ensure safe clients array
     const safeClients = Array.isArray(clients) ? clients.filter(c => c && typeof c === 'object') : [];
 

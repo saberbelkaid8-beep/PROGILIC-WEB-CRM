@@ -394,13 +394,14 @@ async function doLoadDataFromFirestore(user) {
   try {
     console.log("loadDataFromFirestore: start");
     batch(() => {
-      setLoading(true);
       setSyncing(true);
       setSaveError(false);
     });
 
     // Load local IndexedDB cache first so the UI is responsive immediately!
     await loadUserCache(user.uid);
+    // Release loading immediately after local cache restore to ensure zero UI delay
+    setLoading(false);
 
     try {
       if (user && (user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com'))) {
@@ -411,11 +412,11 @@ async function doLoadDataFromFirestore(user) {
           console.warn("Failed to retrieve ID token:", tokErr);
         }
       }
-      console.log("loadDataFromFirestore: before getUserData with 5s timeout");
+      console.log("loadDataFromFirestore: before getUserData with 12s timeout");
       
-      // Resilient 5-second race timeout: never allow a hung connection to trap the UI in a white screen
+      // Resilient 12-second race timeout: provides ample time for cellular/cold connections while local cache serves UI
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 5000)
+        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 12000)
       );
       data = await Promise.race([getUserData(user.uid), timeoutPromise]);
       console.log("loadDataFromFirestore: after getUserData", data);
@@ -430,19 +431,22 @@ async function doLoadDataFromFirestore(user) {
           console.log("Permission error in loadDataFromFirestore, attempting ID token force refresh and retry...");
           await user.getIdToken(true);
           const retryTimeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 4000)
+            setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 8000)
           );
           data = await Promise.race([getUserData(user.uid), retryTimeoutPromise]);
           console.log("Retry getUserData succeeded after ID token force refresh");
         } catch (retryErr) {
           console.error("Retry getUserData failed after ID token force refresh:", retryErr);
           fetchFailed = true;
-          setSaveError(true);
+          if (!clients || clients.length === 0) setSaveError(true);
         }
       } else {
-        console.warn("Could not load user data from Firestore server within timeout, falling back to local cache:", fetchErr);
+        console.warn("Could not load user data from Firestore server within timeout, operating with local cache:", fetchErr);
         fetchFailed = true;
-        setSaveError(true);
+        // If we already have clients in local cache, do not show an alarming red error
+        if (!clients || clients.length === 0) {
+          setSaveError(true);
+        }
       }
     }
 

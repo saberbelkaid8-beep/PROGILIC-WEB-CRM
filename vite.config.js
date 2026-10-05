@@ -39,7 +39,7 @@ export default defineConfig({
               });
               const promptText = buildUserPrompt(userMessage, activeContext, conversationHistory);
 
-              const modelsToTry = ['gemini-3.8-flash', 'gemini-2.5-flash'];
+              const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-pro'];
               let response = null;
               let lastError = null;
 
@@ -106,15 +106,48 @@ export default defineConfig({
               res.end(response.text);
             } catch (err) {
               console.error('[Server AI Error]:', err.message || err);
-              res.statusCode = 500;
+              const errMsg = err.message || String(err);
+              const is503 = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand');
+              const is429 = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota');
+              
+              const status = is503 ? 503 : is429 ? 429 : 500;
+              res.statusCode = status;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: err.message || 'Server AI Generation Error' }));
+              res.end(JSON.stringify({ 
+                error: errMsg,
+                code: is503 ? 'UNAVAILABLE' : is429 ? 'RATE_LIMIT' : 'SERVER_ERROR',
+                temporary: is503 || is429
+              }));
             }
           });
         });
       }
     }
   ],
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/firebase/auth')) {
+            return 'firebase-auth';
+          }
+          if (id.includes('node_modules/firebase/firestore')) {
+            return 'firebase-firestore';
+          }
+          if (id.includes('node_modules/firebase')) {
+            return 'firebase-core';
+          }
+          if (id.includes('node_modules/algeria-locations')) {
+            return 'algeria-data';
+          }
+          if (id.includes('node_modules/minisearch')) {
+            return 'search-engine';
+          }
+        }
+      }
+    }
+  },
   server: {
     port: 3000,
     host: true,

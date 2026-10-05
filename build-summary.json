@@ -1,30 +1,55 @@
 {
   "appName": "crm",
-  "timestamp": "2026-07-22T21:01:04.023Z",
-  "nodeVersion": "v22.23.1",
+  "timestamp": "2026-10-05T21:11:31.101Z",
+  "nodeVersion": "v22.23.2",
   "platform": "linux",
   "build": {
-    "durationMs": 7983,
-    "durationSeconds": 7.98,
-    "totalFiles": 5,
-    "totalSizeBytes": 1329980,
-    "totalSizeFormatted": "1.27 MB"
+    "durationMs": 3903,
+    "durationSeconds": 3.9,
+    "totalFiles": 20,
+    "totalSizeBytes": 4373954,
+    "totalSizeFormatted": "4.17 MB"
   },
   "dependencies": {
-    "productionCount": 3,
+    "productionCount": 4,
     "developmentCount": 9,
-    "totalCount": 12
+    "totalCount": 13
   },
   "artifacts": [
     {
-      "file": "assets/index-Fx30SWd1.js",
-      "sizeBytes": 1276260,
-      "sizeFormatted": "1.22 MB"
+      "file": "assets/algeria-data-qJMNCcW8.js",
+      "sizeBytes": 160782,
+      "sizeFormatted": "157.01 KB"
+    },
+    {
+      "file": "assets/firebase-auth-KgVDwxIR.js",
+      "sizeBytes": 130106,
+      "sizeFormatted": "127.06 KB"
+    },
+    {
+      "file": "assets/firebase-core-DdMfYscr.js",
+      "sizeBytes": 42992,
+      "sizeFormatted": "41.98 KB"
+    },
+    {
+      "file": "assets/firebase-firestore-3EZstk6k.js",
+      "sizeBytes": 625240,
+      "sizeFormatted": "610.59 KB"
+    },
+    {
+      "file": "assets/index-BOWlMdMW.js",
+      "sizeBytes": 397146,
+      "sizeFormatted": "387.84 KB"
+    },
+    {
+      "file": "assets/search-engine-D7oNtqOG.js",
+      "sizeBytes": 18019,
+      "sizeFormatted": "17.6 KB"
     },
     {
       "file": "css/components.css",
-      "sizeBytes": 47823,
-      "sizeFormatted": "46.7 KB"
+      "sizeBytes": 50410,
+      "sizeFormatted": "49.23 KB"
     },
     {
       "file": "css/main.css",
@@ -37,9 +62,59 @@
       "sizeFormatted": "836 B"
     },
     {
+      "file": "current_view_1920.png",
+      "sizeBytes": 630988,
+      "sizeFormatted": "616.2 KB"
+    },
+    {
+      "file": "final_login_desktop.png",
+      "sizeBytes": 481579,
+      "sizeFormatted": "470.29 KB"
+    },
+    {
+      "file": "final_login_mobile.png",
+      "sizeBytes": 112967,
+      "sizeFormatted": "110.32 KB"
+    },
+    {
       "file": "index.html",
-      "sizeBytes": 1123,
-      "sizeFormatted": "1.1 KB"
+      "sizeBytes": 2181,
+      "sizeFormatted": "2.13 KB"
+    },
+    {
+      "file": "pixel_perfect_1920.png",
+      "sizeBytes": 480146,
+      "sizeFormatted": "468.89 KB"
+    },
+    {
+      "file": "pixel_perfect_mobile.png",
+      "sizeBytes": 69825,
+      "sizeFormatted": "68.19 KB"
+    },
+    {
+      "file": "reference_comparison_desktop.png",
+      "sizeBytes": 472080,
+      "sizeFormatted": "461.02 KB"
+    },
+    {
+      "file": "reference_comparison_mobile.png",
+      "sizeBytes": 92994,
+      "sizeFormatted": "90.81 KB"
+    },
+    {
+      "file": "screenshot_desktop.png",
+      "sizeBytes": 480800,
+      "sizeFormatted": "469.53 KB"
+    },
+    {
+      "file": "screenshot_mobile.png",
+      "sizeBytes": 119571,
+      "sizeFormatted": "116.77 KB"
+    },
+    {
+      "file": "test_logo.png",
+      "sizeBytes": 1354,
+      "sizeFormatted": "1.32 KB"
     }
   ]
 }

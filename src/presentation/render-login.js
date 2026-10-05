@@ -11,7 +11,7 @@ import { setCurrentUser, S } from '../state/store.js';
 import { R } from './render-core.js';
 import { showToast } from '../utils/toast.js';
 import { checkPasswordStrength, logout } from '../business/actions/authActions.js';
-import { stopRealtimeSync } from '../business/storage.js';
+import { stopRealtimeSync, loadDataFromFirestore } from '../business/storage.js';
 import { t, setLanguage } from '../utils/i18n.js';
 
 window.loginMode = window.loginMode || 'login';
@@ -1419,7 +1419,6 @@ window.loginUser = async function(username, password, fullname = '') {
         emailVerified: true,
       });
       window.loginMode = 'main';
-      const { loadDataFromFirestore } = await import('../business/storage.js');
       await loadDataFromFirestore(user);
       R();
     } catch (error) {
@@ -1524,7 +1523,6 @@ window.checkVerificationStatus = async function() {
         } catch (tokErr) {
           console.warn("Failed to refresh ID token during verification check:", tokErr);
         }
-        const { loadDataFromFirestore } = await import('../business/storage.js');
         await loadDataFromFirestore(user);
         window.loginMode = 'main';
         R();
@@ -1554,10 +1552,17 @@ window.loginWithGoogle = async function() {
     stopRealtimeSync();
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
-    if (error.code === 'auth/popup-closed-by-user') {
+    console.error('Error during Google login:', error);
+    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
       showToast(t("تم إلغاء عملية الدخول بواسطة المستخدم."), "warning");
+    } else if (error.code === 'auth/network-request-failed') {
+      showToast(t("تعذر الاتصال بخوادم تسجيل الدخول. يرجى التحقق من اتصال الإنترنت وإعادة المحاولة."), "error");
+    } else if (error.code === 'auth/popup-blocked') {
+      showToast(t("تم حظر النافذة المنبثقة من قِبل المتصفح. يرجى السماح بالنوافذ المنبثقة."), "warning");
+    } else if (error.code === 'auth/unauthorized-domain') {
+      showToast(t("النطاق الحالي غير مصرح له بتسجيل الدخول عبر Google."), "error");
     } else {
-      showToast(t("فشل تسجيل الدخول باستخدام Google: ") + error.message, "error");
+      showToast(t("فشل تسجيل الدخول باستخدام Google: ") + (error.message || error.code), "error");
     }
   } finally {
     if (btn) {

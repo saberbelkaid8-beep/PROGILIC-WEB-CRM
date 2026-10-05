@@ -26,6 +26,12 @@ let internalState = {
   isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
   virtualScrollTop: 0,
   viewportHeight: typeof window !== 'undefined' ? window.innerHeight : 600,
+  dbFilterWilaya: 'all',
+  dbFilterProg: 'all',
+  dbFilterTier: 'all',
+  dbSearchQuery: '',
+  dbSortKey: 'score',
+  dbSortDir: 'desc',
   stats: {
     activeClients: 0,
     prospectiveClients: 0,

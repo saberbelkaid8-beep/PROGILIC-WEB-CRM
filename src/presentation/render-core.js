@@ -1,6 +1,7 @@
 import { S, clients, currentUser, scheduleRender } from '../state/store.js';
 import { _isSyncing, _lastSyncedTime, _saveError } from '../business/storage.js';
 import { computeAlerts, autoDetectFeatureOpp } from '../business/intelligence.js';
+import { esc } from '../utils/index.js';
 import { renderLogin } from './render-login.js';
 import { renderList, renderDetail, renderGlobalIntelligence, renderDashboard } from './render-views.js';
 import { renderModal } from './render-modals.js';

@@ -1,5 +1,5 @@
 import { S, clients, setClients, updateState, currentUser, setCurrentUser } from '../../state/store.js';
-import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction, stopRealtimeSync } from '../storage.js';
+import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction, stopRealtimeSync, loadDataFromFirestore } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
 import { getBackups, deleteBackup } from '../idbStorage.js';
@@ -156,7 +156,6 @@ export function loginUser(username, password, fullname = '') {
           emailVerified: true,
         });
         window.loginMode = 'main';
-        const { loadDataFromFirestore } = await import('../storage.js');
         await loadDataFromFirestore(user);
         R();
       })
@@ -331,7 +330,6 @@ export async function checkVerificationStatus() {
         } catch (tokErr) {
           console.warn("Failed to force refresh ID token during verification check:", tokErr);
         }
-        const { loadDataFromFirestore } = await import('../storage.js');
         await loadDataFromFirestore(user);
         R();
       } else {
@@ -362,13 +360,17 @@ export async function loginWithGoogle() {
     stopRealtimeSync();
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
-    if (error.code === 'auth/popup-closed-by-user') {
-      console.log('User closed the Google login popup.');
-      showToast('تم إلغاء عملية تسجيل الدخول.', 'info');
+    console.error('Error during Google login:', error);
+    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+      showToast(t('تم إلغاء عملية تسجيل الدخول.'), 'info');
+    } else if (error.code === 'auth/network-request-failed') {
+      showToast(t('تعذر الاتصال بخوادم المصادقة. يرجى التحقق من اتصال الإنترنت.'), 'error');
+    } else if (error.code === 'auth/popup-blocked') {
+      showToast(t('تم حظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة في المتصفح.'), 'warning');
     } else {
-      console.error('Error during Google login:', error);
-      showToast('فشل تسجيل الدخول بـ Google', 'error');
+      showToast(t('فشل تسجيل الدخول بـ Google: ') + (error.message || error.code), 'error');
     }
+  } finally {
     if (btn) {
       btn.disabled = false;
       btn.innerText = originalText;

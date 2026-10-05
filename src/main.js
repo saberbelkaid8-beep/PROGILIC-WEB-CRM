@@ -54,7 +54,7 @@ import { exportData, exportToCSV, importData, clearAllData, resolveConflict } fr
 import { toggleLanguage, setLanguage } from './utils/i18n.js';
 import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
 
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
 import { S, setCurrentUser, setClients, subscribe, updateState } from './state/store.js';
 import { loadDataFromFirestore, stopRealtimeSync, loadCache } from './business/storage.js';
@@ -96,19 +96,17 @@ function boot() {
   if (mode === 'resetPassword' && oobCode) {
     window.loginMode = 'resetPassword';
     window.resetOobCode = oobCode;
-    import('firebase/auth').then(({ verifyPasswordResetCode }) => {
-      verifyPasswordResetCode(auth, oobCode)
-        .then((email) => {
-          window.resetEmail = email;
-          R();
-        })
-        .catch((err) => {
-          console.error("Invalid or expired reset code:", err);
-          actions.showToast("رابط إعادة تعيين كلمة المرور منتهي الصلاحية أو تم استخدامه مسبقاً.", "error");
-          window.loginMode = 'login';
-          R();
-        });
-    });
+    verifyPasswordResetCode(auth, oobCode)
+      .then((email) => {
+        window.resetEmail = email;
+        R();
+      })
+      .catch((err) => {
+        console.error("Invalid or expired reset code:", err);
+        actions.showToast("رابط إعادة تعيين كلمة المرور منتهي الصلاحية أو تم استخدامه مسبقاً.", "error");
+        window.loginMode = 'login';
+        R();
+      });
   }
 
   // Register Global Keyboard Shortcuts
