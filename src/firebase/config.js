@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, GoogleAuthProvider, FacebookAuthProvider, OAuthProvider } from "firebase/auth";
-import { getFirestore, enableMultiTabIndexedDbPersistence, clearIndexedDbPersistence } from "firebase/firestore";
+import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider, FacebookAuthProvider, OAuthProvider } from "firebase/auth";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 // Initialize Firebase
@@ -11,17 +11,26 @@ export const auth = getAuth(app);
 // Ensure persistence is set for authentication
 setPersistence(auth, browserLocalPersistence).catch(console.error);
 
-// Initialize Firestore with custom DB ID
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-
-// Enable Offline Persistence for Firestore (Enterprise Architecture)
-enableMultiTabIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn("Multiple tabs open, persistence can only be enabled in one tab at a a time.");
-  } else if (err.code === 'unimplemented') {
-    console.warn("The current browser does not support all of the features required to enable persistence");
+// Initialize Firestore with modern multi-tab persistent cache
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  console.warn("Falling back to memory Firestore cache:", e);
+  try {
+    firestoreDb = initializeFirestore(app, {
+      localCache: memoryLocalCache()
+    }, firebaseConfig.firestoreDatabaseId);
+  } catch (e2) {
+    console.error("Firestore initialization failed:", e2);
   }
-});
+}
+
+export const db = firestoreDb;
 
 // Configure Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();

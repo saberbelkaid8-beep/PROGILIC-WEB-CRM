@@ -176,7 +176,8 @@ function boot() {
       });
       
       if (isVerified) {
-        if (app) {
+        // Only show full connecting screen if app is not already rendered with clients
+        if (app && (!clients || clients.length === 0) && (!app.innerHTML || app.innerHTML.includes('auth-card') || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
           app.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background:var(--bg); color:var(--t1); transition: background 0.3s;">
               <style>
@@ -196,7 +197,7 @@ function boot() {
           `;
         }
         
-        console.log("Before loadDataFromFirestore"); await loadDataFromFirestore(user); console.log("After loadDataFromFirestore");
+        await loadDataFromFirestore(user);
       } else {
         stopRealtimeSync();
         setClients([]);

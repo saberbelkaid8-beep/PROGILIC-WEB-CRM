@@ -32,6 +32,10 @@ vi.mock('firebase/auth', () => {
 // Mock Firebase SDK
 vi.mock('firebase/firestore', () => ({
   getFirestore: vi.fn(),
+  initializeFirestore: vi.fn(() => ({})),
+  persistentLocalCache: vi.fn(),
+  persistentMultipleTabManager: vi.fn(),
+  memoryLocalCache: vi.fn(),
   doc: vi.fn(),
   getDoc: vi.fn(),
   setDoc: vi.fn(),
@@ -78,5 +82,19 @@ describe('Firebase Service', () => {
     setDoc.mockResolvedValue(true);
     await saveUserData('test-uid', { v: 3 });
     expect(setDoc).toHaveBeenCalled();
+  });
+
+  it('should deduplicate concurrent loadDataFromFirestore calls', async () => {
+    const { loadDataFromFirestore } = await import('../../src/business/storage.js');
+    const mockUser = { uid: 'test-user-dedup', email: 'test@example.com', emailVerified: true, providerData: [], getIdToken: vi.fn(() => Promise.resolve('mock-token')) };
+    
+    getDoc.mockImplementation(() => new Promise(res => setTimeout(() => res({ exists: () => true, data: () => ({ v: 3, nid: 100 }) }), 20)));
+
+    const p1 = loadDataFromFirestore(mockUser);
+    const p2 = loadDataFromFirestore(mockUser);
+
+    // Both promises should be identical (same in-flight instance)
+    expect(p1).toBe(p2);
+    await Promise.all([p1, p2]);
   });
 });

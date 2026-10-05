@@ -40,4 +40,21 @@ describe('State Management', () => {
     setCurrentUser(user);
     expect(S.currentUser).toEqual(user);
   });
+
+  it('should batch multiple updates into a single subscriber notification', async () => {
+    const { batch } = await import('../../src/state/store.js');
+    const callback = vi.fn();
+    const unsub = subscribe(callback);
+
+    batch(() => {
+      updateState({ view: 'dashboard' });
+      setClients([{ id: 99, fullName: 'Batch User' }]);
+      updateState({ nid: 150 });
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    // The subscriber should have been called only once for the whole batch
+    expect(callback).toHaveBeenCalledTimes(1);
+    unsub();
+  });
 });

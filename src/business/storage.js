@@ -18,7 +18,8 @@ import {
   _lastSyncedTime,
   _saveError,
   notify,
-  subscribe
+  subscribe,
+  batch
 } from '../state/store.js';
 import { 
   getUserData, 
@@ -237,12 +238,14 @@ export function startRealtimeSync(userId) {
   const unsubUser = onSnapshot(userDocRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.data();
-      updateState({
-        nid: data.nid || 100,
-        stats: data.stats || {}
+      batch(() => {
+        updateState({
+          nid: data.nid || 100,
+          stats: data.stats || {}
+        });
+        setLastSyncedTime(new Date());
+        setSyncing(snapshot.metadata.hasPendingWrites);
       });
-      setLastSyncedTime(new Date());
-      setSyncing(snapshot.metadata.hasPendingWrites);
     }
   }, (error) => {
     console.error("User profile snapshot listener error:", error);
@@ -252,8 +255,6 @@ export function startRealtimeSync(userId) {
   // 2. Listen to clients collection (real-time summaries)
   const clientsCollRef = collection(db, 'users', userId, 'clients');
   const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
-    setSyncing(snapshot.metadata.hasPendingWrites);
-    
     const summaries = snapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -283,9 +284,12 @@ export function startRealtimeSync(userId) {
       return newC;
     });
 
-    setClients(mergedClients);
-    setLastSyncedTime(new Date());
-    setSaveError(false);
+    batch(() => {
+      setSyncing(snapshot.metadata.hasPendingWrites);
+      setClients(mergedClients);
+      setLastSyncedTime(new Date());
+      setSaveError(false);
+    });
   }, (error) => {
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
@@ -326,27 +330,29 @@ export async function loadUserCache(uid) {
     const cachedNid = await getMeta(uid, 'nid');
     const cachedQueue = await getSyncQueue(uid);
 
-    if (cachedClients && cachedClients.length > 0) {
-      setClients(cachedClients);
-      console.log(`[IndexedDB Cache] Restored ${cachedClients.length} clients from isolated cache.`);
-    } else {
-      setClients([]); // Default empty
-    }
-    
-    if (cachedStats) {
-      updateState({ stats: cachedStats });
-    }
-    
-    if (cachedNid) {
-      updateState({ nid: Number(cachedNid) });
-    }
-    
-    if (cachedQueue) {
-      updateState({ syncQueue: cachedQueue });
-      console.log(`[IndexedDB Cache] Restored ${cachedQueue.length} pending operations from queue.`);
-    }
+    batch(() => {
+      if (cachedClients && cachedClients.length > 0) {
+        setClients(cachedClients);
+        console.log(`[IndexedDB Cache] Restored ${cachedClients.length} clients from isolated cache.`);
+      } else {
+        setClients([]); // Default empty
+      }
+      
+      if (cachedStats) {
+        updateState({ stats: cachedStats });
+      }
+      
+      if (cachedNid) {
+        updateState({ nid: Number(cachedNid) });
+      }
+      
+      if (cachedQueue) {
+        updateState({ syncQueue: cachedQueue });
+        console.log(`[IndexedDB Cache] Restored ${cachedQueue.length} pending operations from queue.`);
+      }
 
-    updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
+      updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
+    });
     
     // Trigger check for periodic backups (runs 24h backup or initial backup)
     await checkAndTriggerPeriodicBackup(uid, clients, S.stats, S.nid);
@@ -356,15 +362,33 @@ export async function loadUserCache(uid) {
   }
 }
 
+// In-flight guard to deduplicate concurrent loadDataFromFirestore triggers across devices/listeners
+let currentLoadPromise = null;
+
 // Load data from Firestore supporting Schema Version 3 + Legacy Auto-Migration
-export async function loadDataFromFirestore(user) {
+export function loadDataFromFirestore(user) {
+  if (!user || !user.uid) return Promise.resolve();
+  if (currentLoadPromise) {
+    console.log("loadDataFromFirestore: In-flight load already running, returning active promise");
+    return currentLoadPromise;
+  }
+  currentLoadPromise = doLoadDataFromFirestore(user).finally(() => {
+    currentLoadPromise = null;
+  });
+  return currentLoadPromise;
+}
+
+async function doLoadDataFromFirestore(user) {
   let data = null;
   let fetchFailed = false;
 
   try {
-    console.log("loadDataFromFirestore: start"); setLoading(true);
-    setSyncing(true);
-    setSaveError(false);
+    console.log("loadDataFromFirestore: start");
+    batch(() => {
+      setLoading(true);
+      setSyncing(true);
+      setSaveError(false);
+    });
 
     // Load local IndexedDB cache first so the UI is responsive immediately!
     await loadUserCache(user.uid);
@@ -378,8 +402,13 @@ export async function loadDataFromFirestore(user) {
           console.warn("Failed to force refresh ID token:", tokErr);
         }
       }
-      console.log("loadDataFromFirestore: before getUserData");
-      data = await getUserData(user.uid);
+      console.log("loadDataFromFirestore: before getUserData with 5s timeout");
+      
+      // Resilient 5-second race timeout: never allow a hung connection to trap the UI in a white screen
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 5000)
+      );
+      data = await Promise.race([getUserData(user.uid), timeoutPromise]);
       console.log("loadDataFromFirestore: after getUserData", data);
     } catch (fetchErr) {
       const isPermissionErr = fetchErr.message && (
@@ -391,7 +420,10 @@ export async function loadDataFromFirestore(user) {
         try {
           console.log("Permission error in loadDataFromFirestore, attempting ID token force refresh and retry...");
           await user.getIdToken(true);
-          data = await getUserData(user.uid);
+          const retryTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 4000)
+          );
+          data = await Promise.race([getUserData(user.uid), retryTimeoutPromise]);
           console.log("Retry getUserData succeeded after ID token force refresh");
         } catch (retryErr) {
           console.error("Retry getUserData failed after ID token force refresh:", retryErr);
@@ -399,7 +431,7 @@ export async function loadDataFromFirestore(user) {
           setSaveError(true);
         }
       } else {
-        console.warn("Could not load user data from Firestore server, falling back to local cache:", fetchErr);
+        console.warn("Could not load user data from Firestore server within timeout, falling back to local cache:", fetchErr);
         fetchFailed = true;
         setSaveError(true);
       }
@@ -437,11 +469,13 @@ export async function loadDataFromFirestore(user) {
         };
 
         await saveUserData(user.uid, payload);
-        setClients([]);
-        updateState({ nid: 100, stats: initialStats });
+        batch(() => {
+          setClients([]);
+          updateState({ nid: 100, stats: initialStats });
+        });
       }
     } else {
-      // Fetch failed, make sure we fallback to loaded cache states safely
+      // Fetch failed or timed out, make sure we fallback to loaded cache states safely
       console.log("Using cached stats and sequence ID:", S.stats, S.nid);
       updateState({
         nid: S.nid || 100,
@@ -471,8 +505,10 @@ export async function loadDataFromFirestore(user) {
     updateState({ nid: S.nid || 100 });
     setSaveError(true);
   } finally {
-    setLoading(false);
-    setSyncing(false);
+    batch(() => {
+      setLoading(false);
+      setSyncing(false);
+    });
   }
 }
 

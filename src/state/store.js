@@ -84,9 +84,25 @@ if (!window.__renderAudit) {
 
 // Render Loop & Throttling Parameters
 const RENDER_WINDOW_MS = 200;
-const RENDER_LIMIT = 10;
+const RENDER_LIMIT = 25;
 let renderTimestamps = [];
 let isThrottled = false;
+let throttleTimer = null;
+let isBatching = false;
+
+/**
+ * Batches multiple state modifications so only a single render is scheduled
+ * at the end of the batch function.
+ */
+export function batch(fn) {
+  isBatching = true;
+  try {
+    fn();
+  } finally {
+    isBatching = false;
+    scheduleRender();
+  }
+}
 
 // Subscribers Set for reactivity
 const subscribers = new Set();
@@ -104,36 +120,7 @@ export function subscribe(callback) {
   };
 }
 
-/**
- * Triggers all registered subscribers.
- */
-function triggerSubscribers() {
-  if (isThrottled) {
-    console.warn("Rendering is currently throttled due to a suspected infinite render loop.");
-    return;
-  }
-
-  // 1. Detect Render Loop
-  const now = performance.now();
-  renderTimestamps = renderTimestamps.filter(t => now - t < RENDER_WINDOW_MS);
-  renderTimestamps.push(now);
-
-  if (renderTimestamps.length > RENDER_LIMIT) {
-    window.__renderAudit.renderLoopsPrevented++;
-    isThrottled = true;
-    console.error(`⚠️ RENDER LOOP DETECTED: Scheduled ${renderTimestamps.length} renders in ${RENDER_WINDOW_MS}ms. Throttling active to protect CPU!`);
-    
-    // Auto-reset throttle after 2 seconds
-    setTimeout(() => {
-      isThrottled = false;
-      renderTimestamps = [];
-      console.log("Render loop throttle reset. Back to normal.");
-      scheduleRender();
-    }, 2000);
-    return;
-  }
-
-  // 2. Execute subscribers with auditing
+function executeSubscribers() {
   window.__isProcessingMicrotasks = true;
   window.__isRendering = true;
   const startTime = performance.now();
@@ -150,7 +137,7 @@ function triggerSubscribers() {
   window.__isRendering = false;
   window.__isProcessingMicrotasks = false;
 
-  // 3. Update Audit Performance Telemetry
+  // Update Audit Performance Telemetry
   window.__renderAudit.renderCount++;
   window.__renderAudit.lastRenderDurationMs = duration;
   window.__renderAudit.totalRenderDurationMs += duration;
@@ -164,10 +151,37 @@ function triggerSubscribers() {
 }
 
 /**
+ * Triggers all registered subscribers.
+ */
+function triggerSubscribers() {
+  const now = performance.now();
+  renderTimestamps = renderTimestamps.filter(t => now - t < RENDER_WINDOW_MS);
+  renderTimestamps.push(now);
+
+  if (renderTimestamps.length > RENDER_LIMIT) {
+    window.__renderAudit.renderLoopsPrevented++;
+    if (!isThrottled) {
+      console.warn(`Render throttling activated: ${renderTimestamps.length} renders in ${RENDER_WINDOW_MS}ms. Coalescing via debounced frame.`);
+      isThrottled = true;
+    }
+    if (throttleTimer) clearTimeout(throttleTimer);
+    throttleTimer = setTimeout(() => {
+      isThrottled = false;
+      renderTimestamps = [];
+      executeSubscribers();
+    }, 80);
+    return;
+  }
+
+  executeSubscribers();
+}
+
+/**
  * Microtask-batched render scheduling to completely prevent render loops
  * and eliminate unnecessary redundant renderings.
  */
 export function scheduleRender() {
+  if (isBatching) return;
   if (renderScheduled) return;
   renderScheduled = true;
   Promise.resolve().then(() => {
