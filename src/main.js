@@ -176,39 +176,27 @@ function boot() {
       });
       
       if (isVerified) {
-        // Only show full connecting screen if app is not already rendered with clients
-        if (app && (!clients || clients.length === 0) && (!app.innerHTML || app.innerHTML.includes('auth-card') || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
-          app.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background:var(--bg); color:var(--t1); transition: background 0.3s;">
-              <style>
-                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-              </style>
-              <div class="auth-logo" style="width:100px; height:100px; margin-bottom:24px; animation: pulse 2s infinite ease-in-out;">
-                <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M 40 30 H 130 C 180 30 180 110 130 110 H 40 C 90 110 100 50 40 30 Z" fill="#1A73E8"/>
-                  <path d="M 40 110 C 90 110 100 170 60 190 L 40 140 C 60 130 60 120 40 110 Z" fill="#0D47A1"/>
-                </svg>
-              </div>
-              <div style="font-size:18px; font-weight:700; margin-bottom:8px; letter-spacing: -0.5px;">Connecting to Secure Cloud Database...</div>
-              <div style="font-size:13px; color:var(--t3); font-weight: 500;">PROGILIC Real-time Firestore Cloud CRM</div>
-              <div style="width:32px; height:32px; border:3px solid var(--border); border-top-color:#1A73E8; border-radius:50%; animation:spin 0.8s linear infinite; margin-top:24px;"></div>
-            </div>
-          `;
+        // Trigger initial render immediately with cached or empty state so screen never stays white
+        R();
+        try {
+          await loadDataFromFirestore(user);
+        } catch (loadErr) {
+          console.error("loadDataFromFirestore caught gracefully:", loadErr);
+        } finally {
+          R();
         }
-        
-        await loadDataFromFirestore(user);
       } else {
         stopRealtimeSync();
         setClients([]);
         window.loginMode = 'verificationPending';
+        R();
       }
     } else {
       stopRealtimeSync();
       setCurrentUser(null);
       setClients([]);
+      R();
     }
-    R();
   });
 }
 

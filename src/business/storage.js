@@ -396,10 +396,10 @@ async function doLoadDataFromFirestore(user) {
     try {
       if (user && (user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com'))) {
         try {
-          await user.getIdToken(true);
-          console.log("ID token force refreshed in loadDataFromFirestore");
+          // Use standard cached token; only force refresh upon permission errors to prevent multi-device token contention
+          await user.getIdToken();
         } catch (tokErr) {
-          console.warn("Failed to force refresh ID token:", tokErr);
+          console.warn("Failed to retrieve ID token:", tokErr);
         }
       }
       console.log("loadDataFromFirestore: before getUserData with 5s timeout");
