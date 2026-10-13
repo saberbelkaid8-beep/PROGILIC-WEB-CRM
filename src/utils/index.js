@@ -110,43 +110,27 @@ export function getProgramStats(c) {
   }
   let res;
   if (!c._subcollectionsLoaded && c.programsCount !== undefined) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const expired = c.endDate && new Date(c.endDate + 'T00:00') < today ? 1 : 0;
     res = {
       total: c.programsCount || 0,
       totalInstalls: c.installationsCount || 0,
-      active: Math.max(0, (c.programsCount || 0) - expired),
-      expired
+      active: c.programsCount || 0,
+      expired: 0
     };
   } else {
     const progs = c.programs || [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     const totalInstalls = progs.reduce((s, p) => s + (Number(p.installationsCount) || 1), 0);
-    const active = progs.filter(p => !p.endDate || new Date(p.endDate + 'T00:00') >= today);
-    const expired = progs.filter(p => p.endDate && new Date(p.endDate + 'T00:00') < today);
-    res = { total: progs.length, totalInstalls, active: active.length, expired: expired.length };
+    res = { total: progs.length, totalInstalls, active: progs.length, expired: 0 };
   }
   progStatsCache.set(c, res);
   return res;
 }
 
 export function progStatusCls(p) {
-  if (!p.endDate) return 'active-prog';
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const end = new Date(p.endDate + 'T00:00');
-  if (!p.startDate) return end >= today ? 'active-prog' : 'expired-prog';
-  const start = new Date(p.startDate + 'T00:00');
-  if (start > today) return 'future-prog';
-  return end >= today ? 'active-prog' : 'expired-prog';
+  return 'active-prog';
 }
 
 export function progStatusLabel(p) {
-  const cls = progStatusCls(p);
-  if (cls === 'active-prog') return `<span class="bdg bdg-g">${t('نشط')}</span>`;
-  if (cls === 'expired-prog') return `<span class="bdg bdg-r">${t('منتهي')}</span>`;
-  return `<span class="bdg bdg-b">${t('قادم')}</span>`;
+  return `<span class="bdg bdg-g">${t('نشط (مدى الحياة)')}</span>`;
 }
 
 export function platformIcon(pl) { const m = { 'Desktop': '🖥', 'Mobile': '📱', 'Web': '🌐', 'Hybrid': '⚡' }; return m[pl] || '💻'; }

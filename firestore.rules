@@ -19,7 +19,7 @@ service cloud.firestore {
 
     // Required by skill: verified user constraint for write operations
     function isVerified(userId) {
-      return isOwner(userId);
+      return isOwner(userId) && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
     }
 
     function isValidId(id) {
@@ -41,7 +41,9 @@ service cloud.firestore {
           && data.v is number && data.v >= 1
           && data.nid is number
           && (data.updatedAt is string || data.updatedAt is timestamp)
-          && (!data.keys().contains('stats') || data.stats is map);
+          && (!data.keys().contains('stats') || data.stats is map)
+          && (!data.keys().contains('tenantId') || data.tenantId is string)
+          && (!data.keys().contains('email') || data.email is string);
     }
 
     function isValidClient(data) {
@@ -123,11 +125,11 @@ service cloud.firestore {
       
       allow create: if isVerified(userId)
                     && isValidUser(incoming())
-                    && incoming().keys().size() <= 5;
+                    && incoming().keys().size() <= 8;
 
       allow update: if isVerified(userId)
                     && isValidUser(incoming())
-                    && incoming().diff(existing()).affectedKeys().hasOnly(['v', 'updatedAt', 'nid', 'stats', 'clients']);
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['v', 'updatedAt', 'nid', 'stats', 'clients', 'tenantId', 'email']);
 
       allow delete: if isVerified(userId);
     }
@@ -212,6 +214,14 @@ service cloud.firestore {
                     && incoming().id == existing().id;
 
       allow delete: if isVerified(userId) && isValidId(clientId) && isValidId(contactId);
+    }
+
+    // 7. Employees Subcollection (Tenant-Isolated PROGILIC Departments & RBAC)
+    match /users/{userId}/employees/{employeeId} {
+      allow get, list: if isOwner(userId);
+      allow create, update: if isVerified(userId) && isValidId(employeeId)
+                            && incoming().tenantId == userId;
+      allow delete: if isVerified(userId) && isValidId(employeeId);
     }
   }
 }

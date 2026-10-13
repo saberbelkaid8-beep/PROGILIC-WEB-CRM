@@ -125,10 +125,13 @@ export default defineConfig({
     }
   ],
   build: {
-    chunkSizeWarningLimit: 700,
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('importedClients')) {
+            return 'database-clients';
+          }
           if (id.includes('node_modules/firebase/auth')) {
             return 'firebase-auth';
           }

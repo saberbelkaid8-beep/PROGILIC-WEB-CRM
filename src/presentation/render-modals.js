@@ -23,6 +23,7 @@ export function renderModal(){
   if(m==='addContact')html=renderAddContactModal();
   if(m==='backupManager')html=renderBackupManagerModal();
   if(m==='dbPurge')html=renderDbPurgeModal();
+  if(m==='editStaffMember')html=renderStaffMemberModal();
   return`<div class="mbk" onclick="bkClose(event)"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'};">${html}</div></div>`;
 }
 
@@ -59,9 +60,9 @@ function renderClientModal(){
       <div class="fgroup"><label class="flbl">${t('الحالة')}</label><select class="fctl" id="f_st" onchange="onClientStatusChange()">${selOpts(CSTATUSES,curStatus)}</select></div>
       <div class="fgroup"><label class="flbl">${t('آخر تواصل')}</label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||td()}"></div>
     </div>
-    <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('تاريخ البداية')}</label><input type="date" class="fctl" id="f_sd" value="${c.startDate||(curStatus==='نشط'?td():'')}"></div>
-      <div class="fgroup"><label class="flbl">${t('تاريخ النهاية')}</label><input type="date" class="fctl" id="f_ed" value="${c.endDate||''}"></div>
+    <div class="fgroup">
+      <label class="flbl">${t('تاريخ البدء / التسجيل')} <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة')})</span></label>
+      <input type="date" class="fctl" id="f_sd" value="${c.startDate||(curStatus==='نشط'?td():'')}">
     </div>
     ${!isEdit ? `
     <div id="active_client_prog_sec" style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-top:10px; ${curStatus==='نشط'?'':'display:none;'}">
@@ -121,16 +122,9 @@ function renderProgramModal(){
       <label class="flbl">${t('عدد الأجهزة المرخصة')}</label>
       <input type="number" class="fctl" id="fp_ic" min="1" value="${p.installationsCount||1}">
     </div>
-    <div class="frow">
-      <div class="fgroup">
-        <label class="flbl">${t('تاريخ البداية / التثبيت')}</label>
-        <input type="date" class="fctl" id="fp_sd" value="${p.startDate||td()}">
-      </div>
-      <div class="fgroup">
-        <label class="flbl">${t('تاريخ الانتهاء')}</label>
-        <input type="date" class="fctl" id="fp_ed" value="${p.endDate||''}">
-        <div class="fhint">${t('اتركه فارغاً إذا كان مدى الحياة')}</div>
-      </div>
+    <div class="fgroup">
+      <label class="flbl">${t('تاريخ البداية / التثبيت')} <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة — Licence à vie')})</span></label>
+      <input type="date" class="fctl" id="fp_sd" value="${p.startDate||td()}">
     </div>
     <div class="facts">
       <button class="btn btn-ghost" onclick="closeModal()">${t('إلغاء')}</button>
@@ -407,13 +401,7 @@ function renderDbPurgeModal() {
                 </div>
               </label>
 
-              <label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border:1px solid ${filterType==='expired_programs'?'var(--brand)':'var(--border)'};border-radius:var(--r-sm);cursor:pointer">
-                <input type="radio" name="pft" ${filterType==='expired_programs'?'checked':''} onchange="setPurgeFilterType('expired_programs')">
-                <div>
-                  <strong style="font-size:12px;display:block">${S.lang==='fr'?'Purger licences expirées':S.lang==='en'?'Purge expired licenses':'تصفية التراخيص المنتهية'}</strong>
-                  <span style="font-size:11px;color:var(--t3)">${S.lang==='fr'?'Supprimer logiciels arrivés à expiration':S.lang==='en'?'Delete expired software programs':'حذف البرامج المنتهية الصلاحية'}</span>
-                </div>
-              </label>
+
 
               <label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border:1px solid ${filterType==='old_contacts'?'var(--brand)':'var(--border)'};border-radius:var(--r-sm);cursor:pointer">
                 <input type="radio" name="pft" ${filterType==='old_contacts'?'checked':''} onchange="setPurgeFilterType('old_contacts')">
@@ -628,3 +616,50 @@ function renderAuditTabContent(auditLogs) {
     </div>
   `;
 }
+
+function renderStaffMemberModal(){
+  const st = S.form || {};
+  const isEdit = !!st.id;
+  return `
+    <div class="mhdr">
+      <div class="mtitle">${isEdit ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}</div>
+      <button class="mclose" onclick="closeModal()">×</button>
+    </div>
+    <div class="frow">
+      <div class="fgroup"><label class="flbl">اسم الموظف *</label><input class="fctl" id="sm_name" value="${esc(st.name || '')}"></div>
+      <div class="fgroup"><label class="flbl">اسم المستخدم / المعرّف</label><input class="fctl" id="sm_username" value="${esc(st.username || '')}"></div>
+    </div>
+    <div class="frow">
+      <div class="fgroup"><label class="flbl">المنصب</label><input class="fctl" id="sm_position" value="${esc(st.position || '')}"></div>
+      <div class="fgroup">
+        <label class="flbl">القسم</label>
+        <select class="fctl" id="sm_dept">
+          ${selOpts(['القسم التقني', 'قسم التجاري', 'قسم المتابعة', 'قسم ما بعد البيع', 'الإدارة العليا'], st.department || 'القسم التقني')}
+        </select>
+      </div>
+    </div>
+    <div class="frow">
+      <div class="fgroup"><label class="flbl">المسؤول المباشر</label><input class="fctl" id="sm_sup" value="${esc(st.supervisor || 'المدير العام')}"></div>
+      <div class="fgroup"><label class="flbl">كلمة السر (الدخول) *</label><input type="password" class="fctl" id="sm_pwd" placeholder="${isEdit ? 'اترك فارغاً للإبقاء على الحالية' : 'أدخل كلمة سر الموظف'}"></div>
+    </div>
+    <div class="fgroup">
+      <label class="flbl">المهام والمسؤوليات</label>
+      <textarea class="fctl" id="sm_tasks" rows="3">${esc(st.tasks || '')}</textarea>
+    </div>
+    <div class="facts">
+      <button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveStaffMember({
+        id: '${esc(st.id || '')}',
+        name: document.getElementById('sm_name').value,
+        username: document.getElementById('sm_username').value,
+        position: document.getElementById('sm_position').value,
+        department: document.getElementById('sm_dept').value,
+        supervisor: document.getElementById('sm_sup').value,
+        password: document.getElementById('sm_pwd') ? document.getElementById('sm_pwd').value : '',
+        tasks: document.getElementById('sm_tasks').value,
+        role: '${st.role || 'employee'}'
+      })">حفظ الموظف</button>
+    </div>
+  `;
+}
+

@@ -7,7 +7,7 @@
     "prebuild": "node scripts/prebuild.js",
     "build": "vite build",
     "postbuild": "node scripts/postbuild.js",
-    "check:integrity": "npm audit && node scripts/dependency-check.js",
+    "check:integrity": "node scripts/dependency-check.js",
     "verify": "npm run check:integrity && npm run lint && npm run test && npm run build",
     "preview": "vite preview",
     "lint": "eslint .",

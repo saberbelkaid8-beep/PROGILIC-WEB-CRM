@@ -1283,3 +1283,42 @@ body.dark .premium-search {
 body.dark .premium-search:focus {
   border-color: var(--dash-p);
 }
+
+/* ── PROGILIC 4 Departments & Staff Badges ── */
+.badge-pre-vente {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.28);
+}
+.badge-commercial {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+.badge-suivi {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+}
+.badge-technique {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.emp-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.emp-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+body.dark .emp-card {
+  background: var(--dm-surface);
+  border-color: var(--dm-border);
+}
+

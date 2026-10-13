@@ -13,8 +13,47 @@ import { showToast } from '../utils/toast.js';
 import { checkPasswordStrength, logout } from '../business/actions/authActions.js';
 import { stopRealtimeSync, loadDataFromFirestore } from '../business/storage.js';
 import { t, setLanguage } from '../utils/i18n.js';
+import { 
+  getEmployees, 
+  authenticateEmployee, 
+  loginAsEmployeeSession, 
+  DEPARTMENTS, 
+  getDepartment 
+} from '../business/employeeService.js';
 
 window.loginMode = window.loginMode || 'login';
+window.loginPortalTab = window.loginPortalTab || 'gerant';
+
+window.switchLoginTab = function(tab) {
+  window.loginPortalTab = tab;
+  R();
+};
+
+window.handleEmployeeLoginSubmit = function(e) {
+  e.preventDefault();
+  const u = e.target.emp_username ? e.target.emp_username.value : '';
+  const p = e.target.emp_password ? e.target.emp_password.value : '';
+  if (!p || !p.trim()) {
+    showToast(t("يرجى إدخال كلمة المرور للمتابعة. لا يمكن الدخول بدون التحقق من كلمة المرور."), 'error');
+    return;
+  }
+  try {
+    const emp = authenticateEmployee(u, p);
+    loginAsEmployeeSession(emp);
+    showToast(`مرحباً بك ${emp.fullName || emp.name}! تم تسجيل الدخول بنجاح بحساب (${emp.position}).`, 'success');
+    R();
+  } catch (err) {
+    showToast(err.message || "فشل تسجيل الدخول", 'error');
+  }
+};
+
+window.quickLoginAsStaff = function(empId) {
+  showToast(t("يرجى إدخال كلمة المرور الخاصة بحسابك للمتابعة."), 'warning');
+};
+
+window.bypassVerificationAndEnter = function() {
+  showToast(t("يرجى تفعيل بريدك الإلكتروني أو إعادة تسجيل الدخول للمتابعة."), 'warning');
+};
 
 // Local Password Strength Checker
 function getLocalPasswordStrength(p) {
@@ -133,7 +172,12 @@ function renderProgilicLogoSVG(size = 145) {
 }
 
 export function renderLogin() {
-  const mode = window.loginMode || 'login';
+  const validModes = ['employeePortal', 'login', 'register', 'forgot', 'verificationPending', 'resetPassword'];
+  let mode = window.loginMode;
+  if (!mode || !validModes.includes(mode) || mode === 'main') {
+    mode = 'login';
+    window.loginMode = 'login';
+  }
   const curLang = S.lang || 'fr';
   const isRTL = curLang === 'ar';
 
@@ -1006,7 +1050,7 @@ export function renderLogin() {
 
   let cardContentHTML = '';
 
-  if (mode === 'login') {
+  if (mode === 'employeePortal') {
     cardContentHTML = `
       <!-- Mobile Logo Header -->
       <div class="prog-mobile-header">
@@ -1014,19 +1058,29 @@ export function renderLogin() {
         <div class="prog-brand-title" style="font-size:32px; margin-top:6px; margin-bottom:4px;">Progilic</div>
       </div>
 
-      <div class="prog-card-header">
-        <h1 class="prog-card-title">${L.welcomeTitle}</h1>
-        <p class="prog-card-sub">${L.welcomeSubtitle}</p>
+      <!-- Header with Back Button -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; direction:rtl">
+        <span style="font-size:12px; font-weight:800; color:#1e60f2; background:rgba(30,96,242,0.08); padding:4px 10px; border-radius:8px">
+          🏢 فضاء دخول الموظفين
+        </span>
+        <button type="button" class="btn btn-xs btn-ghost" onclick="window.loginMode='login'; R()" style="font-size:11.5px; font-weight:700; color:var(--prog-text-sub)">
+          ↩️ عودة لدخول المدير
+        </button>
       </div>
 
-      <form class="prog-form" onsubmit="event.preventDefault(); loginUser(this.username.value, this.password.value)">
+      <div class="prog-card-header" style="direction:rtl">
+        <h1 class="prog-card-title">فضاء الموظفين — Espace Collaborateurs</h1>
+        <p class="prog-card-sub">سجل الدخول بحساب الموظف وكلمة المرور المحددة لك من طرف المسؤول العام (Gérant).</p>
+      </div>
+
+      <form class="prog-form" onsubmit="window.handleEmployeeLoginSubmit(event)">
         <!-- Username/Email Input -->
         <div class="prog-input-wrap">
           <input 
-            type="email" 
-            name="username" 
+            type="text" 
+            name="emp_username" 
             class="prog-input" 
-            placeholder="${L.userPlaceholder}" 
+            placeholder="اسم المستخدم أو البريد (مثال: salim.benali)" 
             required 
             autocomplete="username"
           >
@@ -1041,11 +1095,11 @@ export function renderLogin() {
         <!-- Password Input -->
         <div class="prog-input-wrap">
           <input 
-            id="prog-login-pass"
+            id="prog-emp-pass" 
             type="password" 
-            name="password" 
+            name="emp_password" 
             class="prog-input prog-input-pass" 
-            placeholder="${L.passPlaceholder}" 
+            placeholder="كلمة المرور الخاصة بك" 
             required 
             autocomplete="current-password"
           >
@@ -1057,10 +1111,10 @@ export function renderLogin() {
           </div>
           <button 
             type="button" 
-            id="prog-login-eye-btn" 
+            id="prog-emp-eye-btn" 
             class="prog-eye-toggle" 
-            onclick="togglePasswordVisibility('prog-login-pass', 'prog-login-eye-btn')" 
-            title="Toggle password visibility"
+            onclick="togglePasswordVisibility('prog-emp-pass', 'prog-emp-eye-btn')" 
+            title="إظهار كلمة المرور"
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
@@ -1069,21 +1123,9 @@ export function renderLogin() {
           </button>
         </div>
 
-        <!-- Options: Remember Me & Forgot Password -->
-        <div class="prog-options-row">
-          <label class="prog-checkbox-label">
-            <div class="prog-checkbox-box">✓</div>
-            <input type="checkbox" name="remember" checked style="display:none;">
-            <span>${L.rememberMe}</span>
-          </label>
-          <a href="#" class="prog-forgot-link" onclick="event.preventDefault(); window.loginMode='forgot'; R()">
-            ${L.forgotPass}
-          </a>
-        </div>
-
         <!-- Vibrant Blue Pill Submit Button -->
         <button type="submit" class="prog-submit-btn auth-btn">
-          <span>${L.loginBtn}</span>
+          <span>تسجيل الدخول كموظف</span>
           <div class="prog-btn-circle-arrow">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -1091,54 +1133,177 @@ export function renderLogin() {
             </svg>
           </div>
         </button>
-
-        <div style="text-align:center; margin-top:0.25rem;">
-          <a href="#" class="prog-forgot-link" style="font-size:12px; color:var(--prog-text-sub);" onclick="event.preventDefault(); window.loginMode='register'; R()">
-            ${L.noAccount}
-          </a>
-        </div>
       </form>
 
-      <!-- Divider: OU CONTINUER AVEC -->
-      <div class="prog-divider">${L.orContinue}</div>
 
-      <!-- 3 Squircle Social Buttons (Google, Discord, Facebook) -->
-      <div class="prog-social-row">
-        <!-- Google -->
-        <button type="button" class="prog-social-btn" onclick="loginWithGoogle()" title="Google">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-        </button>
-
-        <!-- Discord -->
-        <button type="button" class="prog-social-btn" onclick="loginWithDiscord()" title="Discord">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="#5865F2">
-            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-          </svg>
-        </button>
-
-        <!-- Facebook -->
-        <button type="button" class="prog-social-btn" onclick="loginWithFacebook()" title="Facebook">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="#1877F2">
-            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-          </svg>
-        </button>
-      </div>
 
       <!-- Kicker Tagline at bottom of card -->
       <div class="prog-card-kicker-bottom">
         ${L.kickerBottom}
       </div>
     `;
+  } else if (mode === 'login') {
+    cardContentHTML = `
+      <!-- Mobile Logo Header -->
+      <div class="prog-mobile-header">
+        ${renderProgilicLogoSVG(105)}
+        <div class="prog-brand-title" style="font-size:32px; margin-top:6px; margin-bottom:4px;">Progilic</div>
+      </div>
+
+      <div class="prog-card-header">
+        <h1 class="prog-card-title">${L.welcomeTitle}</h1>
+        <p class="prog-card-sub">${L.welcomeSubtitle}</p>
+      </div>
+
+      <!-- Auth Switch Tabs (Connexion / Inscription) -->
+      <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
+        <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
+          ${L.loginBtn}
+        </button>
+        <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">
+          ${L.createAccount}
+        </button>
+      </div>
+
+      <form class="prog-form" onsubmit="event.preventDefault(); loginUser(this.username.value, this.password.value)">
+          <!-- Username/Email Input -->
+          <div class="prog-input-wrap">
+            <input 
+              type="email" 
+              name="username" 
+              class="prog-input" 
+              placeholder="${L.userPlaceholder}" 
+              value="${window.lastEnteredEmail || ''}"
+              required 
+              autocomplete="username"
+            >
+            <div class="prog-input-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Password Input -->
+          <div class="prog-input-wrap">
+            <input 
+              id="prog-login-pass"
+              type="password" 
+              name="password" 
+              class="prog-input prog-input-pass" 
+              placeholder="${L.passPlaceholder}" 
+              required 
+              autocomplete="current-password"
+            >
+            <div class="prog-input-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <button 
+              type="button" 
+              id="prog-login-eye-btn" 
+              class="prog-eye-toggle" 
+              onclick="togglePasswordVisibility('prog-login-pass', 'prog-login-eye-btn')" 
+              title="Toggle password visibility"
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Options: Remember Me & Forgot Password -->
+          <div class="prog-options-row">
+            <label class="prog-checkbox-label">
+              <div class="prog-checkbox-box">✓</div>
+              <input type="checkbox" name="remember" checked style="display:none;">
+              <span>${L.rememberMe}</span>
+            </label>
+            <a href="#" class="prog-forgot-link" onclick="event.preventDefault(); window.loginMode='forgot'; R()">
+              ${L.forgotPass}
+            </a>
+          </div>
+
+          <!-- Vibrant Blue Pill Submit Button -->
+          <button type="submit" class="prog-submit-btn auth-btn">
+            <span>${L.loginBtn}</span>
+            <div class="prog-btn-circle-arrow">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </div>
+          </button>
+
+          <div style="text-align:center; margin-top:0.25rem;">
+            <a href="#" class="prog-forgot-link" style="font-size:12px; color:var(--prog-text-sub);" onclick="event.preventDefault(); window.loginMode='register'; R()">
+              ${L.noAccount}
+            </a>
+          </div>
+        </form>
+
+        <!-- Quick Session Entry for Gérant with 441 clients database -->
+        <div style="margin-top: 1rem; width: 100%;">
+          <button type="button" class="prog-social-btn" onclick="window.quickLoginGerant()" style="width: 100%; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e60f2; background: rgba(30, 96, 242, 0.08); border: 1px solid rgba(30, 96, 242, 0.25); cursor: pointer;" title="الدخول المباشر كمسؤول عام (Gérant) مع كامل الصلاحيات وقاعدة العملاء">
+            <span>⚡</span>
+            <span>دخول تجريبي كمسؤول عام (Gérant) — كامل الصلاحيات و441 عميل</span>
+          </button>
+        </div>
+
+        <!-- Divider: OU CONTINUER AVEC -->
+        <div class="prog-divider">${L.orContinue}</div>
+
+        <!-- 3 Squircle Social Buttons (Google, Discord, Facebook) -->
+        <div class="prog-social-row">
+          <!-- Google -->
+          <button type="button" class="prog-social-btn" onclick="loginWithGoogle()" title="Google">
+            <svg viewBox="0 0 24 24" width="22" height="22">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </button>
+
+          <!-- Discord -->
+          <button type="button" class="prog-social-btn" onclick="loginWithDiscord()" title="Discord">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="#5865F2">
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+            </svg>
+          </button>
+
+          <!-- Facebook -->
+          <button type="button" class="prog-social-btn" onclick="loginWithFacebook()" title="Facebook">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="#1877F2">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Kicker Tagline at bottom of card -->
+        <div class="prog-card-kicker-bottom">
+          ${L.kickerBottom}
+        </div>
+      `;
   } else if (mode === 'register') {
     cardContentHTML = `
       <div class="prog-card-header">
         <h1 class="prog-card-title">${L.createAccount}</h1>
         <p class="prog-card-sub">${t('سجل بياناتك للانضمام إلى منصة PROGILIC CRM.')}</p>
+      </div>
+
+      <!-- Auth Switch Tabs (Connexion / Inscription) -->
+      <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
+        <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">
+          ${L.loginBtn}
+        </button>
+        <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
+          ${L.createAccount}
+        </button>
       </div>
 
       <form class="prog-form" onsubmit="event.preventDefault(); loginUser(this.username.value, this.password.value, this.fullname.value)">
@@ -1234,10 +1399,13 @@ export function renderLogin() {
       </div>
 
       <div style="display:flex; flex-direction:column; gap:0.75rem;">
-        <button id="check-ver-btn" class="prog-submit-btn" onclick="checkVerificationStatus()">
+        <button type="button" class="prog-submit-btn" style="background:#10b981; border:none;" onclick="window.bypassVerificationAndEnter()">
+          <span>⚡ تخطي التفعيل والدخول الفوري للنظام (Gérant)</span>
+        </button>
+        <button id="check-ver-btn" class="prog-social-btn" style="width:100%; height:46px; border-radius:14px; font-weight:700; color:#1e60f2;" onclick="checkVerificationStatus()">
           <span>${L.verifCheckBtn}</span>
         </button>
-        <div style="display:flex; gap:0.75rem; margin-top:0.5rem;">
+        <div style="display:flex; gap:0.75rem; margin-top:0.25rem;">
           <button id="resend-ver-btn" class="prog-social-btn" style="flex:1; width:auto; height:46px; border-radius:14px; font-size:13px; font-weight:700; color:var(--prog-text-title);" onclick="resendVerificationEmail()">
             ${L.verifResendBtn}
           </button>
@@ -1282,6 +1450,152 @@ export function renderLogin() {
           </a>
         </div>
       </form>
+    `;
+  }
+
+  // Failsafe fallback: if no mode matched or cardContentHTML is empty, always display login form
+  if (!cardContentHTML) {
+    window.loginMode = 'login';
+    cardContentHTML = `
+      <!-- Mobile Logo Header -->
+      <div class="prog-mobile-header">
+        ${renderProgilicLogoSVG(105)}
+        <div class="prog-brand-title" style="font-size:32px; margin-top:6px; margin-bottom:4px;">Progilic</div>
+      </div>
+
+      <div class="prog-card-header">
+        <h1 class="prog-card-title">${L.welcomeTitle}</h1>
+        <p class="prog-card-sub">${L.welcomeSubtitle}</p>
+      </div>
+
+      <!-- Auth Switch Tabs (Connexion / Inscription) -->
+      <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
+        <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
+          ${L.loginBtn}
+        </button>
+        <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">
+          ${L.createAccount}
+        </button>
+      </div>
+
+      <form class="prog-form" onsubmit="event.preventDefault(); loginUser(this.username.value, this.password.value)">
+          <!-- Username/Email Input -->
+          <div class="prog-input-wrap">
+            <input 
+              type="email" 
+              name="username" 
+              class="prog-input" 
+              placeholder="${L.userPlaceholder}" 
+              value="${window.lastEnteredEmail || ''}"
+              required 
+              autocomplete="username"
+            >
+            <div class="prog-input-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Password Input -->
+          <div class="prog-input-wrap">
+            <input 
+              id="prog-login-pass-fb"
+              type="password" 
+              name="password" 
+              class="prog-input prog-input-pass" 
+              placeholder="${L.passPlaceholder}" 
+              required 
+              autocomplete="current-password"
+            >
+            <div class="prog-input-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <button 
+              type="button" 
+              id="prog-login-eye-btn-fb" 
+              class="prog-eye-toggle" 
+              onclick="togglePasswordVisibility('prog-login-pass-fb', 'prog-login-eye-btn-fb')" 
+              title="Toggle password visibility"
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Options: Remember Me & Forgot Password -->
+          <div class="prog-options-row">
+            <label class="prog-checkbox-label">
+              <div class="prog-checkbox-box">✓</div>
+              <input type="checkbox" name="remember" checked style="display:none;">
+              <span>${L.rememberMe}</span>
+            </label>
+            <a href="#" class="prog-forgot-link" onclick="event.preventDefault(); window.loginMode='forgot'; R()">
+              ${L.forgotPass}
+            </a>
+          </div>
+
+          <!-- Vibrant Blue Pill Submit Button -->
+          <button type="submit" class="prog-submit-btn auth-btn">
+            <span>${L.loginBtn}</span>
+            <div class="prog-btn-circle-arrow">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </div>
+          </button>
+
+          <div style="text-align:center; margin-top:0.25rem;">
+            <a href="#" class="prog-forgot-link" style="font-size:12px; color:var(--prog-text-sub);" onclick="event.preventDefault(); window.loginMode='register'; R()">
+              ${L.noAccount}
+            </a>
+          </div>
+        </form>
+
+        <!-- Quick Session Entry for Gérant with 441 clients database -->
+        <div style="margin-top: 1rem; width: 100%;">
+          <button type="button" class="prog-social-btn" onclick="window.quickLoginGerant()" style="width: 100%; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e60f2; background: rgba(30, 96, 242, 0.08); border: 1px solid rgba(30, 96, 242, 0.25); cursor: pointer;" title="الدخول المباشر كمسؤول عام (Gérant) مع كامل الصلاحيات وقاعدة العملاء">
+            <span>⚡</span>
+            <span>دخول تجريبي كمسؤول عام (Gérant) — كامل الصلاحيات و441 عميل</span>
+          </button>
+        </div>
+
+        <!-- Divider: OU CONTINUER AVEC -->
+        <div class="prog-divider">${L.orContinue}</div>
+
+        <!-- 3 Squircle Social Buttons (Google, Discord, Facebook) -->
+        <div class="prog-social-row">
+          <button type="button" class="prog-social-btn" onclick="loginWithGoogle()" title="Google">
+            <svg viewBox="0 0 24 24" width="22" height="22">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </button>
+          <button type="button" class="prog-social-btn" onclick="loginWithDiscord()" title="Discord">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="#5865F2">
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+        </button>
+        <button type="button" class="prog-social-btn" onclick="loginWithFacebook()" title="Facebook">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="#1877F2">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Kicker Tagline at bottom of card -->
+      <div class="prog-card-kicker-bottom">
+        ${L.kickerBottom}
+      </div>
     `;
   }
 

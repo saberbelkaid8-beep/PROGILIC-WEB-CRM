@@ -3,7 +3,7 @@ import { saveClient } from '../../src/business/actions/clientActions.js';
 import * as utilsIndex from '../../src/utils/index.js';
 import * as utilsToast from '../../src/utils/toast.js';
 import * as uiActions from '../../src/business/actions/uiActions.js';
-import { S, updateState, setClients } from '../../src/state/store.js';
+import { S, updateState, setClients, setCurrentUser } from '../../src/state/store.js';
 
 vi.mock('../../src/utils/index.js', async (importOriginal) => {
   const actual = await importOriginal();
@@ -37,6 +37,7 @@ vi.mock('../../src/business/storage.js', async (importOriginal) => {
 describe('Validation Logic', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setCurrentUser({ uid: 'test-admin', role: 'gerant', email: 'admin@progilic.dz' });
     updateState({ clients: [], stats: {} });
   });
 

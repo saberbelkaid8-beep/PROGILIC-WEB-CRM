@@ -1,4 +1,4 @@
-import { S, clients, setClients, updateState, currentUser, setCurrentUser } from '../../state/store.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, hasPermission } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
@@ -11,6 +11,7 @@ import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
 import { t } from '../../utils/i18n.js';
+import { closeModal } from './uiActions.js';
 import { 
   addClientTransaction, 
   updateClientTransaction, 
@@ -22,6 +23,10 @@ import {
 
 
 export async function saveContact() {
+  if (!hasPermission('contacts.create_entry')) {
+    showToast(t('⚠️ لا تملك صلاحية تسجيل تواصل جديد.'), 'error');
+    return;
+  }
   const date = gv('fch_d');
   const note = (document.getElementById('fch_n') || {}).value || '';
   if (!date) { showToast(t('الرجاء اختيار تاريخ التواصل'), 'error'); return; }
@@ -60,6 +65,10 @@ export async function saveContact() {
 }
 
 export async function delContact(cid, hid) {
+  if (!hasPermission('contacts.delete_entry')) {
+    showToast(t('⚠️ لا تملك صلاحية حذف سجلات التواصل.'), 'error');
+    return;
+  }
   const confirmMsg = S.lang === 'fr' 
     ? 'Êtes-vous certain de vouloir supprimer cet enregistrement ?'
     : (S.lang === 'en' 
@@ -116,6 +125,15 @@ export function autoFillConf() {
 // 3. Client Registration & General Operations (Transactional - Now Enqueued with Optimistic Updates)
 
 export async function saveIssue(editId) {
+  const eid = editId !== null && editId !== 'null' ? editId : null;
+  if (eid === null && !hasPermission('issues.create')) {
+    showToast(t('⚠️ لا تملك صلاحية تسجيل مشاكل جديدة.'), 'error');
+    return;
+  }
+  if (eid !== null && !hasPermission('issues.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل المشاكل والتذاكر.'), 'error');
+    return;
+  }
   const title = gv('fi_t'); if (!title) { showToast(t('الرجاء إدخال عنوان المشكلة'), 'error'); return; }
   const c = gc(); if (!c) return;
   
@@ -140,7 +158,7 @@ export async function saveIssue(editId) {
   };
   if (rc >= 3 && src !== 'سوء استخدام') d.featureOpp = true;
 
-  const eid = editId !== null && editId !== 'null' ? editId : null;
+
   if (!Array.isArray(c.issues)) c.issues = [];
 
   let nextIssues = [...c.issues];
@@ -196,6 +214,10 @@ export async function saveIssue(editId) {
 }
 
 export async function markSolved(cid, iid) {
+  if (!hasPermission('issues.resolve')) {
+    showToast(t('⚠️ لا تملك صلاحية حل وإغلاق تذاكر المشاكل.'), 'error');
+    return;
+  }
   const promptMsg = S.lang === 'fr'
     ? 'Entrez la description de la solution apportée :'
     : (S.lang === 'en'
@@ -247,6 +269,10 @@ export async function markSolved(cid, iid) {
 }
 
 export async function delIssue(cid, iid) {
+  if (!hasPermission('issues.delete')) {
+    showToast(t('⚠️ لا تملك صلاحية حذف تذاكر المشاكل.'), 'error');
+    return;
+  }
   const confirmMsg = S.lang === 'fr'
     ? 'Êtes-vous certain de vouloir supprimer définitivement cette anomalie ?'
     : (S.lang === 'en'
@@ -297,6 +323,15 @@ export async function delIssue(cid, iid) {
 // 5. Client Requirements Operations (Transactional - Now Enqueued with Optimistic Updates)
 
 export async function saveReq(editId) {
+  const eid = editId !== null && editId !== 'null' ? editId : null;
+  if (eid === null && !hasPermission('features.create')) {
+    showToast(t('⚠️ لا تملك صلاحية تسجيل طلبات أو متطلبات جديدة.'), 'error');
+    return;
+  }
+  if (eid !== null && !hasPermission('features.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل المتطلبات والطلبات.'), 'error');
+    return;
+  }
   const title = gv('fr_t'); if (!title) { showToast(t('الرجاء إدخال عنوان الطلب'), 'error'); return; }
   const c = gc(); if (!c) return;
   
@@ -310,7 +345,7 @@ export async function saveReq(editId) {
     notes: gv('fr_no')
   };
 
-  const eid = editId !== null && editId !== 'null' ? editId : null;
+
   if (!Array.isArray(c.requirements)) c.requirements = [];
 
   let nextReqs = [...c.requirements];
@@ -352,6 +387,10 @@ export async function saveReq(editId) {
 }
 
 export async function delReq(cid, rid) {
+  if (!hasPermission('features.delete')) {
+    showToast(t('⚠️ لا تملك صلاحية حذف المتطلبات والطلبات.'), 'error');
+    return;
+  }
   const confirmMsg = S.lang === 'fr'
     ? 'Êtes-vous certain de vouloir supprimer cette demande ?'
     : (S.lang === 'en'

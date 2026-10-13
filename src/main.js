@@ -31,8 +31,11 @@ function showErrorScreen(error, type = "خطأ غير متوقع") {
 }
 
 window.addEventListener('unhandledrejection', event => {
-  console.error("Unhandled rejection:", event.reason);
-  // Only show the visual screen if the app isn't already rendered or if it's a fatal startup error
+  console.warn("Unhandled rejection caught:", event.reason);
+  const reasonStr = String(event.reason || '');
+  if (reasonStr.includes('permission-denied') || reasonStr.includes('insufficient permissions') || (typeof S !== 'undefined' && !S.currentUser)) {
+    return;
+  }
   const app = document.getElementById('app');
   if (app && (!app.innerHTML || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
     showErrorScreen(event.reason, "خطأ مزامنة غير معالج");
@@ -40,7 +43,11 @@ window.addEventListener('unhandledrejection', event => {
 });
 
 window.addEventListener('error', event => {
-  console.error("Uncaught error:", event.error || event.message);
+  console.warn("Uncaught error caught:", event.error || event.message);
+  const reasonStr = String(event.error?.message || event.message || '');
+  if (reasonStr.includes('permission-denied') || reasonStr.includes('insufficient permissions') || (typeof S !== 'undefined' && !S.currentUser)) {
+    return;
+  }
   const app = document.getElementById('app');
   if (app && (!app.innerHTML || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
     showErrorScreen(event.error || event.message, "خطأ تشغيل قاتل");
@@ -56,8 +63,9 @@ import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
 
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
-import { S, setCurrentUser, setClients, subscribe, updateState } from './state/store.js';
+import { S, setCurrentUser, setCurrentStaffUser, setClients, subscribe, updateState } from './state/store.js';
 import { loadDataFromFirestore, stopRealtimeSync, loadCache } from './business/storage.js';
+import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
 subscribe(R);
@@ -77,16 +85,55 @@ window.toggleLanguage = toggleLanguage;
 window.setLanguage = setLanguage;
 window.R = R;
 window.resolveConflict = resolveConflict;
+  window.mergeDatabase = actions.mergeWithSessionAndUser;
+  window.mergeDatabase = actions.mergeWithSessionAndUser;
+  window.quickLoginGerant = async function() {
+    if (!auth || !auth.currentUser) {
+      actions.showToast("يرجى تسجيل الدخول بحسابك أولاً.", "info");
+      return;
+    }
+    const user = auth.currentUser;
+    const gerantUser = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || user.email?.split('@')[0] || 'المسؤول العام',
+      emailVerified: true,
+      role: 'gerant',
+      isEmployee: false
+    };
+    setCurrentUser(gerantUser);
+    try { localStorage.setItem('crm_active_gerant_user', JSON.stringify(gerantUser)); } catch(e) {}
+    window.loginMode = 'main';
+    R();
+  };
+  window.quickLoginSaber = window.quickLoginGerant;
 
-// Boot application
-function boot() {
-  const curLang = S.lang || 'ar';
-  document.documentElement.dir = curLang === 'ar' ? 'rtl' : 'ltr';
-  document.documentElement.lang = curLang;
-  actions.initDark();
-  loadCache(); // Restore offline local cache immediately on startup
-  initAiAssistantWidget();
-  const app = document.getElementById('app');
+  // Boot application
+  function boot() {
+    const curLang = S.lang || 'ar';
+    document.documentElement.dir = curLang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = curLang;
+    actions.initDark();
+
+    let isLoggedOut = false;
+    try { isLoggedOut = localStorage.getItem('crm_logged_out') === '1'; } catch(e) {}
+    let saved = null;
+    try {
+      const raw = localStorage.getItem('crm_active_gerant_user');
+      if (raw) saved = JSON.parse(raw);
+    } catch(e) {}
+    if (!isLoggedOut && saved && auth && auth.currentUser) {
+      setCurrentUser(saved);
+      loadCache();
+    } else {
+      stopRealtimeSync();
+      window.loginMode = 'login';
+      setCurrentUser(null);
+      window.setCurrentStaffUser(null);
+    }
+
+    initAiAssistantWidget();
+    const app = document.getElementById('app');
 
   // Detect password reset flow from URL on load
   const urlParams = new URLSearchParams(window.location.search);
@@ -167,31 +214,35 @@ function boot() {
     lastUserVerified = isVerified;
 
     if (user) {
-      setCurrentUser({
+      const activeGerant = {
         uid: user.uid,
         email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0] || 'المسؤول العام (Gérant)',
         emailVerified: isVerified,
-      });
+        role: 'gerant',
+        isEmployee: false,
+      };
+      setCurrentUser(activeGerant);
+      try {
+        localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeGerant));
+        localStorage.removeItem('crm_active_employee_session');
+        localStorage.removeItem('crm_logged_out');
+      } catch (e) {}
       
-      if (isVerified) {
-        // Trigger initial render immediately with cached or empty state so screen never stays white
-        R();
-        try {
-          await loadDataFromFirestore(user);
-        } catch (loadErr) {
-          console.error("loadDataFromFirestore caught gracefully:", loadErr);
-        } finally {
-          R();
-        }
-      } else {
-        stopRealtimeSync();
-        setClients([]);
-        window.loginMode = 'verificationPending';
+      // Trigger initial render immediately with cached or empty state so screen never stays white
+      R();
+      try {
+        await loadDataFromFirestore(user);
+      } catch (loadErr) {
+        console.error("loadDataFromFirestore caught gracefully:", loadErr);
+      } finally {
         R();
       }
     } else {
       stopRealtimeSync();
+      window.loginMode = 'login';
       setCurrentUser(null);
+      setCurrentStaffUser(null);
       setClients([]);
       R();
     }

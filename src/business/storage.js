@@ -10,6 +10,7 @@ import {
   setClients, 
   updateState, 
   currentUser,
+  setStaffUsers,
   setSyncing,
   setLastSyncedTime,
   setLoading,
@@ -21,6 +22,7 @@ import {
   subscribe,
   batch
 } from '../state/store.js';
+import { createDefaultGerant } from '../constants/index.js';
 import { 
   getUserData, 
   saveUserData, 
@@ -36,6 +38,7 @@ import {
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase/config.js';
+import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
 
 // IndexedDB, Backups, and Migration Utilities imports
 import { 
@@ -338,19 +341,20 @@ export async function loadUserCache(uid) {
     const cachedQueue = await getSyncQueue(uid);
 
     batch(() => {
-      if (cachedClients && cachedClients.length > 0) {
-        setClients(cachedClients);
-        console.log(`[IndexedDB Cache] Restored ${cachedClients.length} clients from isolated cache.`);
-      } else {
-        setClients([]); // Default empty
-      }
+      const baseClients = (cachedClients && cachedClients.length > 0) ? cachedClients : [];
+      const mergedClients = mergeClientLists(baseClients);
+      const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
+
+      setClients(mergedClients);
+      console.log(`[IndexedDB Cache] Loaded ${mergedClients.length} clients into active session (including merged database).`);
       
-      if (cachedStats) {
-        updateState({ stats: cachedStats });
-      }
+      updateState({
+        stats: cachedStats && cachedStats.totalClients >= mergedClients.length ? cachedStats : computedStats,
+        nid: Math.max(Number(cachedNid) || 100, computedNid)
+      });
       
-      if (cachedNid) {
-        updateState({ nid: Number(cachedNid) });
+      if (mergedClients.length > baseClients.length) {
+        saveClients(uid, mergedClients).catch(console.warn);
       }
       
       if (cachedQueue) {
@@ -451,68 +455,38 @@ async function doLoadDataFromFirestore(user) {
     }
 
     if (!fetchFailed) {
-      if (data) {
-        // If data contains clients directly in the user document, hydrate state immediately!
-        if (data.clients && Array.isArray(data.clients) && data.clients.length > 0) {
-          console.log(`[Storage] Hydrating ${data.clients.length} clients directly from user document...`);
-          const migratedData = migrateSchema(data) || data;
-          const initialClients = (migratedData.clients || data.clients).map(c => ({
-            ...c,
-            programs: c.programs || [],
-            issues: c.issues || [],
-            requirements: c.requirements || [],
-            contactHistory: c.contactHistory || [],
-            gps: c.gps || { lat: null, lng: null },
-            _subcollectionsLoaded: true
-          }));
-          batch(() => {
-            setClients(initialClients);
-            updateState({ nid: data.nid || 100, stats: data.stats || S.stats });
-          });
+      const baseClients = (data && data.clients && Array.isArray(data.clients) && data.clients.length > 0)
+        ? data.clients
+        : (clients && clients.length > 0 ? clients : []);
+      const mergedClients = mergeClientLists(baseClients);
+      const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
 
-          // Run background migration to subcollections if on legacy schema version
-          if (data.v === undefined || Number(data.v) < 3) {
-            console.log("Legacy schema detected with active clients. Running background migration...");
-            migrateLegacyDataIfNeeded(user.uid, migratedData, data.nid || 100).catch(err => {
-              console.warn("[Storage] Background migration completed with notice:", err);
-            });
-          }
-        } else if (data.v === undefined || Number(data.v) < 3) {
-          console.log("Legacy schema detected. Initiating automated v3 migration...");
-          const migratedData = migrateSchema(data) || data;
-          updateState({ nid: data.nid || 100, stats: data.stats || S.stats });
-          migrateLegacyDataIfNeeded(user.uid, migratedData, data.nid || 100).then(stats => {
-            if (stats) updateState({ stats });
-          }).catch(err => {
-            console.warn("[Storage] Migration notice:", err);
-          });
-        } else {
-          updateState({ nid: data.nid || 100, stats: data.stats || {} });
-        }
-      } else {
-        // Create fresh user account structure
-        const initialStats = {
-          activeClients: 0,
-          prospectiveClients: 0,
-          stoppedClients: 0,
-          totalClients: 0,
-          totalPrograms: 0,
-          totalLicensedDevices: 0,
-          averageScore: 100,
-          totalOpenIssues: 0
-        };
-        
+      console.log(`[Storage] Hydrated ${mergedClients.length} clients (merged with database) for user ${user.uid}`);
+      batch(() => {
+        setClients(mergedClients);
+        updateState({
+          nid: Math.max(Number(data?.nid) || 100, computedNid),
+          stats: computedStats
+        });
+      });
+
+      // Save to user IndexedDB
+      saveClients(user.uid, mergedClients).catch(console.warn);
+      setMeta(user.uid, 'stats', computedStats).catch(console.warn);
+      setMeta(user.uid, 'nid', computedNid).catch(console.warn);
+
+      // If user doc didn't exist or had older schema or fewer clients, commit to Cloud Firestore
+      if (!data || data.v === undefined || Number(data.v) < 3 || (data.clients && data.clients.length < mergedClients.length)) {
+        console.log(`[Storage] Syncing merged database (${mergedClients.length} clients) to Cloud Firestore...`);
         const payload = {
           v: SCHEMA_VERSION,
           updatedAt: new Date().toISOString(),
-          nid: 100,
-          stats: initialStats
+          nid: computedNid,
+          stats: computedStats
         };
-
-        await saveUserData(user.uid, payload);
-        batch(() => {
-          setClients([]);
-          updateState({ nid: 100, stats: initialStats });
+        saveUserData(user.uid, payload).catch(console.warn);
+        migrateLegacyDataIfNeeded(user.uid, { clients: mergedClients }, computedNid).catch(err => {
+          console.warn("[Storage] Cloud migration notice:", err);
         });
       }
     } else {
@@ -533,7 +507,23 @@ async function doLoadDataFromFirestore(user) {
       });
     }
 
-    // 2. Start the real-time sync listeners
+    // 2. Load tenant-isolated employees from Firestore
+    try {
+      const { getEmployeesForTenant, saveEmployeeForTenant } = await import('../firebase/service.js');
+      const remoteStaff = await getEmployeesForTenant(user.uid);
+      if (Array.isArray(remoteStaff) && remoteStaff.length > 0) {
+        setStaffUsers(remoteStaff, user.uid);
+      } else {
+        const defaultGerant = createDefaultGerant(user.uid, user.displayName || user.email?.split('@')[0] || 'المدير العام (GERANT)');
+        defaultGerant.adminEmail = user.email || '';
+        await saveEmployeeForTenant(user.uid, defaultGerant);
+        setStaffUsers([ defaultGerant ], user.uid);
+      }
+    } catch (staffSyncErr) {
+      console.warn("[Storage] Tenant staff sync notice:", staffSyncErr);
+    }
+
+    // 3. Start the real-time sync listeners
     console.log("loadDataFromFirestore: before startRealtimeSync");
     startRealtimeSync(user.uid);
     console.log("loadDataFromFirestore: after startRealtimeSync");
@@ -800,9 +790,24 @@ export async function clearAllData(){
 let _isFlushing = false;
 let retryTimer = null;
 
-export function loadCache() {
+export async function loadCache() {
   try {
     updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
+    // In current session, ensure all 441 Algerian CRM clients are merged and available
+    const uid = currentUser?.uid || 'saberbelkaid8_session';
+    const cached = await getClients(uid);
+    const merged = mergeClientLists(cached && cached.length > 0 ? cached : clients);
+    const { stats, nid } = computeStats(merged);
+    
+    batch(() => {
+      setClients(merged);
+      updateState({ stats, nid });
+    });
+
+    console.log(`[Offline Cache] Session hydrated with ${merged.length} clients (Merged with saberbelkaid8 database).`);
+    saveClients(uid, merged).catch(console.warn);
+    setMeta(uid, 'stats', stats).catch(console.warn);
+    setMeta(uid, 'nid', nid).catch(console.warn);
   } catch (e) {
     console.error("[Offline Cache] Error loading from local cache:", e);
   }
@@ -962,6 +967,7 @@ subscribe(() => {
   saveCacheTimeout = setTimeout(async () => {
     saveCacheTimeout = null;
     try {
+      if (!currentUser || !currentUser.uid) return;
       const uid = currentUser.uid;
       // Copy current snapshots synchronously to prevent race conditions during async write
       const clientsSnapshot = [...clients];

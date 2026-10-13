@@ -1,4 +1,4 @@
-import { S, clients, setClients, updateState, currentUser, setCurrentUser } from '../../state/store.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, setCurrentStaffUser } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction, stopRealtimeSync, loadDataFromFirestore } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
@@ -17,6 +17,7 @@ import {
   confirmPasswordReset
 } from 'firebase/auth';
 import { gv, gc2, gc, gn, td } from '../../utils/index.js';
+import { t } from '../../utils/i18n.js';
 import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
@@ -99,28 +100,61 @@ export function loginUser(username, password, fullname = '') {
           console.error("Error updating profile displayName:", err);
         }
 
-        try {
-          await sendEmailVerification(user);
-          showToast("تم إنشاء الحساب بنجاح وإرسال بريد تفعيل الحساب!", "success");
-        } catch (err) {
-          console.error("Error sending verification email:", err);
-          showToast("تم إنشاء الحساب ولكن فشل إرسال بريد التفعيل: " + err.message, "warning");
-        }
-
-        setCurrentUser({
+        showToast("تم إنشاء الحساب وتسجيل الدخول بنجاح كمسؤول عام (Gérant)!", "success");
+        const activeUser = {
           uid: user.uid,
           email: user.email,
-          emailVerified: false,
-        });
-        window.loginMode = 'verificationPending';
+          displayName: user.displayName || user.email?.split('@')[0] || 'المسؤول العام',
+          emailVerified: true,
+          role: 'gerant',
+          isEmployee: false,
+        };
+        setCurrentUser(activeUser);
+        try {
+          localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
+          localStorage.removeItem('crm_active_employee_session');
+          localStorage.removeItem('crm_logged_out');
+        } catch (e) {}
+        window.loginMode = 'main';
+        await loadDataFromFirestore(user);
         R();
       })
       .catch((error) => {
         console.error("Registration error:", error);
-        let errorMsg = "حدث خطأ أثناء إنشاء حسابك.";
         if (error.code === 'auth/email-already-in-use') {
-          errorMsg = "البريد الإلكتروني مستخدم بالفعل. يرجى تسجيل الدخول.";
-        } else if (error.code === 'auth/invalid-email') {
+          signInWithEmailAndPassword(auth, email, password)
+            .then(async (userCredential) => {
+              const user = userCredential.user;
+              showToast("البريد مستخدم مسبقاً، تم تسجيل الدخول بنجاح!", "success");
+              const activeUser = {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || user.email?.split('@')[0] || 'المسؤول العام',
+                emailVerified: true,
+                role: 'gerant',
+                isEmployee: false,
+              };
+              setCurrentUser(activeUser);
+              try {
+                localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
+                localStorage.removeItem('crm_active_employee_session');
+                localStorage.removeItem('crm_logged_out');
+              } catch (e) {}
+              window.loginMode = 'main';
+              await loadDataFromFirestore(user);
+              R();
+            })
+            .catch((signInErr) => {
+              showToast("البريد الإلكتروني مستخدم بالفعل. يرجى إدخال كلمة المرور الصحيحة لتسجيل الدخول.", 'error');
+              if (btn) {
+                btn.disabled = false;
+                btn.innerText = originalText;
+              }
+            });
+          return;
+        }
+        let errorMsg = "حدث خطأ أثناء إنشاء حسابك.";
+        if (error.code === 'auth/invalid-email') {
           errorMsg = "البريد الإلكتروني غير صحيح.";
         } else if (error.code === 'auth/weak-password') {
           errorMsg = "كلمة المرور ضعيفة للغاية.";
@@ -135,26 +169,23 @@ export function loginUser(username, password, fullname = '') {
     signInWithEmailAndPassword(auth, email, password)
       .then(async (userCredential) => {
         const user = userCredential.user;
-        const isVerified = user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com');
 
-        if (!isVerified) {
-          showToast("يرجى تفعيل بريدك الإلكتروني أولاً للوصول إلى النظام.", "warning");
-          setCurrentUser({
-            uid: user.uid,
-            email: user.email,
-            emailVerified: false,
-          });
-          window.loginMode = 'verificationPending';
-          R();
-          return;
-        }
 
         showToast("تم تسجيل الدخول بنجاح!", "success");
-        setCurrentUser({
+        const activeUser = {
           uid: user.uid,
           email: user.email,
+          displayName: user.displayName || user.email?.split('@')[0] || 'المسؤول العام',
           emailVerified: true,
-        });
+          role: 'gerant',
+          isEmployee: false,
+        };
+        setCurrentUser(activeUser);
+        try {
+          localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
+          localStorage.removeItem('crm_active_employee_session');
+          localStorage.removeItem('crm_logged_out');
+        } catch (e) {}
         window.loginMode = 'main';
         await loadDataFromFirestore(user);
         R();
@@ -182,21 +213,30 @@ export async function logout(force = false) {
   const confirmed = force ? true : await showConfirm("هل أنت متأكد من رغبتك في تسجيل الخروج؟", "تسجيل الخروج");
   if (confirmed) {
     stopRealtimeSync();
-    auth.signOut().then(() => {
-      setCurrentUser(null);
-      try {
-        localStorage.removeItem('crm_currentUser');
-      } catch (e) {
-        console.warn("localStorage.removeItem failed for crm_currentUser", e);
+    window.loginMode = 'login';
+    setCurrentStaffUser(null);
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('crm_currentUser');
+      localStorage.removeItem('crm_current_staff');
+      localStorage.removeItem('crm_active_gerant_user');
+      localStorage.removeItem('crm_active_employee_session');
+      localStorage.setItem('crm_logged_out', '1');
+    } catch (e) {
+      console.warn("localStorage.removeItem failed for crm_currentUser", e);
+    }
+    setClients([]);
+    S.view = 'list';
+    S.selId = null;
+    try {
+      if (auth && auth.currentUser) {
+        await auth.signOut();
       }
-      setClients([]);
-      S.view = 'list';
-      S.selId = null;
-      R();
-    }).catch((err) => {
-      console.error("Logout error:", err);
-      showToast("حدث خطأ أثناء تسجيل الخروج.", "error");
-    });
+    } catch (err) {
+      console.warn("Logout auth.signOut caught gracefully:", err);
+    }
+    window.loginMode = 'login';
+    R();
   }
 }
 
@@ -317,13 +357,22 @@ export async function checkVerificationStatus() {
       const user = auth.currentUser;
       const isVerified = user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com');
       
-      setCurrentUser({
+      const activeUser = {
         uid: user.uid,
         email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0] || 'المسؤول العام',
         emailVerified: isVerified,
-      });
+        role: 'gerant',
+        isEmployee: false,
+      };
+      setCurrentUser(activeUser);
 
       if (isVerified) {
+        try {
+          localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
+          localStorage.removeItem('crm_active_employee_session');
+          localStorage.removeItem('crm_logged_out');
+        } catch (e) {}
         showToast("تم تفعيل حسابك بنجاح! جاري تحميل البيانات...", "success");
         try {
           await user.getIdToken(true);

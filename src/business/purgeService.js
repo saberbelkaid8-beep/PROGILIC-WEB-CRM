@@ -86,14 +86,7 @@ export function simulatePurge(config) {
           if (!affectedClients.some(x => x.id === c.id)) affectedClients.push(c);
         }
       });
-    } else if (filterType === 'expired_programs') {
-      clients.forEach(c => {
-        const expired = (c.programs || []).filter(p => p.endDate && new Date(p.endDate + 'T00:00') < now);
-        if (expired.length > 0) {
-          affectedProgramsCount += expired.length;
-          if (!affectedClients.some(x => x.id === c.id)) affectedClients.push(c);
-        }
-      });
+
     } else if (filterType === 'old_contacts') {
       clients.forEach(c => {
         const oldCont = (c.contactHistory || []).filter(ch => {
@@ -217,11 +210,7 @@ export async function executePurge(config, onProgress) {
         const remainingIssues = (c.issues || []).filter(i => i.status !== 'محلول' && i.status !== 'مغلق');
         return { ...c, issues: remainingIssues };
       });
-    } else if (filterType === 'expired_programs') {
-      updatedClients = clients.map(c => {
-        const activePrograms = (c.programs || []).filter(p => !p.endDate || new Date(p.endDate + 'T00:00') >= now);
-        return { ...c, programs: activePrograms };
-      });
+
     } else if (filterType === 'old_contacts') {
       updatedClients = clients.map(c => {
         const recentContacts = (c.contactHistory || []).filter(ch => {

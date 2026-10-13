@@ -40,28 +40,41 @@ export function handleFirestoreError(error, operationType, path) {
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.warn('Firestore Notice: ', JSON.stringify(errInfo));
+  // If user signed out, don't crash with an unhandled exception
+  if (!auth.currentUser || error.code === 'permission-denied' || (error.message && error.message.includes('permissions'))) {
+    return null;
+  }
   throw new Error(JSON.stringify(errInfo));
+}
+
+function sanitizeUserId(userId) {
+  if (!userId || userId === 'gerant_active_user') {
+    return (auth && auth.currentUser && auth.currentUser.uid) || null;
+  }
+  return userId;
 }
 
 // 1. User Profile & Global Pre-aggregated Stats
 export async function getUserData(userId) {
-console.log("getUserData: start");
-
+  if (auth && !auth.currentUser) return null;
+  userId = sanitizeUserId(userId);
   const path = `users/${userId}`;
   try {
     const docRef = doc(db, path);
-    console.log("getUserData: before getDoc");
-const snap = await getDoc(docRef);
-console.log("getUserData: after getDoc");
-
+    const snap = await getDoc(docRef);
     return snap.exists() ? snap.data() : null;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
+    return handleFirestoreError(error, OperationType.GET, path);
   }
 }
 
 export async function saveUserData(userId, data) {
+  if (auth && !auth.currentUser) {
+    console.log("[Firestore] User is not signed in to Firebase Auth. Skipping remote user doc write.");
+    return;
+  }
+  userId = sanitizeUserId(userId);
   const path = `users/${userId}`;
   try {
     const docRef = doc(db, path);
@@ -75,6 +88,7 @@ export async function saveUserData(userId, data) {
 
 // Fetches the clients collection for listing with optional pagination and limit
 export async function getClientsPage(userId, limitVal = 100, lastDoc = null) {
+  userId = sanitizeUserId(userId);
   const path = `users/${userId}/clients`;
   try {
     const collRef = collection(db, path);
@@ -96,6 +110,7 @@ export async function getClientsPage(userId, limitVal = 100, lastDoc = null) {
 
 // Fetches all subcollections (programs, issues, requirements, contacts) of a client to reconstruct the legacy interface
 export async function getClientSubcollections(userId, clientId) {
+  userId = sanitizeUserId(userId);
   const basePath = `users/${userId}/clients/${clientId}`;
   try {
     const [progsSnap, issuesSnap, reqsSnap, contactsSnap] = await Promise.all([
@@ -118,6 +133,7 @@ export async function getClientSubcollections(userId, clientId) {
 
 // Transaction: Create client and initialize stats
 export async function addClientTransaction(userId, clientData, globalStats) {
+  userId = sanitizeUserId(userId);
   const userPath = `users/${userId}`;
   const clientId = String(clientData.id);
   const clientPath = `users/${userId}/clients/${clientId}`;
@@ -159,6 +175,7 @@ export async function addClientTransaction(userId, clientData, globalStats) {
 
 // Transaction: Update client and adjust stats if status changed
 export async function updateClientTransaction(userId, clientId, clientData, oldStatus, globalStats, baseVersion = 0) {
+  userId = sanitizeUserId(userId);
   const userPath = `users/${userId}`;
   const clientPath = `users/${userId}/clients/${clientId}`;
 
@@ -212,6 +229,7 @@ export async function updateClientTransaction(userId, clientId, clientData, oldS
 
 // Transaction: Delete client and adjust stats
 export async function deleteClientTransaction(userId, clientId, clientData, globalStats) {
+  userId = sanitizeUserId(userId);
   const userPath = `users/${userId}`;
   const clientPath = `users/${userId}/clients/${clientId}`;
 
@@ -262,6 +280,7 @@ export async function deleteClientTransaction(userId, clientId, clientData, glob
 
 // Generic helper to save an item inside a client subcollection and run transaction to update denormalized counters
 export async function saveClientSubItemTransaction(userId, clientId, collectionName, itemId, itemData, counterUpdates, globalStatsUpdates) {
+  userId = sanitizeUserId(userId);
   const clientPath = `users/${userId}/clients/${clientId}`;
   const itemPath = `${clientPath}/${collectionName}/${itemId}`;
   const userPath = `users/${userId}`;
@@ -296,6 +315,7 @@ export async function saveClientSubItemTransaction(userId, clientId, collectionN
 
 // Generic helper to delete an item inside a client subcollection and run transaction to update denormalized counters
 export async function deleteClientSubItemTransaction(userId, clientId, collectionName, itemId, counterUpdates, globalStatsUpdates) {
+  userId = sanitizeUserId(userId);
   const clientPath = `users/${userId}/clients/${clientId}`;
   const itemPath = `${clientPath}/${collectionName}/${itemId}`;
   const userPath = `users/${userId}`;
@@ -328,3 +348,45 @@ export async function deleteClientSubItemTransaction(userId, clientId, collectio
   }
 }
 
+// 3. Tenant-Isolated Employees CRUD operations
+export async function getEmployeesForTenant(tenantId) {
+  if (!tenantId || !auth?.currentUser) return [];
+  const path = `users/${tenantId}/employees`;
+  try {
+    const collRef = collection(db, path);
+    const snap = await getDocs(collRef);
+    const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    return list;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return [];
+  }
+}
+
+export async function saveEmployeeForTenant(tenantId, employee) {
+  if (!tenantId || !employee || !employee.id || !auth?.currentUser) return;
+  const path = `users/${tenantId}/employees/${employee.id}`;
+  try {
+    const docRef = doc(db, path);
+    const payload = {
+      ...employee,
+      tenantId: tenantId,
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(docRef, payload, { merge: true });
+    return payload;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteEmployeeForTenant(tenantId, employeeId) {
+  if (!tenantId || !employeeId || !auth?.currentUser) return;
+  const path = `users/${tenantId}/employees/${employeeId}`;
+  try {
+    const docRef = doc(db, path);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}

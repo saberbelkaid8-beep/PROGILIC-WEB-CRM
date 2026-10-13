@@ -39,3 +39,47 @@ export const IMPACT_LEVELS = ["عالي", "متوسط", "منخفض"];
 
 export const ISSUE_TYPES = ["خطأ تقني", "أداء", "استفسار", "طلب ميزة", "خطأ مستخدم", "أخرى"];
 export const ISSUE_SOURCES = ["نظام", "عميل", "سوء استخدام", "شبكة", "غير محدد"];
+
+export const DEPARTMENTS = [
+  { id: 'tech', name: 'القسم التقني', desc: 'إدارة الأخطاء، التراخيص، الأنظمة والتقنيات' },
+  { id: 'commercial', name: 'قسم التجاري', desc: 'إدارة العملاء، العقود، المبيعات والأسعار' },
+  { id: 'followup', name: 'قسم المتابعة', desc: 'متابعة الأنشطة، الزيارات، السجلات والتاريخ' },
+  { id: 'aftersales', name: 'قسم ما بعد البيع', desc: 'دعم العملاء، الشكاوى، الحلول والرضا' }
+];
+
+export const ALL_PERMISSIONS = [
+  'clients.view', 'clients.create', 'clients.edit', 'clients.delete', 'clients.export', 'clients.view_sensitive', 'clients.manage_status', 'clients.view_timeline', 'clients.view_contact_history',
+  'programs.view', 'programs.create', 'programs.edit', 'programs.delete', 'programs.view_licenses', 'programs.manage_licenses', 'programs.view_installations',
+  'issues.view', 'issues.create', 'issues.edit', 'issues.delete', 'issues.change_status', 'issues.change_priority', 'issues.change_type', 'issues.add_notes', 'issues.resolve', 'issues.reopen', 'issues.close',
+  'features.view', 'features.create', 'features.edit', 'features.delete', 'features.change_status', 'features.add_notes',
+  'contacts.view_history', 'contacts.create_entry', 'contacts.edit_entry', 'contacts.delete_entry',
+  'dashboard.view', 'reports.view', 'reports.export', 'analytics.view', 'analytics.view_risks', 'analytics.view_insights',
+  'search.global', 'search.clients', 'filters.advanced', 'filters.by_wilaya', 'filters.by_program',
+  'backup.view', 'backup.create', 'backup.download', 'backup.restore', 'backup.delete',
+  'users.view', 'users.create', 'users.edit', 'users.disable',
+  'departments.view', 'departments.create', 'departments.edit',
+  'permissions.view', 'permissions.assign', 'permissions.revoke',
+  'settings.view', 'settings.edit',
+  'account.view', 'account.change_password', 'account.manage_sessions'
+];
+
+export function createDefaultGerant(tenantId = 'default', gerantName = 'المدير العام (GERANT)') {
+  return {
+    id: 'gerant',
+    tenantId: tenantId,
+    name: gerantName,
+    username: 'gerant',
+    position: 'المدير العام (Gérant)',
+    department: 'الإدارة العليا',
+    supervisor: '-',
+    tasks: 'إدارة النظام الكاملة، تحديد الصلاحيات، الإشراف على جميع الأقسام',
+    password: '123',
+    role: 'GERANT',
+    permissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {})
+  };
+}
+
+export const DEFAULT_STAFF_USERS = [
+  createDefaultGerant('default')
+];
+

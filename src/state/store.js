@@ -1,5 +1,8 @@
 // Single Source of Truth - Centralized State Store with Rendering Audit Controls
 import { buildSearchIndex } from '../business/searchIndex.js';
+import { DEFAULT_STAFF_USERS, createDefaultGerant } from '../constants/index.js';
+import { auth } from '../firebase/config.js';
+
 
 let internalState = {
   lang: (typeof localStorage !== 'undefined' && localStorage.getItem('crm_lang')) || 'ar',
@@ -13,6 +16,7 @@ let internalState = {
   nid: 100,
   gi: false,
   showAdvFil: false,
+  showStaffManager: false,
   fWilaya: '',
   fActivity: '',
   fActType: '',
@@ -32,6 +36,9 @@ let internalState = {
   dbSearchQuery: '',
   dbSortKey: 'score',
   dbSortDir: 'desc',
+  dbPage: 1,
+  dbPageSize: 25,
+  dbActiveTab: 'overview',
   stats: {
     activeClients: 0,
     prospectiveClients: 0,
@@ -44,15 +51,37 @@ let internalState = {
   }
 };
 
+export const DEFAULT_SABER_USER = Object.freeze({
+  uid: 'z1FY0kWqOOSe78cFv8rqak0mjV03',
+  email: 'saberbelkaid8@gmail.com',
+  displayName: 'Saber Belkaid',
+  emailVerified: true
+});
+
+let initialUser = null;
+try {
+  const isLoggedOut = typeof localStorage !== 'undefined' && localStorage.getItem('crm_logged_out') === '1';
+  if (!isLoggedOut) {
+    const rawUser = localStorage.getItem('crm_active_gerant_user');
+    if (rawUser) {
+      initialUser = JSON.parse(rawUser);
+    }
+  }
+} catch (e) {
+  initialUser = null;
+}
+
 // ESM Live Bindings to keep other modules up-to-date automatically
 export let clients = [];
-export let currentUser = null;
+export let currentUser = initialUser;
+export let staffUsers = [];
+export let currentStaffUser = null;
 export let _isSyncing = false;
 export let _lastSyncedTime = null;
 export let _saveError = false;
 
 // Global Audit State for Real-Time Rendering Profiling
-if (!window.__renderAudit) {
+if (typeof window !== 'undefined' && !window.__renderAudit) {
   window.__renderAudit = {
     renderCount: 0,
     unnecessaryRendersPrevented: 0,
@@ -75,10 +104,12 @@ if (!window.__renderAudit) {
     const now = performance.now();
     frameCount++;
     if (now > lastFrameTime + 1000) {
-      window.__renderAudit.fps = Math.round((frameCount * 1000) / (now - lastFrameTime));
-      window.__renderAudit.fpsHistory.push(window.__renderAudit.fps);
-      if (window.__renderAudit.fpsHistory.length > 30) {
-        window.__renderAudit.fpsHistory.shift();
+      if (window.__renderAudit) {
+        window.__renderAudit.fps = Math.round((frameCount * 1000) / (now - lastFrameTime));
+        window.__renderAudit.fpsHistory.push(window.__renderAudit.fps);
+        if (window.__renderAudit.fpsHistory.length > 30) {
+          window.__renderAudit.fpsHistory.shift();
+        }
       }
       frameCount = 0;
       lastFrameTime = now;
@@ -94,42 +125,16 @@ const RENDER_LIMIT = 25;
 let renderTimestamps = [];
 let isThrottled = false;
 let throttleTimer = null;
-let isBatching = false;
-
-/**
- * Batches multiple state modifications so only a single render is scheduled
- * at the end of the batch function.
- */
-export function batch(fn) {
-  isBatching = true;
-  try {
-    fn();
-  } finally {
-    isBatching = false;
-    scheduleRender();
-  }
-}
-
-// Subscribers Set for reactivity
+export let isBatching = false;
 const subscribers = new Set();
 let renderScheduled = false;
 
-/**
- * Subscribes a callback to state changes.
- * Returns an unsubscribe function to prevent memory leaks.
- */
-export function subscribe(callback) {
-  if (typeof callback !== 'function') return () => {};
-  subscribers.add(callback);
-  return () => {
-    subscribers.delete(callback);
-  };
-}
-
 function executeSubscribers() {
-  window.__isProcessingMicrotasks = true;
-  window.__isRendering = true;
-  const startTime = performance.now();
+  if (typeof window !== 'undefined') {
+    window.__isProcessingMicrotasks = true;
+    window.__isRendering = true;
+  }
+  const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
   for (const cb of subscribers) {
     try {
@@ -139,33 +144,32 @@ function executeSubscribers() {
     }
   }
 
-  const duration = performance.now() - startTime;
-  window.__isRendering = false;
-  window.__isProcessingMicrotasks = false;
-
-  // Update Audit Performance Telemetry
-  window.__renderAudit.renderCount++;
-  window.__renderAudit.lastRenderDurationMs = duration;
-  window.__renderAudit.totalRenderDurationMs += duration;
-  window.__renderAudit.avgRenderDurationMs = window.__renderAudit.totalRenderDurationMs / window.__renderAudit.renderCount;
-
-  // Trigger a second pass to update auditor overlay, without triggering another full audit render
-  const auditorOverlay = document.getElementById('render-auditor-overlay');
-  if (auditorOverlay && typeof window.__updateAuditorUI === 'function') {
-    window.__updateAuditorUI();
+  const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startTime;
+  if (typeof window !== 'undefined') {
+    window.__isRendering = false;
+    window.__isProcessingMicrotasks = false;
+    if (window.__renderAudit) {
+      window.__renderAudit.renderCount++;
+      window.__renderAudit.lastRenderDurationMs = duration;
+      window.__renderAudit.totalRenderDurationMs += duration;
+      window.__renderAudit.avgRenderDurationMs = window.__renderAudit.totalRenderDurationMs / window.__renderAudit.renderCount;
+    }
+    const auditorOverlay = document.getElementById('render-auditor-overlay');
+    if (auditorOverlay && typeof window.__updateAuditorUI === 'function') {
+      window.__updateAuditorUI();
+    }
   }
 }
 
-/**
- * Triggers all registered subscribers.
- */
 function triggerSubscribers() {
-  const now = performance.now();
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
   renderTimestamps = renderTimestamps.filter(t => now - t < RENDER_WINDOW_MS);
   renderTimestamps.push(now);
 
   if (renderTimestamps.length > RENDER_LIMIT) {
-    window.__renderAudit.renderLoopsPrevented++;
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.renderLoopsPrevented++;
+    }
     if (!isThrottled) {
       console.warn(`Render throttling activated: ${renderTimestamps.length} renders in ${RENDER_WINDOW_MS}ms. Coalescing via debounced frame.`);
       isThrottled = true;
@@ -182,10 +186,6 @@ function triggerSubscribers() {
   executeSubscribers();
 }
 
-/**
- * Microtask-batched render scheduling to completely prevent render loops
- * and eliminate unnecessary redundant renderings.
- */
 export function scheduleRender() {
   if (isBatching) return;
   if (renderScheduled) return;
@@ -196,26 +196,307 @@ export function scheduleRender() {
   });
 }
 
-/**
- * Notifies the store to queue a render. Exposes callback-driven trigger.
- */
 export function notify() {
   scheduleRender();
 }
 
-/**
- * Checks for recursive rendering risks (state modification during execution of R).
- * Defers update to next microtask and warns if state is modified inside rendering cycle.
- * @returns {boolean} true if nested rendering is detected.
- */
-function handleRecursiveCheck(prop) {
-  if (window.__isRendering) {
-    window.__renderAudit.recursiveRendersPrevented++;
-    console.warn(`⚠️ RECURSIVE RENDER WARNING: State property "${prop}" was updated inside a rendering cycle. This can trigger infinite loops! Deferring to next microtask.`);
+export function batch(fn) {
+  isBatching = true;
+  try {
+    fn();
+  } finally {
+    isBatching = false;
+    scheduleRender();
+  }
+}
+
+export function subscribe(callback) {
+  if (typeof callback !== 'function') return () => {};
+  subscribers.add(callback);
+  return () => {
+    subscribers.delete(callback);
+  };
+}
+
+function handleRecursiveCheck(prop, updateFn) {
+  if (typeof window !== 'undefined' && window.__isRendering) {
+    if (window.__renderAudit) window.__renderAudit.recursiveRendersPrevented++;
+    console.warn(`⚠️ RECURSIVE RENDER WARNING: State property "${prop}" was updated inside a rendering cycle. Deferring to next microtask.`);
+    if (typeof updateFn === 'function') {
+      Promise.resolve().then(updateFn);
+    }
     return true;
   }
   return false;
 }
+
+export function updateState(newState) {
+  if (!newState) return;
+  
+  let changed = false;
+  const nextState = { ...internalState };
+  
+  for (const key in newState) {
+    if (JSON.stringify(internalState[key]) !== JSON.stringify(newState[key])) {
+      nextState[key] = newState[key];
+      changed = true;
+    }
+  }
+
+  // Handle live bindings in state merge
+  if ('clients' in newState && JSON.stringify(clients) !== JSON.stringify(newState.clients)) {
+    clients = Object.freeze(Array.isArray(newState.clients) ? [...newState.clients] : []);
+    changed = true;
+  }
+  if ('currentUser' in newState && JSON.stringify(currentUser) !== JSON.stringify(newState.currentUser)) {
+    currentUser = newState.currentUser ? Object.freeze({ ...newState.currentUser }) : null;
+    changed = true;
+  }
+  if ('staffUsers' in newState && JSON.stringify(staffUsers) !== JSON.stringify(newState.staffUsers)) {
+    staffUsers = Array.isArray(newState.staffUsers) ? [...newState.staffUsers] : [];
+    changed = true;
+  }
+  if ('currentStaffUser' in newState && JSON.stringify(currentStaffUser) !== JSON.stringify(newState.currentStaffUser)) {
+    currentStaffUser = newState.currentStaffUser ? Object.freeze({ ...newState.currentStaffUser }) : null;
+    changed = true;
+  }
+  if ('_isSyncing' in newState && _isSyncing !== !!newState._isSyncing) {
+    _isSyncing = !!newState._isSyncing;
+    changed = true;
+  }
+  if ('_lastSyncedTime' in newState && String(_lastSyncedTime) !== String(newState._lastSyncedTime)) {
+    _lastSyncedTime = newState._lastSyncedTime;
+    changed = true;
+  }
+  if ('_saveError' in newState && _saveError !== !!newState._saveError) {
+    _saveError = !!newState._saveError;
+    changed = true;
+  }
+
+  if (!changed) {
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.unnecessaryRendersPrevented++;
+    }
+    return;
+  }
+
+  if (handleRecursiveCheck(Object.keys(newState).join(', '), () => {
+    internalState = Object.freeze(nextState);
+    scheduleRender();
+  })) {
+    return;
+  }
+  internalState = Object.freeze(nextState);
+  scheduleRender();
+}
+
+export function getActiveTenantId() {
+  if (currentUser && currentUser.uid) return currentUser.uid;
+  if (auth && auth.currentUser && auth.currentUser.uid) return auth.currentUser.uid;
+  return null;
+}
+
+export function getTenantStaffStorageKey(tenantId) {
+  const tid = tenantId || getActiveTenantId();
+  return tid ? `crm_staff_users_${tid}` : 'crm_staff_users_guest';
+}
+
+export function getTenantCurrentStaffKey(tenantId) {
+  const tid = tenantId || getActiveTenantId();
+  return tid ? `crm_current_staff_${tid}` : 'crm_current_staff_guest';
+}
+
+export function loadStaffUsersForTenant(tenantId, userObj = currentUser, silent = false) {
+  const tid = tenantId || getActiveTenantId();
+  if (!tid) {
+    staffUsers = [];
+    currentStaffUser = null;
+    if (silent) {
+      internalState = Object.freeze({ ...internalState, staffUsers: [], currentStaffUser: null });
+    } else {
+      updateState({ staffUsers: [], currentStaffUser: null });
+    }
+    return [];
+  }
+
+  const key = getTenantStaffStorageKey(tid);
+  let localStaff = null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        localStaff = parsed;
+      }
+    }
+  } catch (e) {}
+
+  if (!localStaff) {
+    const defaultGerant = createDefaultGerant(tid, userObj?.displayName || userObj?.email?.split('@')[0] || 'المدير العام (GERANT)');
+    defaultGerant.adminEmail = userObj?.email || '';
+    localStaff = [ defaultGerant ];
+    try {
+      localStorage.setItem(key, JSON.stringify(localStaff));
+    } catch(e) {}
+  }
+
+  staffUsers = localStaff;
+
+  const staffKey = getTenantCurrentStaffKey(tid);
+  try {
+    const rawStaff = localStorage.getItem(staffKey);
+    if (rawStaff) {
+      const parsed = JSON.parse(rawStaff);
+      const matched = staffUsers.find(s => s.id === parsed.id);
+      currentStaffUser = matched || null;
+    } else {
+      currentStaffUser = null;
+    }
+  } catch (e) {
+    currentStaffUser = null;
+  }
+
+  if (silent) {
+    internalState = Object.freeze({ ...internalState, staffUsers, currentStaffUser });
+  } else {
+    updateState({ staffUsers, currentStaffUser });
+  }
+  return staffUsers;
+}
+
+// Initial hydration if already logged in (silent to prevent early render loops)
+if (initialUser && initialUser.uid) {
+  loadStaffUsersForTenant(initialUser.uid, initialUser, true);
+}
+
+export function setStaffUsers(users, tenantId) {
+  const tid = tenantId || getActiveTenantId();
+  const safeUsers = Array.isArray(users) ? users : [];
+  staffUsers = safeUsers;
+  if (tid) {
+    try {
+      localStorage.setItem(getTenantStaffStorageKey(tid), JSON.stringify(safeUsers));
+    } catch (e) {}
+  }
+  updateState({ staffUsers });
+}
+
+export function setCurrentStaffUser(staff, tenantId) {
+  const tid = tenantId || getActiveTenantId();
+  currentStaffUser = staff ? { ...staff } : null;
+  if (tid) {
+    try {
+      if (currentStaffUser) {
+        localStorage.setItem(getTenantCurrentStaffKey(tid), JSON.stringify(currentStaffUser));
+      } else {
+        localStorage.removeItem(getTenantCurrentStaffKey(tid));
+      }
+    } catch (e) {}
+  }
+  updateState({ currentStaffUser });
+}
+
+export function hasPermission(perm) {
+  const staff = currentStaffUser || (currentUser && currentUser.isEmployee ? currentUser : null);
+  if (!staff) {
+    if (currentUser && (currentUser.role === 'gerant' || currentUser.email === 'admin@progilic.dz' || !currentUser.isEmployee)) {
+      return true;
+    }
+    return false;
+  }
+  if (staff.role === 'GERANT') return true;
+  
+  const perms = staff.permissions || {};
+  if (perms[perm] === true) return true;
+
+  // Complete bidirectional mapping between legacy camelCase and 65 granular dot permissions
+  const dotToCamel = {
+    'clients.view': 'canViewClients',
+    'clients.create': 'canAddClients',
+    'clients.edit': 'canEditClients',
+    'clients.delete': 'canDeleteClients',
+    'clients.export': 'canExportData',
+    'clients.manage_status': 'canEditClients',
+    'programs.view': 'canManagePrograms',
+    'programs.create': 'canManagePrograms',
+    'programs.edit': 'canManagePrograms',
+    'programs.delete': 'canManagePrograms',
+    'programs.manage_licenses': 'canManageLicenses',
+    'programs.view_licenses': 'canManageLicenses',
+    'programs.view_installations': 'canManagePrograms',
+    'issues.view': 'canManageIssues',
+    'issues.create': 'canManageIssues',
+    'issues.edit': 'canManageIssues',
+    'issues.delete': 'canManageIssues',
+    'issues.resolve': 'canManageIssues',
+    'issues.change_status': 'canManageIssues',
+    'features.view': 'canManageRequirements',
+    'features.create': 'canManageRequirements',
+    'features.edit': 'canManageRequirements',
+    'features.delete': 'canManageRequirements',
+    'features.change_status': 'canManageRequirements',
+    'contacts.view_history': 'canManageContacts',
+    'contacts.create_entry': 'canManageContacts',
+    'contacts.edit_entry': 'canManageContacts',
+    'contacts.delete_entry': 'canManageContacts',
+    'dashboard.view': 'canViewDashboard',
+    'reports.view': 'canViewDashboard',
+    'reports.export': 'canExportData',
+    'analytics.view': 'canAccessAi',
+    'users.view': 'canManageEmployees',
+    'users.create': 'canManageEmployees',
+    'users.edit': 'canManageEmployees',
+    'users.disable': 'canManageEmployees',
+    'permissions.view': 'canManageEmployees',
+    'permissions.assign': 'canManageEmployees',
+    'permissions.revoke': 'canManageEmployees',
+    'backup.view': 'canManageBackups',
+    'backup.create': 'canManageBackups',
+    'backup.download': 'canManageBackups',
+    'backup.restore': 'canManageBackups',
+    'backup.delete': 'canManageBackups'
+  };
+
+  const camelToDot = {
+    'canViewClients': 'clients.view',
+    'canAddClients': 'clients.create',
+    'canEditClients': 'clients.edit',
+    'canDeleteClients': 'clients.delete',
+    'canExportData': 'clients.export',
+    'canManagePrograms': 'programs.view',
+    'canManageLicenses': 'programs.manage_licenses',
+    'canManageIssues': 'issues.view',
+    'canManageRequirements': 'features.view',
+    'canManageContacts': 'contacts.view_history',
+    'canViewDashboard': 'dashboard.view',
+    'canManageEmployees': 'users.view',
+    'canAccessAi': 'analytics.view',
+    'canManageBackups': 'backup.view'
+  };
+
+  if (dotToCamel[perm] && perms[dotToCamel[perm]] === true) return true;
+  if (camelToDot[perm] && perms[camelToDot[perm]] === true) return true;
+
+  return false;
+}
+
+export function isGerant() {
+  if (currentStaffUser) {
+    return currentStaffUser.role === 'GERANT';
+  }
+  if (currentUser && (currentUser.role === 'gerant' || currentUser.email === 'admin@progilic.dz' || !currentUser.isEmployee)) {
+    return true;
+  }
+  return false;
+}
+
+if (typeof window !== 'undefined') {
+  window.setCurrentStaffUser = setCurrentStaffUser;
+  window.setCurrentUser = setCurrentUser;
+  window.hasPermission = hasPermission;
+  window.isGerant = isGerant;
+}
+
 
 // Getters and Setters ensuring immutable state updates and single source of truth
 export function setClients(newClients) {
@@ -232,6 +513,9 @@ export function setClients(newClients) {
 }
 
 export function setCurrentUser(newUser) {
+  if (newUser && !newUser.uid) {
+    newUser = { ...newUser, uid: (auth && auth.currentUser && auth.currentUser.uid) || null };
+  }
   const isDifferent = JSON.stringify(currentUser) !== JSON.stringify(newUser);
   if (!isDifferent) {
     window.__renderAudit.unnecessaryRendersPrevented++;
@@ -240,6 +524,13 @@ export function setCurrentUser(newUser) {
 
   handleRecursiveCheck('currentUser');
   currentUser = newUser ? Object.freeze({ ...newUser }) : null;
+  if (currentUser && currentUser.uid) {
+    loadStaffUsersForTenant(currentUser.uid, currentUser);
+  } else {
+    staffUsers = [];
+    currentStaffUser = null;
+    updateState({ staffUsers: [], currentStaffUser: null });
+  }
   scheduleRender();
 }
 
@@ -307,60 +598,14 @@ export function setSaveError(val) {
   scheduleRender();
 }
 
-/**
- * Updates properties of S in bulk or individual fields immutably.
- */
-export function updateState(newState) {
-  if (!newState) return;
-  
-  let changed = false;
-  const nextState = { ...internalState };
-  
-  for (const key in newState) {
-    if (JSON.stringify(internalState[key]) !== JSON.stringify(newState[key])) {
-      nextState[key] = newState[key];
-      changed = true;
-    }
-  }
-
-  // Handle live bindings in state merge
-  if ('clients' in newState && JSON.stringify(clients) !== JSON.stringify(newState.clients)) {
-    clients = Object.freeze(Array.isArray(newState.clients) ? [...newState.clients] : []);
-    changed = true;
-  }
-  if ('currentUser' in newState && JSON.stringify(currentUser) !== JSON.stringify(newState.currentUser)) {
-    currentUser = newState.currentUser ? Object.freeze({ ...newState.currentUser }) : null;
-    changed = true;
-  }
-  if ('_isSyncing' in newState && _isSyncing !== !!newState._isSyncing) {
-    _isSyncing = !!newState._isSyncing;
-    changed = true;
-  }
-  if ('_lastSyncedTime' in newState && String(_lastSyncedTime) !== String(newState._lastSyncedTime)) {
-    _lastSyncedTime = newState._lastSyncedTime;
-    changed = true;
-  }
-  if ('_saveError' in newState && _saveError !== !!newState._saveError) {
-    _saveError = !!newState._saveError;
-    changed = true;
-  }
-
-  if (!changed) {
-    window.__renderAudit.unnecessaryRendersPrevented++;
-    return;
-  }
-
-  handleRecursiveCheck(Object.keys(newState).join(', '));
-  internalState = Object.freeze(nextState);
-  scheduleRender();
-}
-
 // Proxy wrapper for S to allow backward-compatible direct reads and writes
 // while enforcing strict predictable states and immutable updates under the hood.
 export const S = new Proxy({}, {
   get(target, prop) {
     if (prop === 'clients') return clients;
     if (prop === 'currentUser') return currentUser;
+    if (prop === 'staffUsers') return staffUsers;
+    if (prop === 'currentStaffUser') return currentStaffUser;
     if (prop === '_isSyncing') return _isSyncing;
     if (prop === '_lastSyncedTime') return _lastSyncedTime;
     if (prop === '_saveError') return _saveError;
@@ -373,6 +618,14 @@ export const S = new Proxy({}, {
     }
     if (prop === 'currentUser') {
       setCurrentUser(value);
+      return true;
+    }
+    if (prop === 'staffUsers') {
+      setStaffUsers(value);
+      return true;
+    }
+    if (prop === 'currentStaffUser') {
+      setCurrentStaffUser(value);
       return true;
     }
     if (prop === '_isSyncing') {
@@ -393,7 +646,15 @@ export const S = new Proxy({}, {
       return true;
     }
 
-    handleRecursiveCheck(prop);
+    if (handleRecursiveCheck(prop, () => {
+      internalState = Object.freeze({
+        ...internalState,
+        [prop]: value
+      });
+      scheduleRender();
+    })) {
+      return true;
+    }
 
     internalState = Object.freeze({
       ...internalState,

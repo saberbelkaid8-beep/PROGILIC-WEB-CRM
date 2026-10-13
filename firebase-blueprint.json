@@ -195,6 +195,25 @@
         "note": { "type": "string", "maxLength": 2000 }
       },
       "required": ["id", "date", "note"]
+    },
+    "Employee": {
+      "title": "Employee Profile",
+      "description": "PROGILIC staff member profile, department assignment, supervisor, and granular RBAC permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "username": { "type": "string", "maxLength": 50 },
+        "department": { "type": "string", "enum": ["pre_vente", "commercial", "suivi", "technique"] },
+        "position": { "type": "string", "maxLength": 100 },
+        "supervisor": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 100 },
+        "tasks": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["نشط", "معطل"] },
+        "permissions": { "type": "object" }
+      },
+      "required": ["id", "fullName", "username", "department", "position", "status"]
     }
   },
   "firestore": {
@@ -221,6 +240,10 @@
     "users/{userId}/clients/{clientId}/contacts/{contactId}": {
       "schema": "Contact",
       "description": "Log of interactions with this client"
+    },
+    "users/{userId}/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Staff members, departments, and access control settings managed by the Gérant"
     }
   }
 }

@@ -12,6 +12,7 @@ import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
 import { t } from '../../utils/i18n.js';
+import { hasPermission } from '../../state/store.js';
 import { 
   addClientTransaction, 
   updateClientTransaction, 
@@ -38,6 +39,10 @@ export function editProg(cid, pid) { S.modal = 'editProgram'; S.form = { eid: pi
 // 3. Program Operations (Transactional)
 
 export async function delProgram(cid, pid) {
+  if (!hasPermission('programs.delete')) {
+    showToast(t('⚠️ لا تملك صلاحية حذف البرامج والتراخيص.'), 'error');
+    return;
+  }
   const confirmMsg = S.lang === 'fr' 
     ? 'Êtes-vous certain de vouloir supprimer définitivement ce logiciel ?'
     : (S.lang === 'en' 
@@ -87,6 +92,15 @@ export async function delProgram(cid, pid) {
 }
 
 export async function saveProgram(editId) {
+  const programEditId = editId !== null && editId !== 'null' ? editId : null;
+  if (programEditId === null && !hasPermission('programs.create')) {
+    showToast(t('⚠️ لا تملك صلاحية إضافة برامج وتراخيص جديدة.'), 'error');
+    return;
+  }
+  if (programEditId !== null && !hasPermission('programs.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل بيانات البرامج والتراخيص.'), 'error');
+    return;
+  }
   const nm = gv('fp_nm'); if (!nm) { showToast(t('الرجاء اختيار اسم البرنامج'), 'error'); return; }
   const c = gc(); if (!c) return;
   
@@ -99,20 +113,20 @@ export async function saveProgram(editId) {
     endDate: gv('fp_ed') || ''
   };
 
-  const eid = editId !== null && editId !== 'null' ? editId : null;
+
   if (!Array.isArray(c.programs)) c.programs = [];
 
   let nextProgs = [...c.programs];
   const stats = { ...(S.stats || {}) };
 
-  if (eid !== null) {
-    const i = nextProgs.findIndex(p => p.id === eid);
+  if (programEditId !== null) {
+    const i = nextProgs.findIndex(p => p.id === programEditId);
     if (i > -1) {
       const oldP = nextProgs[i];
       const diffInstalls = d.installationsCount - (Number(oldP.installationsCount) || 1);
       stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) + diffInstalls);
       
-      d.id = eid;
+      d.id = programEditId;
       nextProgs[i] = { ...nextProgs[i], ...d };
     }
   } else {
@@ -149,7 +163,7 @@ export async function saveProgram(editId) {
   });
 
   // Log timeline activity
-  if (eid !== null) {
+  if (programEditId !== null) {
     logActivity(c.id, ActivityType.PROGRAM_EDITED, "تعديل ترخيص برنامج", `تم تعديل بيانات ترخيص البرنامج "${d.programName}". الأجهزة المرخصة: ${d.installationsCount}.`)
       .catch(err => console.error(err));
   } else {
@@ -182,11 +196,19 @@ export async function saveClient(editId) {
   };
   console.log("saveClient: form data d =", JSON.stringify(d));
 
-  const eid = editId !== null && editId !== 'null' ? editId : null;
+  const clientEditId = editId !== null && editId !== 'null' ? editId : null;
+  if (clientEditId === null && !hasPermission('canAddClients')) {
+    showToast('⚠️ لا تملك صلاحية إضافة عملاء جدد. الصلاحيات محددة من طرف المسؤول العام (Gérant).', 'error');
+    return;
+  }
+  if (clientEditId !== null && !hasPermission('canEditClients')) {
+    showToast('⚠️ لا تملك صلاحية تعديل بيانات العملاء. الصلاحيات محددة من طرف المسؤول العام (Gérant).', 'error');
+    return;
+  }
   const stats = { ...(S.stats || {}) };
 
-  if (eid !== null) {
-    const oldC = clients.find(c => c.id === eid);
+  if (clientEditId !== null) {
+    const oldC = clients.find(c => c.id === clientEditId);
     if (oldC) {
       const updatedClient = { ...oldC, ...d };
       
@@ -202,7 +224,7 @@ export async function saveClient(editId) {
       }
       
       // Optimistic Update
-      const i = clients.findIndex(c => c.id === eid);
+      const i = clients.findIndex(c => c.id === clientEditId);
       if (i > -1) {
         const nextClients = [...clients];
         nextClients[i] = updatedClient;
@@ -213,13 +235,13 @@ export async function saveClient(editId) {
       
       // Enqueue Sync Action
       enqueueSyncAction('UPDATE_CLIENT', {
-        clientId: String(eid),
+        clientId: String(clientEditId),
         clientData: updatedClient,
         oldStatus: oldC.status,
         stats
       });
       // Log timeline activity
-      logActivity(eid, ActivityType.CLIENT_EDITED, "تعديل بيانات العميل", "تم تعديل تفاصيل الملف الشخصي للعميل بنجاح.")
+      logActivity(clientEditId, ActivityType.CLIENT_EDITED, "تعديل بيانات العميل", "تم تعديل تفاصيل الملف الشخصي للعميل بنجاح.")
         .catch(err => console.error(err));
       showToast(t('تم تحديث بيانات العميل'));
     }
@@ -279,7 +301,7 @@ export async function saveClient(editId) {
     showToast(t('تم إضافة العميل بنجاح'));
   }
   
-  const targetId = eid !== null ? eid : (clients.find(c => c.fullName === fn)?.id || S.selId);
+  const targetId = clientEditId !== null ? clientEditId : (clients.find(c => c.fullName === fn)?.id || S.selId);
   if (targetId) {
     S.selId = targetId;
     S.view = 'detail';
@@ -292,6 +314,10 @@ export async function saveClient(editId) {
 // 4. Client Issues Operations (Transactional - Now Enqueued with Optimistic Updates)
 
 export async function delClient(id) {
+  if (!hasPermission('canDeleteClients')) {
+    showToast('⚠️ لا تملك صلاحية حذف العملاء نهائياً. هذه الصلاحية خاصة بالمسؤول العام (Gérant).', 'error');
+    return;
+  }
   const confirmMsg = S.lang === 'fr'
     ? 'Êtes-vous certain de vouloir supprimer définitivement ce client et toutes ses données ?\nCette action est irréversible.'
     : (S.lang === 'en'

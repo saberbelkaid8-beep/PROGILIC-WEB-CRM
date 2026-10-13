@@ -1,11 +1,13 @@
-import { S, clients, currentUser, scheduleRender } from '../state/store.js';
+import { S, clients, currentUser, currentStaffUser, isGerant, scheduleRender } from '../state/store.js';
 import { _isSyncing, _lastSyncedTime, _saveError } from '../business/storage.js';
 import { computeAlerts, autoDetectFeatureOpp } from '../business/intelligence.js';
 import { esc } from '../utils/index.js';
 import { renderLogin } from './render-login.js';
+import { renderStaffLogin, renderStaffManagerModal } from './render-staff.js';
 import { renderList, renderDetail, renderGlobalIntelligence, renderDashboard } from './render-views.js';
 import { renderModal } from './render-modals.js';
 import { renderAiAssistantWidget } from './ai/assistantWidget.js';
+
 
 // DOM Morphing/Reconciliation Engine (Reuses DOM, prevents recreation, maintains inputs, selection and focus)
 function morph(dom, vdom) {
@@ -197,26 +199,22 @@ function performRender() { try {
     fab.style.display = currentUser && S.view === "list" ? (!document.body.classList.contains('dark') ? 'flex' : 'flex') : 'none';
   }
 
-  // Login View Router
+  // Login View Router - Direct clean HTML render to avoid morph collision with desktop UI
   if (!currentUser) {
-    const tempLogin = document.createElement('div');
-    tempLogin.id = app.id;
-    tempLogin.className = app.className;
-    tempLogin.innerHTML = renderLogin();
-    morph(app, tempLogin);
-    updateAuditorHUD();
+    app.innerHTML = renderLogin();
     return;
   }
 
   // Verification Pending View Router
   if (currentUser && !currentUser.emailVerified) {
-    const tempLogin = document.createElement('div');
-    tempLogin.id = app.id;
-    tempLogin.className = app.className;
     window.loginMode = 'verificationPending';
-    tempLogin.innerHTML = renderLogin();
-    morph(app, tempLogin);
-    updateAuditorHUD();
+    app.innerHTML = renderLogin();
+    return;
+  }
+
+  // Staff Login View Router (After Google/Firebase account login)
+  if (currentUser && currentUser.emailVerified && !currentStaffUser) {
+    app.innerHTML = renderStaffLogin();
     return;
   }
   
@@ -255,6 +253,7 @@ function performRender() { try {
     `<div class="page ${S.view === 'dashboard' ? 'dashboard-page' : ''}" style="${S.view === 'dashboard' ? 'max-width:1300px; padding:1.5rem;' : ''}">` + pageContent + '</div>' +
     (S.view === 'list' || S.view === 'dashboard' ? renderStorageBar() : '') +
     modalHTML +
+    renderStaffManagerModal() +
     (S.gi ? renderGlobalIntelligence() : '') +
     renderAiAssistantWidget();
 
@@ -267,35 +266,37 @@ function performRender() { try {
     tempWrapper.appendChild(doc.body.firstChild);
   }
 
-  // Perform surgical DOM updates using Morphing Reconciliation
-  morph(app, tempWrapper);
+  // Perform surgical DOM updates using Morphing Reconciliation with graceful fallback
+  try {
+    morph(app, tempWrapper);
+  } catch (morphErr) {
+    console.warn("DOM Morph notice, falling back to innerHTML:", morphErr);
+    app.innerHTML = nextHTML;
+  }
 
   // Trigger Recharts rendering if dashboard chart container exists
   if (typeof window.renderRechartsChart === 'function') {
     window.renderRechartsChart();
   }
-
-  // Synchronize separate Performance Audit HUD
-  updateAuditorHUD();
 } catch(e) {
-  console.error("performRender fatal crash:", e);
+  console.error("performRender recovery caught:", e);
   const appEl = document.getElementById("app");
   if (appEl) {
-    appEl.innerHTML = `
-      <div style="padding:2rem; max-width:680px; margin:2rem auto; background:var(--card, #fff); border:1px solid #EF4444; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.1); font-family:sans-serif; text-align:center">
-        <div style="font-size:36px; margin-bottom:12px">⚠️</div>
-        <h2 style="color:#EF4444; margin-top:0">خطأ في معالجة واجهة التطبيق / Application Render Error</h2>
-        <p style="color:var(--t2, #666); font-size:14px">تم اعتراض خطأ أثناء تصيير واجهة المستخدم. يمكنك العودة للقائمة الرئيسية أو إعادة المحاولة.</p>
-        <div style="display:flex; justify-content:center; gap:10px; margin-top:1rem">
-          <button onclick="if(window.S) window.S.view='list'; if(window.R) window.R();" style="padding:8px 16px; background:#2563EB; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold">العودة للواجهة الرئيسية</button>
-          <button onclick="window.location.reload();" style="padding:8px 16px; background:#e5e7eb; color:#374151; border:none; border-radius:8px; cursor:pointer; font-weight:bold">إعادة تحميل الصفحة</button>
+    if (!currentUser) {
+      appEl.innerHTML = renderLogin();
+    } else {
+      appEl.innerHTML = `
+        <div style="padding:2rem; max-width:680px; margin:2rem auto; background:var(--card, #fff); border:1px solid #EF4444; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.1); font-family:sans-serif; text-align:center">
+          <div style="font-size:36px; margin-bottom:12px">⚠️</div>
+          <h2 style="color:#EF4444; margin-top:0">خطأ في معالجة واجهة التطبيق</h2>
+          <p style="color:var(--t2, #666); font-size:14px">تم تحديث واجهة المستخدم. يمكنك العودة للقائمة الرئيسية أو إعادة المحاولة.</p>
+          <div style="display:flex; justify-content:center; gap:10px; margin-top:1rem">
+            <button onclick="if(window.S) window.S.view='list'; if(window.R) window.R();" style="padding:8px 16px; background:#2563EB; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold">العودة للواجهة الرئيسية</button>
+            <button onclick="window.location.reload();" style="padding:8px 16px; background:#e5e7eb; color:#374151; border:none; border-radius:8px; cursor:pointer; font-weight:bold">إعادة تحميل الصفحة</button>
+          </div>
         </div>
-        <details style="margin-top:1.5rem; text-align:left; font-size:12px; color:#888; background:#f9fafb; padding:10px; border-radius:6px; overflow-x:auto">
-          <summary style="cursor:pointer; font-weight:bold">Error Stack</summary>
-          <pre style="margin-top:8px; white-space:pre-wrap">${esc(e && (e.stack || e.message || String(e)))}</pre>
-        </details>
-      </div>
-    `;
+      `;
+    }
   }
 } }
 
@@ -332,6 +333,8 @@ function renderHdr(alertCount) {
         <button class="btn btn-xs ${S.lang === 'en' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('en')" title="English" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">EN</button>
       </div>
       <span style="font-size:13px;font-weight:600;margin-left:10px;color:var(--t2)">👤 ${currentUser ? currentUser.email : ''}</span>
+      ${currentStaffUser ? `<button class="btn btn-xs" onclick="toggleStaffManagerModal(true)" style="margin-left:8px; background:rgba(56,189,248,0.2); border:1px solid #38bdf8; color:#38bdf8;" title="إدارة الموظفين والأقسام والصلاحيات">👔 ${esc(currentStaffUser.name)} (${esc(currentStaffUser.department)})</button>` : ''}
+      <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="تغيير الموظف" style="margin-left:4px; color:#94a3b8;">🔄 تبديل</button>
       <button class="btn btn-ghost btn-xs" onclick="logout()" title="${t('تسجيل الخروج')}" style="margin-left:10px;color:var(--r)">${t('تسجيل الخروج')}</button>
       <button class="dm-btn" title="${t('الوضع الليلي')}" onclick="toggleDark()" id="dmBtn">🌙</button>
       <button class="bell-btn" title="${t('الذكاء الاصطناعي')}" onclick="S.gi=!S.gi;R()" style="font-size:14px">🧠</button>
@@ -423,97 +426,6 @@ function renderStorageBar() {
   </div>`;
 }
 
-// Isolated Auditor HUD Manager (Render-Loop Safe)
-function updateAuditorHUD() {
-  let container = document.getElementById('render-auditor-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'render-auditor-container';
-    document.body.appendChild(container);
-  }
-
-  const audit = window.__renderAudit;
-  if (!audit) return;
-
-  const totalNodes = (audit.domNodesReused + audit.domNodesRecreated) || 1;
-  const reusePercent = Math.round((audit.domNodesReused / totalNodes) * 100);
-
-  // HUD Visibility Control (Toggled by Shift+Alt+A or floating trigger)
-  if (!audit.showAuditorUI) {
-    container.innerHTML = `
-      <div class="fixed bottom-4 right-4 z-[9999] bg-slate-900/90 hover:bg-slate-900 text-white rounded-full shadow-2xl border border-slate-700/50 p-3 cursor-pointer flex items-center justify-center transition-all duration-300 transform hover:scale-105" 
-           title="افتح مراقب الأداء ومراجعة محرك الصيرورة (Shift+Alt+A)" 
-           onclick="window.__renderAudit.showAuditorUI=true; window.__updateAuditorUI()">
-        <span class="text-base">📊</span>
-      </div>
-    `;
-    return;
-  }
-
-  // Diagnostic Status Indicators
-  const fpsColor = audit.fps >= 55 ? 'text-emerald-400' : audit.fps >= 40 ? 'text-amber-400' : 'text-rose-400';
-  const latencyColor = audit.lastRenderDurationMs <= 8 ? 'text-emerald-400' : audit.lastRenderDurationMs <= 16 ? 'text-amber-400' : 'text-rose-400';
-
-  container.innerHTML = `
-    <div id="render-auditor-overlay" class="fixed bottom-4 right-4 z-[9999] bg-slate-900/95 text-slate-200 rounded-xl shadow-2xl border border-slate-700/80 font-mono text-[11px] p-4 w-80 select-none transition-all duration-300">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
-        <span class="font-bold text-xs text-indigo-400 flex items-center gap-1">⚡ PROGILIC DOM Profiler</span>
-        <button class="text-slate-400 hover:text-white transition-colors text-sm font-sans" onclick="window.__renderAudit.showAuditorUI=false; window.__updateAuditorUI()">×</button>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3 mb-3">
-        <div class="bg-slate-950/60 p-2 rounded border border-slate-800/50">
-          <div class="text-slate-500 text-[9px] uppercase">Frame Rate</div>
-          <div class="text-lg font-bold ${fpsColor}">${audit.fps} FPS</div>
-          <div class="text-[9px] text-slate-400">Target 60 FPS (16.6ms)</div>
-        </div>
-        <div class="bg-slate-950/60 p-2 rounded border border-slate-800/50">
-          <div class="text-slate-500 text-[9px] uppercase">Render Latency</div>
-          <div class="text-lg font-bold ${latencyColor}">${audit.lastRenderDurationMs.toFixed(2)}ms</div>
-          <div class="text-[9px] text-slate-400">Avg: ${audit.avgRenderDurationMs.toFixed(1)}ms</div>
-        </div>
-      </div>
-
-      <div class="space-y-1.5 text-slate-300">
-        <div class="flex justify-between items-center bg-slate-950/30 px-2 py-1 rounded">
-          <span>Total Renders</span>
-          <span class="font-semibold text-white">${audit.renderCount}</span>
-        </div>
-        <div class="flex justify-between items-center bg-slate-950/30 px-2 py-1 rounded">
-          <span>Unnecessary Renders Prevented</span>
-          <span class="font-semibold text-emerald-400">${audit.unnecessaryRendersPrevented}</span>
-        </div>
-        <div class="flex justify-between items-center bg-slate-950/30 px-2 py-1 rounded">
-          <span>Recursive Updates Safely Stopped</span>
-          <span class="font-semibold ${audit.recursiveRendersPrevented > 0 ? 'text-amber-400' : 'text-slate-400'}">${audit.recursiveRendersPrevented}</span>
-        </div>
-        <div class="flex justify-between items-center bg-slate-950/30 px-2 py-1 rounded">
-          <span>Render Loops Blocked</span>
-          <span class="font-semibold ${audit.renderLoopsPrevented > 0 ? 'text-rose-400' : 'text-slate-400'}">${audit.renderLoopsPrevented}</span>
-        </div>
-        <div class="flex justify-between items-center bg-slate-950/30 px-2 py-1 rounded">
-          <span>DOM Node Reuse Efficiency</span>
-          <span class="font-semibold text-indigo-400">${reusePercent}%</span>
-        </div>
-      </div>
-
-      <div class="mt-3 pt-2 border-t border-slate-800/60 text-[9px] text-slate-500 flex justify-between">
-        <span>Nodes Reused: ${audit.domNodesReused}</span>
-        <span>Nodes Recreated: ${audit.domNodesRecreated}</span>
-      </div>
-    </div>
-  `;
-}
-
-// Expose update auditor HUD helper globally so store.js can trigger it directly
+// Clean UI: No telemetry indicators
+function updateAuditorHUD() {}
 window.__updateAuditorUI = updateAuditorHUD;
-
-// Register Shift+Alt+A Hotkey to toggle Auditor UI dynamically
-window.addEventListener('keydown', (e) => {
-  if (e.shiftKey && e.altKey && e.code === 'KeyA') {
-    if (window.__renderAudit) {
-      window.__renderAudit.showAuditorUI = !window.__renderAudit.showAuditorUI;
-      updateAuditorHUD();
-    }
-  }
-});

@@ -160,15 +160,6 @@ export function computeGlobalStats(){
 export function computeAlerts(){
   const alerts=[];const now=Date.now();const DAY=86400000;
   clients.forEach(c=>{
-    if(c.endDate&&c.status==='نشط'){
-      const dl=Math.floor((new Date(c.endDate+'T00:00').getTime()-now)/DAY);
-      if(dl>=0&&dl<=30)alerts.push({type:'CONTRACT_EXPIRING',cid:c.id,
-        msg:`عقد ${c.fullName} ينتهي خلال ${dl} يوم`,
-        sub:c.company+' — '+c.wilaya,level:dl<=7?'urgent':'warning',icon:'📄'});
-      else if(dl<0&&c.status==='نشط')alerts.push({type:'CONTRACT_EXPIRED',cid:c.id,
-        msg:`عقد ${c.fullName} انتهى منذ ${Math.abs(dl)} يوم`,
-        sub:'يحتاج تجديد فوري',level:'urgent',icon:'🔴'});
-    }
     if(c.status==='نشط'&&c.lastContact){
       const ds=Math.floor((now-new Date(c.lastContact+'T00:00').getTime())/DAY);
       if(ds>=60)alerts.push({type:'NO_CONTACT',cid:c.id,
@@ -242,16 +233,6 @@ export function generateAutoNote(c){
   const hiReqs  = reqs.filter(r=>r.impact==='عالي'&&r.status!=='مرفوض');
   const pendReqs= reqs.filter(r=>r.status==='مقترح'||r.status==='قيد الدراسة');
 
-  const activeProg = progs.filter(p=>{
-    if(!p.endDate) return true;
-    return new Date(p.endDate+'T00:00')>=today;
-  });
-  const expiringSoon = progs.filter(p=>{
-    if(!p.endDate) return false;
-    const dl=Math.floor((new Date(p.endDate+'T00:00')-today)/86400000);
-    return dl>=0&&dl<=30;
-  });
-
   const parts=[];
   const tags=[];
 
@@ -298,15 +279,6 @@ export function generateAutoNote(c){
     parts.push(`لديه ${pendReqs.length} طلب قيد الانتظار — يتوقع ردوداً`);
   }
 
-  if(expiringSoon.length>0){
-    parts.push(`برنامج ينتهي خلال 30 يوم — فرصة تجديد العقد`);
-    tags.push({t:'تجديد وشيك',cls:'yellow'});
-  }
-  if(activeProg.length===0&&progs.length>0){
-    parts.push('جميع البرامج منتهية الصلاحية — خطر فقدان العميل');
-    tags.push({t:'برامج منتهية',cls:'red'});
-  }
-
   if(c.status==='متوقف'){
     const daysOff = daysSinceLast;
     parts.push(daysOff<90?'العميل في حالة توقف مؤقت — تواصل معه لاستئناف العلاقة':'العميل متوقف لفترة طويلة — يستوجب إعادة التواصل العاجل');
@@ -318,7 +290,6 @@ export function generateAutoNote(c){
 
   let action='';
   if(urgIss.length>0) action='🔴 أولوية: حل المشاكل العاجلة فوراً';
-  else if(expiringSoon.length>0) action='🟡 أولوية: التواصل لتجديد العقد';
   else if(daysSinceLast>45&&c.status==='نشط') action='🔵 أولوية: جدولة مكالمة متابعة';
   else if(c.status==='محتمل') action='🟢 أولوية: متابعة التجربة وإغلاق الصفقة';
   else if(repeated.length>=2) action='🟠 أولوية: جلسة تقنية لحل المشاكل الجذرية';

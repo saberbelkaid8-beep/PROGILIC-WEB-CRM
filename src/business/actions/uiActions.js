@@ -36,9 +36,9 @@ export function setFil(f) { S.filter = f; R(); }
 
 export function onQ(q) { S.q = q; R(); }
 
-export function openModal(m) { 
+export function openModal(m, formData) { 
   S.modal = m; 
-  S.form = {}; 
+  S.form = formData || {}; 
   if (m === 'backupManager') {
     loadBackupsList();
   }
@@ -84,6 +84,25 @@ export function initDark() {
 
 export function setDbFilter(key, val) {
   S[key] = val;
+  if (key !== 'dbPage') {
+    S.dbPage = 1;
+  }
+  R();
+}
+
+export function setDbPage(page) {
+  S.dbPage = Math.max(1, Number(page) || 1);
+  R();
+}
+
+export function setDbPageSize(size) {
+  S.dbPageSize = Number(size) || 25;
+  S.dbPage = 1;
+  R();
+}
+
+export function setDbTab(tab) {
+  S.dbActiveTab = tab;
   R();
 }
 
@@ -94,6 +113,8 @@ export function resetDbFilters() {
   S.dbSearchQuery = '';
   S.dbSortKey = 'score';
   S.dbSortDir = 'desc';
+  S.dbPage = 1;
+  S.dbActiveTab = 'overview';
   R();
 }
 
