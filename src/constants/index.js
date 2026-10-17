@@ -68,6 +68,7 @@ export function createDefaultGerant(tenantId = 'default', gerantName = 'المد
     id: 'gerant',
     tenantId: tenantId,
     name: gerantName,
+    fullName: gerantName,
     username: 'gerant',
     position: 'المدير العام (Gérant)',
     department: 'الإدارة العليا',

@@ -233,7 +233,13 @@ function renderBackupManagerModal() {
         : 'يتم حفظ النسخ الاحتياطية <strong>تلقائياً وبشكل دوري في جهازك (IndexedDB)</strong> بشكل معزول لكل مستخدم. يحتفظ النظام بحد أقصى <strong>30 نسخة متعاقبة</strong>.'}
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:10px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" onclick="triggerManualBackup()">💾 ${t('إنشاء نسخة الآن')}</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="triggerManualBackup()">💾 ${t('إنشاء نسخة الآن')}</button>
+        <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:6px" title="${t('استيراد ملف .dum أو .json')}">
+          📥 ${S.lang === 'fr' ? 'Importer (.dum / .json)' : (S.lang === 'en' ? 'Import (.dum / .json)' : 'استيراد (.dum / .json)')}
+          <input type="file" accept=".dum,.dump,.json,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
+        </label>
+      </div>
       <button class="btn btn-outline btn-sm" onclick="loadBackupsList()">🔄 ${t('تحديث')}</button>
     </div>
     <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px" class="custom-scrollbar">
@@ -259,8 +265,9 @@ function renderBackupManagerModal() {
                   <span>👥 ${t('العملاء')}: <strong>${clientCount}</strong></span>
                   <span>🖥️ ${t('البرامج')}: <strong>${programCount}</strong></span>
                 </div>
-                <div style="display:flex;gap:6px;margin-top:4px">
-                  <button class="btn btn-outline btn-xs" onclick="downloadBackup('${b.id}')">📥 ${S.lang === 'fr' ? 'Télécharger' : S.lang === 'en' ? 'Download' : 'تحميل الملف'} (.json)</button>
+                <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+                  <button class="btn btn-outline btn-xs" onclick="downloadBackup('${b.id}', 'json')">📥 JSON</button>
+                  <button class="btn btn-outline btn-xs" onclick="downloadBackup('${b.id}', 'dum')">💾 DUM</button>
                   <button class="btn btn-success-soft btn-xs" onclick="triggerRestore('${b.id}')" style="font-weight:bold">🔄 ${S.lang === 'fr' ? 'Restaurer' : S.lang === 'en' ? 'Restore' : 'استرجاع هذه النسخة'}</button>
                   <button class="btn btn-danger-soft btn-xs" onclick="triggerDeleteBackup('${b.id}')">✕ ${t('حذف')}</button>
                 </div>

@@ -122,8 +122,8 @@ describe('Employee and Departments Service', () => {
   it('should enforce role-based permissions correctly between Gérant and Staff', () => {
     // 1. Gérant has full permissions on everything
     setCurrentUser({
-      uid: 'z1FY0kWqOOSe78cFv8rqak0mjV03',
-      email: 'saberbelkaid8@gmail.com',
+      uid: 'gerant_test_uid_01',
+      email: 'gerant@progilic-dz.com',
       isEmployee: false,
       role: 'gerant'
     });
@@ -138,7 +138,7 @@ describe('Employee and Departments Service', () => {
       username: 'emp.demo',
       department: 'technique',
       position: 'دعم فني',
-      supervisor: 'صابر بلقايد',
+      supervisor: 'المدير العام (Gérant)',
       permissions: {
         canViewClients: true,
         canAddClients: false,

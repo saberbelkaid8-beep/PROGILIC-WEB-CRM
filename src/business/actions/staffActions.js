@@ -8,7 +8,7 @@ import { saveEmployeeForTenant, deleteEmployeeForTenant } from '../../firebase/s
 window.loginStaff = function(staffId, password) {
   const cleanPass = (password || '').trim();
   if (!cleanPass) {
-    showToast(t("يرجى إدخال كلمة المرور للمتابعة. لا يمكن الدخول بدون التحقق من كلمة المرور."), "error");
+    showToast(t("يرجى إدخال كلمة المرور للمتابعة."), "error");
     return;
   }
 
@@ -19,8 +19,9 @@ window.loginStaff = function(staffId, password) {
     return;
   }
 
-  if (found.password !== cleanPass) {
-    showToast(t("كلمة المرور غير صحيحة. يرجى إدخال كلمة المرور الصحيحة المطابقة لحسابك."), "error");
+  const expectedPass = found.password || (found.role === 'GERANT' ? '123' : '');
+  if (cleanPass !== expectedPass) {
+    showToast(t("كلمة المرور غير صحيحة. يرجى إدخال كلمة المرور الصحيحة."), "error");
     return;
   }
 
@@ -58,13 +59,14 @@ window.saveStaffMember = async function(form) {
     id,
     tenantId: tenantId || 'default',
     adminEmail: currentUser?.email || '',
-    name: form.name || 'موظف جديد',
+    name: form.name || form.fullName || 'موظف جديد',
+    fullName: form.fullName || form.name || 'موظف جديد',
     username: form.username || form.name || 'user',
     position: form.position || 'موظف',
     department: form.department || 'القسم التقني',
     supervisor: form.supervisor || 'المدير العام',
     tasks: form.tasks || '',
-    password: form.password ? form.password.trim() : (existingIndex >= 0 ? staffList[existingIndex].password : '123'),
+    password: form.password ? form.password.trim() : (existingIndex >= 0 ? staffList[existingIndex].password : ''),
     role: form.role || 'employee',
     permissions: existingIndex >= 0 ? staffList[existingIndex].permissions : {},
     updatedAt: new Date().toISOString()

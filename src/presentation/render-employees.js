@@ -1,7 +1,7 @@
 // Employees & Departments Management Presentation Module for PROGILIC CRM
 // Renders the 4 PROGILIC Departments, Staff Directory, Role-Based Access Control Matrix, and Gérant Controls
 
-import { S, currentUser } from '../state/store.js';
+import { S, currentUser, currentStaffUser } from '../state/store.js';
 import { auth } from '../firebase/config.js';
 
 import { 
@@ -54,7 +54,7 @@ export function renderEmployeesView() {
     }
     if (window.__empSearchQuery) {
       const q = window.__empSearchQuery.trim().toLowerCase();
-      const matchName = (emp.fullName || '').toLowerCase().includes(q);
+      const matchName = (emp.fullName || emp.name || '').toLowerCase().includes(q);
       const matchUser = (emp.username || '').toLowerCase().includes(q);
       const matchPos = (emp.position || '').toLowerCase().includes(q);
       const matchSup = (emp.supervisor || '').toLowerCase().includes(q);
@@ -154,7 +154,7 @@ export function renderEmployeesView() {
                 </p>
 
                 <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:11px;">
-                  <span style="color:var(--t3); font-weight:600">المسؤول الافتراضي: ${esc(dept.defaultSupervisor.split('(')[0].trim())}</span>
+                  <span style="color:var(--t3); font-weight:600">المسؤول الافتراضي: ${esc(String(dept.defaultSupervisor || 'المدير العام').split('(')[0].trim())}</span>
                   <span style="color:${dept.color}; font-weight:700">${isSelected ? '✓ محدد' : 'عرض الموظفين ←'}</span>
                 </div>
               </div>
@@ -241,27 +241,31 @@ export function renderEmployeesView() {
               </thead>
               <tbody>
                 ${filtered.map((emp, idx) => {
-                  const dept = getDepartment(emp.department);
-                  const perms = emp.permissions || {};
-                  const activePermsCount = Object.values(perms).filter(Boolean).length;
-                  const isCurrentSession = currentUser?.isEmployee && currentUser?.employeeId === emp.id;
+                  const empSafe = emp || {};
+                  const rawName = empSafe.fullName || empSafe.name || empSafe.username || 'موظف';
+                  const empName = typeof rawName === 'string' ? rawName : String(rawName || 'موظف');
+                  const initials = empName && typeof empName.slice === 'function' && empName.length > 0 ? empName.slice(0, 2) : 'م';
+                  const dept = getDepartment(empSafe.department) || DEPARTMENTS[0];
+                  const perms = empSafe.permissions || {};
+                  const activePermsCount = empSafe.role === 'GERANT' ? 12 : Object.values(perms).filter(Boolean).length;
+                  const isCurrentSession = (currentUser?.isEmployee && currentUser?.employeeId === empSafe.id) || (currentStaffUser && currentStaffUser.id === empSafe.id);
 
                   return `
                     <tr style="border-bottom:1px solid var(--border); transition:background 0.15s ease; ${isCurrentSession ? 'background:rgba(56,189,248,0.06)' : ''}" onmouseenter="this.style.background='rgba(0,0,0,0.015)'" onmouseleave="this.style.background='${isCurrentSession ? 'rgba(56,189,248,0.06)' : 'transparent'}'">
                       <!-- Employee & Login Info -->
                       <td style="padding:12px 14px">
                         <div style="display:flex; align-items:center; gap:10px">
-                          <div style="width:38px; height:38px; border-radius:10px; background:${dept.bgSoft}; color:${dept.color}; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:15px; border:1px solid ${dept.borderSoft}">
-                            ${esc(emp.fullName.slice(0, 2))}
+                          <div style="width:38px; height:38px; border-radius:10px; background:${dept.bgSoft || 'rgba(0,0,0,0.05)'}; color:${dept.color || '#2563eb'}; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:15px; border:1px solid ${dept.borderSoft || 'transparent'}">
+                            ${esc(initials)}
                           </div>
                           <div>
                             <div style="font-weight:800; color:var(--t1); font-size:13.5px; display:flex; align-items:center; gap:6px">
-                              <span>${esc(emp.fullName)}</span>
+                              <span>${esc(empName)}</span>
                               ${isCurrentSession ? `<span style="background:#38bdf8; color:#fff; font-size:9.5px; padding:1px 5px; border-radius:4px; font-weight:700">أنت الآن</span>` : ''}
                             </div>
                             <div style="font-size:11px; color:var(--t3); display:flex; align-items:center; gap:6px; margin-top:2px">
-                              <span style="font-family:monospace; background:rgba(0,0,0,0.04); padding:1px 4px; border-radius:4px">@${esc(emp.username)}</span>
-                              ${emp.phone ? `<span>📞 ${esc(emp.phone)}</span>` : ''}
+                              <span style="font-family:monospace; background:rgba(0,0,0,0.04); padding:1px 4px; border-radius:4px">@${esc(empSafe.username || empSafe.id || 'emp')}</span>
+                              ${empSafe.phone ? `<span>📞 ${esc(empSafe.phone)}</span>` : ''}
                             </div>
                           </div>
                         </div>
@@ -280,23 +284,23 @@ export function renderEmployeesView() {
 
                       <!-- Position -->
                       <td style="padding:12px 14px; font-weight:600; color:var(--t1)">
-                        ${esc(emp.position || dept.defaultPosition)}
+                        ${esc(empSafe.position || dept.defaultPosition || 'موظف')}
                       </td>
 
                       <!-- Direct Supervisor -->
                       <td style="padding:12px 14px">
                         <div style="display:flex; align-items:center; gap:6px; color:var(--t2); font-weight:600">
                           <span style="color:#2563eb">👑</span>
-                          <span>${esc(emp.supervisor || 'صابر بلقايد (Gérant)')}</span>
+                          <span>${esc(empSafe.supervisor || dept.defaultSupervisor || 'المدير العام (Gérant)')}</span>
                         </div>
                       </td>
 
                       <!-- Tasks and Responsibilities -->
                       <td style="padding:12px 14px; max-width:240px">
-                        <div style="font-size:11.5px; color:var(--t2); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="${esc(emp.tasks || '')}">
-                          ${esc(emp.tasks || dept.descriptionAr)}
+                        <div style="font-size:11.5px; color:var(--t2); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="${esc(empSafe.tasks || '')}">
+                          ${esc(empSafe.tasks || dept.descriptionAr || '')}
                         </div>
-                        <button class="btn btn-ghost btn-xs" onclick="window.viewEmployeeTasks('${emp.id}')" style="font-size:10.5px; padding:0; color:#2563eb; font-weight:700; margin-top:2px">
+                        <button class="btn btn-ghost btn-xs" onclick="window.viewEmployeeTasks('${empSafe.id || ''}')" style="font-size:10.5px; padding:0; color:#2563eb; font-weight:700; margin-top:2px">
                           عرض كامل المهام 🔍
                         </button>
                       </td>
@@ -308,7 +312,7 @@ export function renderEmployeesView() {
                             ${activePermsCount} / 12 صلاحية
                           </span>
                           ${isGerant ? `
-                            <button class="btn btn-ghost btn-xs" onclick="window.openEditPermissionsModal('${emp.id}')" title="تعديل الصلاحيات الممنوحة" style="color:#2563eb; font-weight:700; padding:2px 6px">
+                            <button class="btn btn-ghost btn-xs" onclick="window.openEditPermissionsModal('${empSafe.id || ''}')" title="تعديل الصلاحيات الممنوحة" style="color:#2563eb; font-weight:700; padding:2px 6px">
                               ⚙️ ضبط
                             </button>
                           ` : ''}
@@ -323,9 +327,9 @@ export function renderEmployeesView() {
 
                       <!-- Status -->
                       <td style="padding:12px 14px">
-                        <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:2px 7px; border-radius:999px; ${emp.status === 'نشط' ? 'background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.3)' : 'background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3)'}">
-                          <span style="width:6px; height:6px; border-radius:50%; background:${emp.status === 'نشط' ? '#10b981' : '#ef4444'}"></span>
-                          <span>${emp.status || 'نشط'}</span>
+                        <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:2px 7px; border-radius:999px; ${empSafe.status === 'نشط' ? 'background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.3)' : 'background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3)'}">
+                          <span style="width:6px; height:6px; border-radius:50%; background:${empSafe.status === 'نشط' ? '#10b981' : '#ef4444'}"></span>
+                          <span>${empSafe.status || 'نشط'}</span>
                         </span>
                       </td>
 
@@ -333,20 +337,20 @@ export function renderEmployeesView() {
                       <td style="padding:12px 14px; text-align:center">
                         <div style="display:inline-flex; align-items:center; gap:4px">
                           ${isGerant ? `
-                            <button class="btn btn-ghost btn-xs" onclick="window.quickImpersonateEmployee('${emp.id}')" title="تجربة واستعراض الواجهة بصلاحيات هذا الموظف" style="color:#0284c7; padding:4px 7px">
+                            <button class="btn btn-ghost btn-xs" onclick="window.quickImpersonateEmployee('${empSafe.id || ''}')" title="تجربة واستعراض الواجهة بصلاحيات هذا الموظف" style="color:#0284c7; padding:4px 7px">
                               🎭 تجربة
                             </button>
-                            <button class="btn btn-ghost btn-xs" onclick="window.openEditEmployeeModal('${emp.id}')" title="تعديل بيانات الموظف والمنصب" style="color:#2563eb; padding:4px 7px">
+                            <button class="btn btn-ghost btn-xs" onclick="window.openEditEmployeeModal('${empSafe.id || ''}')" title="تعديل بيانات الموظف والمنصب" style="color:#2563eb; padding:4px 7px">
                               ✏️
                             </button>
-                            <button class="btn btn-ghost btn-xs" onclick="window.openChangePasswordModal('${emp.id}')" title="تغيير كلمة المرور" style="color:#f59e0b; padding:4px 7px">
+                            <button class="btn btn-ghost btn-xs" onclick="window.openChangePasswordModal('${empSafe.id || ''}')" title="تغيير كلمة المرور" style="color:#f59e0b; padding:4px 7px">
                               🔑
                             </button>
-                            <button class="btn btn-ghost btn-xs" onclick="window.confirmDeleteEmployee('${emp.id}')" title="حذف حساب الموظف" style="color:#ef4444; padding:4px 7px">
+                            <button class="btn btn-ghost btn-xs" onclick="window.confirmDeleteEmployee('${empSafe.id || ''}')" title="حذف حساب الموظف" style="color:#ef4444; padding:4px 7px">
                               🗑️
                             </button>
                           ` : `
-                            <button class="btn btn-ghost btn-xs" onclick="window.viewEmployeeTasks('${emp.id}')" style="color:#2563eb">
+                            <button class="btn btn-ghost btn-xs" onclick="window.viewEmployeeTasks('${empSafe.id || ''}')" style="color:#2563eb">
                               تفاصيل
                             </button>
                           `}
@@ -367,7 +371,7 @@ export function renderEmployeesView() {
         <div>
           <h4 style="margin:0 0 3px; font-size:13.5px; font-weight:800; color:var(--t1)">سياسة الحوكمة والتحكم في الصلاحيات</h4>
           <p style="margin:0; font-size:12px; color:var(--t2); line-height:1.5">
-            تطبيق مبدأ أقل الصلاحيات المطلوبة (Least Privilege Principle). فقط المسؤول العام <strong>(Gérant: Saber Belkaid)</strong> يملك صلاحية منح أو سحب الصلاحيات الحساسة كحذف العملاء وتصدير البيانات وإدارة فريق العمل، بينما يركز كل موظف على مهامه وفق قسمه المحدد في PROGILIC.
+            تطبيق مبدأ أقل الصلاحيات المطلوبة (Least Privilege Principle). فقط المسؤول العام <strong>(Gérant)</strong> يملك صلاحية منح أو سحب الصلاحيات الحساسة كحذف العملاء وتصدير البيانات وإدارة فريق العمل، بينما يركز كل موظف على مهامه وفق قسمه المحدد في PROGILIC.
           </p>
         </div>
       </div>
@@ -436,10 +440,11 @@ window.viewEmployeeTasks = function(empId) {
 window.confirmDeleteEmployee = async function(empId) {
   const emp = getEmployeeById(empId);
   if (!emp) return;
-  const ok = await showConfirm(`هل أنت متأكد من حذف حساب الموظف "${emp.fullName}" (${emp.position})؟ لن يتمكن من تسجيل الدخول بعد الآن.`, "حذف حساب الموظف");
+  const empName = emp.fullName || emp.name || 'الموظف';
+  const ok = await showConfirm(`هل أنت متأكد من حذف حساب الموظف "${empName}" (${emp.position || ''})؟ لن يتمكن من تسجيل الدخول بعد الآن.`, "حذف حساب الموظف");
   if (ok) {
     deleteEmployee(empId);
-    showToast(`تم حذف حساب الموظف "${emp.fullName}" بنجاح.`, "success");
+    showToast(`تم حذف حساب الموظف "${empName}" بنجاح.`, "success");
     R();
   }
 };
@@ -456,7 +461,8 @@ window.quickImpersonateEmployee = function(empId) {
   const emp = getEmployeeById(empId);
   if (!emp) return;
   loginAsEmployeeSession(emp);
-  showToast(`تم التبديل لتجربة الواجهة بصلاحيات: ${emp.fullName} (${getDepartment(emp.department).titleAr})`, "info", 5000);
+  const empName = emp.fullName || emp.name || 'الموظف';
+  showToast(`تم التبديل لتجربة الواجهة بصلاحيات: ${empName} (${getDepartment(emp.department).titleAr})`, "info", 5000);
   R();
 };
 
@@ -506,7 +512,7 @@ export function renderEmployeeFormModal() {
       <div class="frow">
         <div class="fgroup">
           <label class="flbl">اسم الموظف الكامل *</label>
-          <input class="fctl" id="emp_fullName" required value="${esc(emp.fullName || '')}" placeholder="مثال: سليم بن علي">
+          <input class="fctl" id="emp_fullName" required value="${esc(emp.fullName || emp.name || '')}" placeholder="مثال: سليم بن علي">
         </div>
         <div class="fgroup">
           <label class="flbl">اسم المستخدم (لتسجيل الدخول) *</label>
@@ -534,11 +540,11 @@ export function renderEmployeeFormModal() {
       <div class="frow">
         <div class="fgroup">
           <label class="flbl">المسؤول المباشر *</label>
-          <input class="fctl" id="emp_supervisor" required value="${esc(emp.supervisor || 'صابر بلقايد (المدير العام — Gérant)')}">
+          <input class="fctl" id="emp_supervisor" required value="${esc(emp.supervisor || 'المدير العام (Gérant)')}">
         </div>
         <div class="fgroup">
           <label class="flbl">${isEdit ? 'كلمة المرور (اتركها فارغة للإبقاء على الحالية)' : 'كلمة المرور الابتدائية *'}</label>
-          <input class="fctl" id="emp_password" type="text" dir="ltr" ${isEdit ? '' : 'required'} value="${isEdit ? '' : 'password123'}" placeholder="كلمة المرور للدخول">
+          <input class="fctl" id="emp_password" type="text" dir="ltr" ${isEdit ? '' : 'required'} value="" placeholder="كلمة المرور للدخول">
         </div>
       </div>
 
@@ -675,7 +681,7 @@ export function renderEditPermissionsModal() {
   return `
     <div class="mhdr">
       <div>
-        <div class="mtitle">تحديد وضبط الصلاحيات — ${esc(emp.fullName)}</div>
+        <div class="mtitle">تحديد وضبط الصلاحيات — ${esc(emp.fullName || emp.name || '')}</div>
         <div style="font-size:12px; color:var(--t3); margin-top:2px">
           القسم: <strong style="color:${dept.color}">${dept.titleAr}</strong> • المنصب: <strong>${esc(emp.position)}</strong>
         </div>
@@ -779,13 +785,13 @@ export function renderChangePasswordModal() {
 
   return `
     <div class="mhdr">
-      <div class="mtitle">تغيير كلمة المرور — ${esc(emp.fullName)}</div>
+      <div class="mtitle">تغيير كلمة المرور — ${esc(emp.fullName || emp.name || '')}</div>
       <button class="mclose" onclick="closeModal()">×</button>
     </div>
 
     <form onsubmit="window.handleSavePassword(event)">
       <p style="font-size:12.5px; color:var(--t2); margin:0 0 1rem">
-        بصفتك المسؤول العام (Gérant)، يمكنك تعيين كلمة مرور جديدة للموظف <strong>${esc(emp.fullName)}</strong> (اسم المستخدم: <code>${esc(emp.username)}</code>).
+        بصفتك المسؤول العام (Gérant)، يمكنك تعيين كلمة مرور جديدة للموظف <strong>${esc(emp.fullName || emp.name || '')}</strong> (اسم المستخدم: <code>${esc(emp.username)}</code>).
       </p>
 
       <div class="fgroup">
@@ -827,7 +833,7 @@ export function renderViewEmployeeTasksModal() {
   return `
     <div class="mhdr">
       <div>
-        <div class="mtitle">بطاقة الموظف والمسؤوليات — ${esc(emp.fullName)}</div>
+        <div class="mtitle">بطاقة الموظف والمسؤوليات — ${esc(emp.fullName || emp.name || '')}</div>
         <div style="font-size:12px; color:${dept.color}; font-weight:700; margin-top:2px">
           ${dept.icon} ${dept.titleAr} (${dept.titleFr})
         </div>
@@ -853,7 +859,7 @@ export function renderViewEmployeeTasksModal() {
       <div>
         <h4 style="margin:0 0 6px; font-size:13px; font-weight:800; color:var(--t1)">اختصاصات قسم ${dept.titleAr} في PROGILIC:</h4>
         <ul style="margin:0; padding-right:18px; color:var(--t2); font-size:12.5px; line-height:1.5">
-          ${dept.responsibilities.map(r => `<li>${esc(r)}</li>`).join('')}
+          ${(dept.responsibilities || []).map(r => `<li>${esc(r)}</li>`).join('')}
         </ul>
       </div>
 

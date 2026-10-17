@@ -1,6 +1,6 @@
 // Employee & Department Management Service for PROGILIC CRM
 // Implements the 4 Official PROGILIC Departments and Role-Based Access Control (RBAC)
-// Managed strictly by the Gérant (General Manager / saberbelkaid8@gmail.com)
+// Managed strictly by the Gérant (General Manager)
 
 import { S, currentUser, setCurrentUser, currentStaffUser, setCurrentStaffUser, hasPermission as storeHasPermission, isGerant as storeIsGerant } from '../state/store.js';
 import { showToast } from '../utils/toast.js';
@@ -220,7 +220,39 @@ export function saveEmployees(employeesList) {
  * Gets a department by its ID
  */
 export function getDepartment(deptId) {
-  return DEPARTMENTS.find(d => d.id === deptId) || DEPARTMENTS[0];
+  if (!deptId) return DEPARTMENTS[0];
+  const found = DEPARTMENTS.find(d => 
+    d.id === deptId || 
+    d.titleAr === deptId || 
+    d.titleFr === deptId || 
+    (typeof d.name === 'string' && d.name === deptId)
+  );
+  if (found) return found;
+
+  if (deptId === 'الإدارة العليا' || deptId === 'gerant') {
+    return {
+      id: 'gerant',
+      num: 0,
+      titleAr: 'الإدارة العليا',
+      titleFr: 'Direction Générale',
+      badgeClass: 'badge-gerant',
+      color: '#38bdf8',
+      bgSoft: 'rgba(56, 189, 248, 0.12)',
+      borderSoft: 'rgba(56, 189, 248, 0.35)',
+      icon: '👑',
+      descriptionAr: 'الإشراف العام وتحديد الصلاحيات وإدارة فريق العمل',
+      responsibilities: [
+        'الإشراف العام على سير عمل المؤسسة وكافة الأقسام',
+        'تحديد الصلاحيات الممنوحة لكل موظف وتعديلها',
+        'إدارة قواعد البيانات والنسخ الاحتياطي وحماية السجلات',
+        'متابعة مؤشرات الأداء والتقارير الإجمالية'
+      ],
+      defaultPosition: 'المدير العام (Gérant)',
+      defaultSupervisor: '-',
+      defaultPermissions: {}
+    };
+  }
+  return DEPARTMENTS[0];
 }
 
 /**
@@ -250,10 +282,10 @@ export function upsertEmployee(employeeData) {
       id: newId,
       fullName: employeeData.fullName || 'موظف جديد',
       username: (employeeData.username || `emp_${Date.now()}`).trim().toLowerCase(),
-      password: employeeData.password || 'password123',
+      password: employeeData.password || '',
       department: employeeData.department || 'pre_vente',
       position: employeeData.position || getDepartment(employeeData.department).defaultPosition,
-      supervisor: employeeData.supervisor || 'صابر بلقايد (المدير العام — Gérant)',
+      supervisor: employeeData.supervisor || 'المدير العام (Gérant)',
       phone: employeeData.phone || '',
       email: employeeData.email || '',
       tasks: employeeData.tasks || getDepartment(employeeData.department).descriptionAr,

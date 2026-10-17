@@ -7,6 +7,7 @@ import { renderStaffLogin, renderStaffManagerModal } from './render-staff.js';
 import { renderList, renderDetail, renderGlobalIntelligence, renderDashboard } from './render-views.js';
 import { renderModal } from './render-modals.js';
 import { renderAiAssistantWidget } from './ai/assistantWidget.js';
+import { renderEmployeesView } from './render-employees.js';
 
 
 // DOM Morphing/Reconciliation Engine (Reuses DOM, prevents recreation, maintains inputs, selection and focus)
@@ -214,7 +215,11 @@ function performRender() { try {
 
   // Staff Login View Router (After Google/Firebase account login)
   if (currentUser && currentUser.emailVerified && !currentStaffUser) {
-    app.innerHTML = renderStaffLogin();
+    let modalHTML = '';
+    if (S.modal) {
+      modalHTML = renderModal();
+    }
+    app.innerHTML = renderStaffLogin() + modalHTML + renderStaffManagerModal();
     return;
   }
   
@@ -233,6 +238,8 @@ function performRender() { try {
       pageContent = renderList();
     } else if (S.view === 'dashboard') {
       pageContent = renderDashboard();
+    } else if (S.view === 'employees') {
+      pageContent = renderEmployeesView();
     } else {
       pageContent = renderDetail();
     }
@@ -322,6 +329,7 @@ function renderHdr(alertCount) {
     <div style="display:inline-flex;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);padding:2px;border-radius:var(--r-md);margin-right:12px;gap:2px">
       <button class="btn btn-xs ${S.view === 'list' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('list')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👥 ${t('العملاء')}</button>
       <button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>
+      ${isGerant() ? `<button class="btn btn-xs ${S.view === 'employees' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('employees')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👔 ${t('الموظفون والأقسام')}</button>` : ''}
     </div>
 
     <span class="hdr-pill">${ac} ${t('نشط')} / ${clients.length}</span>
@@ -332,14 +340,26 @@ function renderHdr(alertCount) {
         <button class="btn btn-xs ${S.lang === 'fr' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('fr')" title="Français" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">FR</button>
         <button class="btn btn-xs ${S.lang === 'en' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('en')" title="English" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">EN</button>
       </div>
-      <span style="font-size:13px;font-weight:600;margin-left:10px;color:var(--t2)">👤 ${currentUser ? currentUser.email : ''}</span>
-      ${currentStaffUser ? `<button class="btn btn-xs" onclick="toggleStaffManagerModal(true)" style="margin-left:8px; background:rgba(56,189,248,0.2); border:1px solid #38bdf8; color:#38bdf8;" title="إدارة الموظفين والأقسام والصلاحيات">👔 ${esc(currentStaffUser.name)} (${esc(currentStaffUser.department)})</button>` : ''}
+
+      <!-- Management Controls in Main Interface for Gérant -->
+      ${isGerant() ? `
+        <button class="btn btn-xs btn-outline" onclick="openModal('editStaffMember', {})" style="margin-left:4px; border:1px solid rgba(56,189,248,0.5); color:#38bdf8; font-weight:700; font-size:11px;" title="إضافة موظف/مستخدم جديد">
+          ＋ ${t('إضافة مستخدم')}
+        </button>
+        <button class="btn btn-xs" onclick="toggleStaffManagerModal(true)" style="margin-left:4px; background:rgba(56,189,248,0.18); border:1px solid #38bdf8; color:#38bdf8; font-weight:700; font-size:11px;" title="إدارة الموظفين والأقسام وتعديل الصلاحيات">
+          ⚙️ ${t('إدارة الصلاحيات')}
+        </button>
+      ` : ''}
+
+      <span style="font-size:13px;font-weight:600;margin-left:8px;color:var(--t2)">
+        👤 ${currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? currentUser.email : '')}
+      </span>
       <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="تغيير الموظف" style="margin-left:4px; color:#94a3b8;">🔄 تبديل</button>
       <button class="btn btn-ghost btn-xs" onclick="logout()" title="${t('تسجيل الخروج')}" style="margin-left:10px;color:var(--r)">${t('تسجيل الخروج')}</button>
       <button class="dm-btn" title="${t('الوضع الليلي')}" onclick="toggleDark()" id="dmBtn">🌙</button>
       <button class="bell-btn" title="${t('الذكاء الاصطناعي')}" onclick="S.gi=!S.gi;R()" style="font-size:14px">🧠</button>
       ${alertCount > 0 ? `<button class="bell-btn" title="${alertCount} ${t('تنبيه نشط')}" onclick="S.gi=!S.gi;R()">🔔<span class="bell-dot"></span></button>` : ''}
-      ${S.view === 'list' || S.view === 'dashboard' ? `<button class="btn btn-primary" onclick="openModal('addClient')">+ ${t('إضافة عميل')}</button>` : ''}
+      <button class="btn btn-primary" onclick="openModal('addClient')">+ ${t('إضافة عميل')}</button>
     </div>
   </div>`;
 }
@@ -415,11 +435,12 @@ function renderStorageBar() {
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="btn btn-ghost btn-xs" onclick="openModal('backupManager')" title="${t('إدارة النسخ الاحتياطية')}" style="color:var(--brand);font-weight:600">💾 ${t('النسخ الاحتياطية')}</button>
         <button class="btn btn-ghost btn-xs" onclick="openDbPurgeModal()" title="${t('تصفية/محو البيانات')}" style="color:var(--r);font-weight:700">🗑️ ${t('تصفية/محو البيانات')}</button>
-        <button class="btn btn-ghost btn-xs" onclick="exportData()" title="${t('تصدير JSON')}">📤 ${t('تصدير JSON')}</button>
+        <button class="btn btn-ghost btn-xs" onclick="exportData('json')" title="${t('تصدير JSON')}">📤 ${t('تصدير JSON')}</button>
+        <button class="btn btn-ghost btn-xs" onclick="exportData('dum')" title="${t('تصدير DUM')}">💾 ${t('تصدير DUM')}</button>
         <button class="btn btn-ghost btn-xs" onclick="exportToCSV()" title="${t('تصدير CSV')}">📊 ${t('تصدير CSV')}</button>
-        <label class="btn btn-ghost btn-xs" title="${t('استيراد')}" style="cursor:pointer;margin:0">
-          📥 ${t('استيراد')}
-          <input type="file" accept=".json" style="display:none" onchange="importData(this.files[0]);this.value=''">
+        <label class="btn btn-ghost btn-xs" title="${t('استيراد ملف JSON أو DUM')}" style="cursor:pointer;margin:0">
+          📥 ${t('استيراد (.json / .dum)')}
+          <input type="file" accept=".json,.dum,.dump,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
         </label>
       </div>
     </div>

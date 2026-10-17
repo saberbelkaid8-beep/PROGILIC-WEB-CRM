@@ -78,11 +78,11 @@ export async function triggerRestore(backupId) {
   }
 }
 
-export async function downloadBackup(backupId) {
+export async function downloadBackup(backupId, format = 'json') {
   if (!S.backups) return;
   const backup = S.backups.find(b => b.id === backupId);
   if (backup) {
-    downloadBackupJSON(backup);
+    downloadBackupJSON(backup, format);
   }
 }
 

@@ -33,12 +33,6 @@ export function renderStaffLogin() {
             </p>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
-            <button class="btn btn-primary" onclick="openModal('editStaffMember', {})" style="background:linear-gradient(90deg, #0076ff 0%, #1e5ef7 100%); border:none; padding:10px 18px; border-radius:12px; font-weight:700; font-size:13px; box-shadow:0 6px 20px rgba(30,96,242,0.4); cursor:pointer;">
-              ＋ إضافة موظف جديد
-            </button>
-            <button class="btn btn-outline" onclick="toggleStaffManagerModal(true)" style="border:1px solid rgba(56,189,248,0.4); color:#38bdf8; padding:10px 16px; border-radius:12px; font-weight:700; font-size:13px; background:rgba(56,189,248,0.08); cursor:pointer;">
-              ⚙️ إدارة الصلاحيات
-            </button>
             <button class="btn btn-ghost" onclick="logout()" style="color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:10px 16px; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer;" title="تسجيل الخروج والعودة لصفحة التسجيل">
               🚪 تسجيل الخروج
             </button>
@@ -109,6 +103,7 @@ export function renderStaffLogin() {
                             style="flex:1; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px 10px; font-size:12px; color:#fff;" 
                           />
                           <button 
+                            type="button"
                             onclick="loginStaff('${m.id}', document.getElementById('staff-pwd-${m.id}').value)" 
                             style="background:#2563eb; color:#fff; border:none; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; transition:background 0.2s;"
                             onmouseover="this.style.background='#1d4ed8'"
@@ -124,18 +119,6 @@ export function renderStaffLogin() {
               </div>
             `;
           }).join('')}
-          ${staffList.length === 1 ? `
-            <div style="background:rgba(15, 23, 42, 0.4); border:1px dashed rgba(255,255,255,0.15); border-radius:16px; padding:24px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:12px;">
-              <span style="font-size:32px;">👥</span>
-              <h4 style="margin:0; font-size:15px; color:#f8fafc; font-weight:700;">لا يوجد موظفون آخرون منشأون مسبقاً</h4>
-              <p style="margin:0; font-size:12.5px; color:#94a3b8; max-width:280px; line-height:1.5;">
-                أنت الآن مسجل كمسؤول عام (Gérant). يمكنك إنشاء موظفي شركتك وأقسامهم وتحديد كلمات مرورهم وصلاحياتهم في أي وقت.
-              </p>
-              <button class="btn btn-outline btn-sm" onclick="openModal('editStaffMember', {})" style="border:1px solid rgba(56,189,248,0.4); color:#38bdf8;">
-                ＋ إنشاء موظف جديد الآن
-              </button>
-            </div>
-          ` : ''}
         </div>
 
       </div>

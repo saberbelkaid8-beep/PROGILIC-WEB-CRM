@@ -92,9 +92,13 @@ export function renderList(){
     ${fil.length===0?`<div class="empty">
       <div class="empty-icon">🔍</div>
       <div class="empty-text">${S.lang === 'fr' ? 'Aucun résultat ne correspond aux filtres appliqués.' : S.lang === 'en' ? 'No results match the current filters.' : 'لا توجد نتائج تطابق الفلاتر المحددة حالياً.'}</div>
-      <div style="display:flex;gap:8px;justify-content:center">
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         ${cnt>0?`<button class="btn btn-outline btn-sm" onclick="clearAdvFil()">${t('مسح الفلاتر')}</button>`:''}
         <button class="btn btn-primary btn-sm" onclick="openModal('addClient')">${t('إضافة عميل جديد')}</button>
+        <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:6px" title="${t('استيراد ملف .dum أو .json')}">
+          📥 ${t('استيراد (.dum / .json)')}
+          <input type="file" accept=".dum,.dump,.json,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
+        </label>
       </div>
     </div>`:
     `<div class="cgrid">
@@ -857,8 +861,8 @@ function renderTimeline(c) {
 // ==========================================
 function generateNativeTrendChartSVG(clientsList = []) {
   const monthNames = ["مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر"];
-  const totalClients = clientsList.length || 441;
-  const totalInstalls = clientsList.reduce((sum, c) => sum + (c?.programs || []).reduce((pSum, p) => pSum + (Number(p?.installationsCount) || 1), 0), 0) || 865;
+  const totalClients = clientsList.length;
+  const totalInstalls = clientsList.reduce((sum, c) => sum + (c?.programs || []).reduce((pSum, p) => pSum + (Number(p?.installationsCount) || 1), 0), 0);
   
   const pointsClients = [
     Math.round(totalClients * 0.45),
@@ -1201,7 +1205,7 @@ export function renderDashboard() {
           <p style="font-size:13px; color:var(--t2); margin:4px 0 0 0; display:flex; align-items:center; gap:8px">
             <span>👤 الحساب النشط: <strong>${esc(S.currentUser?.email || S.currentUser?.displayName || 'حساب المدير العام (Gérant)')}</strong></span>
             <span>•</span>
-            <span style="color:#10B981; font-weight:700">قاعدة البيانات مدمجة (441 عميل • 865 ترخيص)</span>
+            <span style="color:#10B981; font-weight:700">${clients.length} ${t('عميل')} • ${S.stats?.totalLicensedDevices || 0} ${t('ترخيص')}</span>
           </p>
         </div>
         

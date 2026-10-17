@@ -57,7 +57,7 @@ import './firebase/config.js';
 import * as actions from './business/actions.js';
 import { R } from './presentation/render-core.js';
 import { updateActTypeOpts, updateCommunesOpts, onClientStatusChange } from './utils/index.js';
-import { exportData, exportToCSV, importData, clearAllData, resolveConflict } from './business/storage.js';
+import { exportData, exportToDump, exportToCSV, importData, importFromDump, triggerImportDumOrJson, clearAllData, resolveConflict } from './business/storage.js';
 import { toggleLanguage, setLanguage } from './utils/i18n.js';
 import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
 
@@ -78,35 +78,17 @@ window.updateActTypeOpts = updateActTypeOpts;
 window.updateCommunesOpts = updateCommunesOpts;
 window.onClientStatusChange = onClientStatusChange;
 window.exportData = exportData;
+window.exportToDump = exportToDump;
 window.exportToCSV = exportToCSV;
 window.importData = importData;
+window.importFromDump = importFromDump;
+window.triggerImportDumOrJson = triggerImportDumOrJson;
 window.clearAllData = clearAllData;
 window.toggleLanguage = toggleLanguage;
 window.setLanguage = setLanguage;
 window.R = R;
 window.resolveConflict = resolveConflict;
   window.mergeDatabase = actions.mergeWithSessionAndUser;
-  window.mergeDatabase = actions.mergeWithSessionAndUser;
-  window.quickLoginGerant = async function() {
-    if (!auth || !auth.currentUser) {
-      actions.showToast("يرجى تسجيل الدخول بحسابك أولاً.", "info");
-      return;
-    }
-    const user = auth.currentUser;
-    const gerantUser = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || user.email?.split('@')[0] || 'المسؤول العام',
-      emailVerified: true,
-      role: 'gerant',
-      isEmployee: false
-    };
-    setCurrentUser(gerantUser);
-    try { localStorage.setItem('crm_active_gerant_user', JSON.stringify(gerantUser)); } catch(e) {}
-    window.loginMode = 'main';
-    R();
-  };
-  window.quickLoginSaber = window.quickLoginGerant;
 
   // Boot application
   function boot() {

@@ -36,13 +36,6 @@ export function mergeClientLists(currentList = []) {
   return safeList;
 }
 
-export const DEFAULT_SABER_USER = {
-  uid: null,
-  email: '',
-  displayName: 'المسؤول العام',
-  emailVerified: true
-};
-
 /**
  * Ensures data is persisted into the current session and active account.
  */

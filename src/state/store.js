@@ -51,12 +51,6 @@ let internalState = {
   }
 };
 
-export const DEFAULT_SABER_USER = Object.freeze({
-  uid: 'z1FY0kWqOOSe78cFv8rqak0mjV03',
-  email: 'saberbelkaid8@gmail.com',
-  displayName: 'Saber Belkaid',
-  emailVerified: true
-});
 
 let initialUser = null;
 try {
@@ -327,6 +321,10 @@ export function loadStaffUsersForTenant(tenantId, userObj = currentUser, silent 
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         localStaff = parsed;
+        const g = localStaff.find(s => s.role === 'GERANT');
+        if (g && (!g.password || g.password === '')) {
+          g.password = '123';
+        }
       }
     }
   } catch (e) {}

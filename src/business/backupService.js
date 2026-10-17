@@ -164,17 +164,20 @@ export async function restoreFromBackup(uid, backupId) {
 /**
  * Exports a specific backup record as a JSON file download.
  */
-export function downloadBackupJSON(backup) {
+export function downloadBackupJSON(backup, format = 'json') {
   try {
+    const isDum = format === 'dum' || format === 'dump';
     const payload = JSON.stringify(backup, null, 2);
-    const blob = new Blob([payload], { type: 'application/json' });
+    const mime = isDum ? 'application/octet-stream' : 'application/json';
+    const ext = isDum ? 'dum' : 'json';
+    const blob = new Blob([payload], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     
     // Clean friendly filename
     const dateStr = new Date(backup.timestamp).toISOString().split('T')[0];
     a.href = url;
-    a.download = `progilic-backup-${dateStr}-${backup.id}.json`;
+    a.download = `progilic-backup-${dateStr}-${backup.id}.${ext}`;
     
     document.body.appendChild(a);
     a.click();

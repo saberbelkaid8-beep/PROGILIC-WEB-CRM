@@ -1246,14 +1246,6 @@ export function renderLogin() {
           </div>
         </form>
 
-        <!-- Quick Session Entry for Gérant with 441 clients database -->
-        <div style="margin-top: 1rem; width: 100%;">
-          <button type="button" class="prog-social-btn" onclick="window.quickLoginGerant()" style="width: 100%; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e60f2; background: rgba(30, 96, 242, 0.08); border: 1px solid rgba(30, 96, 242, 0.25); cursor: pointer;" title="الدخول المباشر كمسؤول عام (Gérant) مع كامل الصلاحيات وقاعدة العملاء">
-            <span>⚡</span>
-            <span>دخول تجريبي كمسؤول عام (Gérant) — كامل الصلاحيات و441 عميل</span>
-          </button>
-        </div>
-
         <!-- Divider: OU CONTINUER AVEC -->
         <div class="prog-divider">${L.orContinue}</div>
 
@@ -1558,14 +1550,6 @@ export function renderLogin() {
             </a>
           </div>
         </form>
-
-        <!-- Quick Session Entry for Gérant with 441 clients database -->
-        <div style="margin-top: 1rem; width: 100%;">
-          <button type="button" class="prog-social-btn" onclick="window.quickLoginGerant()" style="width: 100%; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e60f2; background: rgba(30, 96, 242, 0.08); border: 1px solid rgba(30, 96, 242, 0.25); cursor: pointer;" title="الدخول المباشر كمسؤول عام (Gérant) مع كامل الصلاحيات وقاعدة العملاء">
-            <span>⚡</span>
-            <span>دخول تجريبي كمسؤول عام (Gérant) — كامل الصلاحيات و441 عميل</span>
-          </button>
-        </div>
 
         <!-- Divider: OU CONTINUER AVEC -->
         <div class="prog-divider">${L.orContinue}</div>

@@ -77,8 +77,32 @@ const _LEGACY_BFIELD_MAP = {
 };
 
 export function migrateSchema(d) {
-  if (!d || !Array.isArray(d.clients)) return null;
-  d.clients = d.clients.map(c => {
+  if (!d) return null;
+  if (Array.isArray(d)) {
+    d = { clients: d };
+  } else if (!Array.isArray(d.clients)) {
+    const list = d.data || d.records || d.rows || d.items;
+    if (Array.isArray(list)) {
+      d = { ...d, clients: list };
+    } else {
+      return null;
+    }
+  }
+  d.clients = d.clients.map((c, idx) => {
+    if (!c || typeof c !== 'object') return null;
+    if (!c.id) c.id = Date.now() + idx + Math.floor(Math.random() * 9999);
+    if (!c.fullName && c.name) c.fullName = c.name;
+    if (!c.fullName) c.fullName = `عميل ${idx + 1}`;
+    if (!c.company) c.company = '';
+    if (!c.phone) c.phone = '';
+    if (!c.wilaya) c.wilaya = '';
+    if (!c.commune) c.commune = '';
+    if (!c.location) c.location = '';
+    if (!c.status) c.status = 'نشط';
+    if (!c.startDate) c.startDate = '';
+    if (!c.endDate) c.endDate = '';
+    if (!c.lastContact) c.lastContact = '';
+    if (!c.notes) c.notes = '';
     if (!c.gps) c.gps = { lat: null, lng: null };
     if (!c.businessType) c.businessType = '';
     if (!c.businessField) c.businessField = '';
@@ -122,7 +146,7 @@ export function migrateSchema(d) {
       return i;
     });
     return c;
-  });
+  }).filter(Boolean);
   return d;
 }
 
@@ -567,19 +591,31 @@ export async function persist() {
   }
 }
 
-export function exportData(){
+export function exportData(format = 'json'){
   try{
+    const isDum = format === 'dum' || format === 'dump';
     const payload=JSON.stringify({
-      v:SCHEMA_VERSION,exported:new Date().toISOString(),
-      nid:S.nid,clients:clients.map(sanitizeClient)
+      v:SCHEMA_VERSION,
+      exported:new Date().toISOString(),
+      format: isDum ? 'PROGILIC_CRM_DUMP' : 'PROGILIC_CRM_JSON',
+      nid:S.nid,
+      clients:clients.map(sanitizeClient)
     },null,2);
-    const blob=new Blob([payload],{type:'application/json'});
+    const mime = isDum ? 'application/octet-stream' : 'application/json';
+    const ext = isDum ? 'dum' : 'json';
+    const blob=new Blob([payload],{type: mime});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download=`progilic-crm-backup-${td()}.json`;
-    document.body.appendChild(a);a.click();
+    a.href=url;
+    a.download=`progilic-crm-backup-${td()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
   }catch(e){showToast(t('فشل التصدير: ')+e.message, 'error');}
+}
+
+export function exportToDump(){
+  exportData('dum');
 }
 
 export function exportToCSV(){
@@ -675,31 +711,240 @@ export function exportToCSV(){
   }catch(e){showToast(t('فشل تصدير CSV: ')+e.message, 'error');}
 }
 
+// Universal Parser for .DUM, .DUMP, and .JSON files
+export function parseDumpOrJson(rawText) {
+  if (!rawText || typeof rawText !== 'string') {
+    throw new Error(t('الملف فارغ أو غير صالح'));
+  }
+
+  let text = rawText.trim();
+
+  // Strip UTF-8 BOM if present
+  if (text.charCodeAt(0) === 0xFEFF) {
+    text = text.slice(1).trim();
+  }
+
+  // Handle Data URL prefix (e.g. data:application/octet-stream;base64,...)
+  if (text.startsWith('data:')) {
+    const commaIdx = text.indexOf(',');
+    if (commaIdx !== -1) {
+      try {
+        const b64 = text.slice(commaIdx + 1).replace(/\s+/g, '');
+        const dec = atob(b64);
+        if (dec) text = dec.trim();
+      } catch (_) {}
+    }
+  }
+
+  // Handle markdown code fences (```json or ```dum)
+  if (text.startsWith('```')) {
+    const lines = text.split(/\r?\n/);
+    if (lines.length > 2 && lines[lines.length - 1].startsWith('```')) {
+      text = lines.slice(1, -1).join('\n').trim();
+    }
+  }
+
+  // Helper to extract client array from any parsed object or array
+  const extractList = (obj) => {
+    if (Array.isArray(obj)) return obj;
+    if (obj && typeof obj === 'object') {
+      if (Array.isArray(obj.clients)) return obj.clients;
+      if (Array.isArray(obj.data)) return obj.data;
+      if (Array.isArray(obj.records)) return obj.records;
+      if (Array.isArray(obj.rows)) return obj.rows;
+      if (Array.isArray(obj.items)) return obj.items;
+      if (obj.backup && Array.isArray(obj.backup.clients)) return obj.backup.clients;
+      if (obj.snapshot && Array.isArray(obj.snapshot.clients)) return obj.snapshot.clients;
+      const vals = Object.values(obj);
+      if (vals.length > 0 && vals.every(v => v && typeof v === 'object' && (v.fullName || v.name || v.company || v.phone || v.wilaya || v.id))) {
+        return vals;
+      }
+    }
+    return null;
+  };
+
+  // 1. Direct JSON parse
+  try {
+    const parsed = JSON.parse(text);
+    const clientsList = extractList(parsed);
+    if (clientsList && clientsList.length > 0) {
+      return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
+    }
+  } catch (_) {}
+
+  // 2. Base64 encoded JSON (common in binary-like .dum backups)
+  try {
+    const decoded = atob(text.replace(/\s+/g, ''));
+    if (decoded && (decoded.startsWith('{') || decoded.startsWith('['))) {
+      const parsed = JSON.parse(decoded);
+      const clientsList = extractList(parsed);
+      if (clientsList && clientsList.length > 0) {
+        return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
+      }
+    }
+  } catch (_) {}
+
+  // 3. Extract embedded JSON block (e.g. if .dum has header comments or wrapper text)
+  try {
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      const parsed = JSON.parse(text.slice(firstBrace, lastBrace + 1));
+      const clientsList = extractList(parsed);
+      if (clientsList && clientsList.length > 0) {
+        return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
+      }
+    }
+    const firstBracket = text.indexOf('[');
+    const lastBracket = text.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket > firstBracket) {
+      const parsed = JSON.parse(text.slice(firstBracket, lastBracket + 1));
+      const clientsList = extractList(parsed);
+      if (clientsList && clientsList.length > 0) {
+        return { clients: clientsList };
+      }
+    }
+  } catch (_) {}
+
+  // 4. JSON Lines (NDJSON / .dum stream with one json per line)
+  try {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const fromJsonL = [];
+    for (const line of lines) {
+      if ((line.startsWith('{') && line.endsWith('}')) || (line.startsWith('[') && line.endsWith(']'))) {
+        try {
+          const item = JSON.parse(line);
+          if (Array.isArray(item)) fromJsonL.push(...item);
+          else if (item && (item.fullName || item.name || item.company || item.phone)) fromJsonL.push(item);
+        } catch (_) {}
+      }
+    }
+    if (fromJsonL.length > 0) {
+      return { clients: fromJsonL };
+    }
+  } catch (_) {}
+
+  // 5. SQL Dump (INSERT INTO ... VALUES ...)
+  try {
+    const insertRegex = /INSERT\s+INTO\s+[`"']?([a-zA-Z0-9_]+)[`"']?\s*\(([^)]+)\)\s*VALUES\s*([^;]+);/gi;
+    let match;
+    const sqlClients = [];
+    while ((match = insertRegex.exec(text)) !== null) {
+      const cols = match[2].split(',').map(c => c.replace(/[`"'\s]/g, '').trim());
+      const valuesBlock = match[3];
+      const rowRegex = /\(([^)]+)\)/g;
+      let rowMatch;
+      while ((rowMatch = rowRegex.exec(valuesBlock)) !== null) {
+        const rawVals = rowMatch[1].split(',').map(v => v.trim().replace(/^['"]|['"]$/g, ''));
+        const obj = {};
+        cols.forEach((col, i) => {
+          obj[col] = rawVals[i] !== undefined && rawVals[i] !== 'NULL' ? rawVals[i] : '';
+        });
+        if (obj.fullName || obj.name || obj.company || obj.phone) {
+          sqlClients.push(obj);
+        }
+      }
+    }
+    if (sqlClients.length > 0) {
+      return { clients: sqlClients };
+    }
+  } catch (_) {}
+
+  // 6. Delimited Dump (CSV / TSV / Semicolon-delimited rows)
+  try {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length >= 2) {
+      const firstLine = lines[0];
+      let delimiter = ',';
+      if (firstLine.includes(';') && firstLine.split(';').length > firstLine.split(',').length) delimiter = ';';
+      else if (firstLine.includes('\t')) delimiter = '\t';
+      else if (firstLine.includes('|')) delimiter = '|';
+
+      const headers = firstLine.split(delimiter).map(h => h.replace(/^["']|["']$/g, '').trim());
+      const csvClients = [];
+      for (let i = 1; i < lines.length; i++) {
+        const rawCols = lines[i].split(delimiter).map(c => c.replace(/^["']|["']$/g, '').trim());
+        const obj = {};
+        headers.forEach((h, idx) => { obj[h] = rawCols[idx] || ''; });
+        const normalized = {
+          fullName: obj.fullName || obj.name || obj['الاسم الكامل'] || obj['الاسم'] || obj['Nom complet'] || obj['Nom'] || obj[headers[0]] || `عميل ${i}`,
+          company: obj.company || obj['المؤسسة/الشركة'] || obj['الشركة'] || obj['Entreprise'] || obj[headers[1]] || '',
+          phone: obj.phone || obj['الهاتف'] || obj['Téléphone'] || obj['tel'] || obj[headers[2]] || '',
+          wilaya: obj.wilaya || obj['الولاية'] || '',
+          commune: obj.commune || obj['البلدية'] || '',
+          location: obj.location || obj['المنطقة/الحي'] || obj['Localisation'] || '',
+          status: obj.status || obj['الحالة'] || obj['Statut'] || 'نشط',
+          startDate: obj.startDate || obj['بداية العقد'] || '',
+          endDate: obj.endDate || obj['نهاية العقد'] || '',
+          notes: obj.notes || obj['ملاحظات'] || ''
+        };
+        csvClients.push(normalized);
+      }
+      if (csvClients.length > 0) {
+        return { clients: csvClients };
+      }
+    }
+  } catch (_) {}
+
+  // 7. Universal Fallback: If text contains any lines or JSON objects, convert them to client records
+  try {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length > 0) {
+      const fallbackClients = lines.map((l, idx) => ({
+        id: idx + 1,
+        fullName: l.replace(/^["']|["']$/g, ''),
+        company: '',
+        phone: '',
+        status: 'نشط',
+        wilaya: '',
+        programs: [],
+        issues: [],
+        requirements: []
+      }));
+      if (fallbackClients.length > 0) {
+        return { clients: fallbackClients };
+      }
+    }
+  } catch (_) {}
+
+  throw new Error(t('تعذر قراءة بيانات العملاء من ملف الـ DUM / JSON. تأكد من صحة تنسيق الملف.'));
+}
+
 export function importData(file){
   if(!file)return;
+  const fileName = file.name || 'ملف النسخة الاحتياطية';
+  const isDum = fileName.toLowerCase().endsWith('.dum') || fileName.toLowerCase().endsWith('.dump');
   const reader=new FileReader();
   reader.onload=async e=>{
     try{
-      let d=JSON.parse(e.target.result);
-      d=migrateSchema(d);
-      if(!d || !Array.isArray(d.clients))throw new Error(t('ملف غير صالح'));
+      const rawText = e.target.result;
+      let d = parseDumpOrJson(rawText);
+      d = migrateSchema(d);
+      if(!d || !Array.isArray(d.clients) || d.clients.length === 0) {
+        throw new Error(t('الملف لا يحتوي على بيانات عملاء صالحة'));
+      }
+
+      const fileTypeLabel = isDum ? 'DUM' : 'JSON';
       const confirmPrompt = S.lang === 'fr'
-        ? `Toutes vos données actuelles seront remplacées par ${d.clients.length} client(s) du fichier.\nVoulez-vous continuer ?`
+        ? `Fichier ${fileTypeLabel} détecté (${fileName}) : ${d.clients.length} client(s) trouvés.\nToutes vos données actuelles seront remplacées par le contenu du fichier.\nVoulez-vous continuer ?`
         : (S.lang === 'en'
-          ? `All current data will be replaced by ${d.clients.length} client(s) from the file.\nDo you want to continue?`
-          : `سيتم استبدال جميع بياناتك بـ ${d.clients.length} عميل من الملف والبدء بهيكل v3.\nهل تريد المتابعة؟`);
+          ? `${fileTypeLabel} file detected (${fileName}): ${d.clients.length} client(s) found.\nAll current data will be replaced by the file content.\nDo you want to continue?`
+          : `تم التعرف على ملف ${fileTypeLabel} (${fileName}) يحتوي على ${d.clients.length} عميل.\nسيتم استبدال جميع بياناتك ببيانات هذا الملف والبدء بهيكل v3.\nهل تريد المتابعة؟`);
+
       const confirmed = await showConfirm(confirmPrompt, t('استيراد البيانات'));
       if(!confirmed)return;
       
       setSyncing(true);
 
-      const maxId=d.clients.reduce((m,c)=>Math.max(m,c.id,...c.issues.map(i=>i.id),...c.requirements.map(r=>r.id)),0);
+      const maxId=d.clients.reduce((m,c)=>Math.max(m,Number(c.id)||0,...(c.issues||[]).map(i=>Number(i.id)||0),...(c.requirements||[]).map(r=>Number(r.id)||0)),0);
       const nextNid = Math.max(d.nid||0, maxId)+1;
       
       // Perform automated import schema migration onto the subcollections in the background!
-      migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid).catch(err => {
-        console.warn("Background migration failed (offline), will rely on local persistence:", err);
-      });
+      if (currentUser && currentUser.uid) {
+        migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid).catch(err => {
+          console.warn("Background migration failed (offline), will rely on local persistence:", err);
+        });
+      }
       
       const stats = d.stats || {
         activeClients: d.clients.filter(c => c.status === 'نشط').length,
@@ -715,6 +960,7 @@ export function importData(file){
       setClients(d.clients.map(c => ({ ...c, _subcollectionsLoaded: true })));
       updateState({ nid: nextNid, stats });
       setLastSyncedTime(new Date());
+      showToast(t(`تم استيراد ${d.clients.length} عميل بنجاح من ملف ${fileTypeLabel}!`), "success");
       S.view='list';S.selId=null;S.modal=null;S.gi=false;
       R();
     }catch(er){
@@ -724,6 +970,27 @@ export function importData(file){
     }
   };
   reader.readAsText(file);
+}
+
+export function importFromDump(file){
+  return importData(file);
+}
+
+export function triggerImportDumOrJson(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.dum,.dump,.json,.txt,.csv';
+  input.style.display = 'none';
+  input.onchange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      importData(e.target.files[0]);
+    }
+  };
+  document.body.appendChild(input);
+  input.click();
+  setTimeout(() => {
+    if (input.parentNode) document.body.removeChild(input);
+  }, 1000);
 }
 
 export async function clearAllData(){
@@ -793,8 +1060,8 @@ let retryTimer = null;
 export async function loadCache() {
   try {
     updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
-    // In current session, ensure all 441 Algerian CRM clients are merged and available
-    const uid = currentUser?.uid || 'saberbelkaid8_session';
+    const uid = currentUser?.uid;
+    if (!uid) return;
     const cached = await getClients(uid);
     const merged = mergeClientLists(cached && cached.length > 0 ? cached : clients);
     const { stats, nid } = computeStats(merged);
@@ -804,7 +1071,7 @@ export async function loadCache() {
       updateState({ stats, nid });
     });
 
-    console.log(`[Offline Cache] Session hydrated with ${merged.length} clients (Merged with saberbelkaid8 database).`);
+    console.log(`[Offline Cache] Session hydrated with ${merged.length} clients for tenant ${uid}.`);
     saveClients(uid, merged).catch(console.warn);
     setMeta(uid, 'stats', stats).catch(console.warn);
     setMeta(uid, 'nid', nid).catch(console.warn);

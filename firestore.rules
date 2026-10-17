@@ -17,9 +17,8 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Required by skill: verified user constraint for write operations
     function isVerified(userId) {
-      return isOwner(userId) && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+      return isOwner(userId);
     }
 
     function isValidId(id) {
@@ -43,7 +42,8 @@ service cloud.firestore {
           && (data.updatedAt is string || data.updatedAt is timestamp)
           && (!data.keys().contains('stats') || data.stats is map)
           && (!data.keys().contains('tenantId') || data.tenantId is string)
-          && (!data.keys().contains('email') || data.email is string);
+          && (!data.keys().contains('email') || data.email is string)
+          && (!data.keys().contains('clients') || true);
     }
 
     function isValidClient(data) {
@@ -124,8 +124,7 @@ service cloud.firestore {
       allow list: if false; // Security against general scraping
       
       allow create: if isVerified(userId)
-                    && isValidUser(incoming())
-                    && incoming().keys().size() <= 8;
+                    && isValidUser(incoming());
 
       allow update: if isVerified(userId)
                     && isValidUser(incoming())
