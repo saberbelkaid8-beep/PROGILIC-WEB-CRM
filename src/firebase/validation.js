@@ -8,7 +8,6 @@ export function validateClient(c) {
     phone: (data.phone || '').substring(0, 30),
     company: (data.company || '').substring(0, 100),
     wilaya: (data.wilaya || '').substring(0, 50),
-    commune: (data.commune || '').substring(0, 50),
     location: (data.location || '').substring(0, 100),
     businessType: validBT.includes(data.businessType) ? data.businessType : 'أخرى',
     businessField: (data.businessField || '').substring(0, 50),

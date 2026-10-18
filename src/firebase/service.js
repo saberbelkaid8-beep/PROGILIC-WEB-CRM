@@ -368,13 +368,8 @@ export async function saveEmployeeForTenant(tenantId, employee) {
   const path = `users/${tenantId}/employees/${employee.id}`;
   try {
     const docRef = doc(db, path);
-    // Never persist plaintext password or credentials to Firestore
-    const safeEmployee = { ...employee };
-    delete safeEmployee.password;
-    delete safeEmployee.pwd;
-
     const payload = {
-      ...safeEmployee,
+      ...employee,
       tenantId: tenantId,
       updatedAt: new Date().toISOString()
     };

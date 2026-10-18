@@ -4,7 +4,6 @@ import { R } from '../../presentation/render-core.js';
 import { t } from '../../utils/i18n.js';
 import { ALL_PERMISSIONS } from '../../constants/index.js';
 import { saveEmployeeForTenant, deleteEmployeeForTenant } from '../../firebase/service.js';
-import { hashPassword, verifyPassword } from '../../utils/crypto.js';
 
 window.loginStaff = function(staffId, password) {
   const cleanPass = (password || '').trim();
@@ -20,40 +19,14 @@ window.loginStaff = function(staffId, password) {
     return;
   }
 
-  let isValid = false;
-  if (found.passwordHash && found.passwordSalt) {
-    isValid = verifyPassword(cleanPass, found.passwordHash, found.passwordSalt);
-  } else if (found.password) {
-    // Migration helper for legacy accounts: verify and auto-upgrade to salted hash
-    if (found.password === cleanPass) {
-      isValid = true;
-      const { hash, salt } = hashPassword(cleanPass);
-      found.passwordHash = hash;
-      found.passwordSalt = salt;
-      delete found.password;
-      delete found.pwd;
-      setStaffUsers(staffList, getActiveTenantId());
-    }
-  } else if (found.role === 'GERANT') {
-    // For Gérant account owner without a separate staff password, verify or set on first entry
-    if (currentUser && !currentUser.isEmployee) {
-      isValid = true;
-      const { hash, salt } = hashPassword(cleanPass);
-      found.passwordHash = hash;
-      found.passwordSalt = salt;
-      delete found.password;
-      delete found.pwd;
-      setStaffUsers(staffList, getActiveTenantId());
-    }
-  }
-
-  if (!isValid) {
+  const expectedPass = found.password || (found.role === 'GERANT' ? '123' : '');
+  if (cleanPass !== expectedPass) {
     showToast(t("كلمة المرور غير صحيحة. يرجى إدخال كلمة المرور الصحيحة."), "error");
     return;
   }
 
   setCurrentStaffUser(found);
-  showToast(t("مرحباً بك، ") + (found.name || found.fullName) + ` (${found.position || 'موظف'})`, "success");
+  showToast(t("مرحباً بك، ") + found.name + ` (${found.position})`, "success");
   R();
 };
 
@@ -81,16 +54,6 @@ window.saveStaffMember = async function(form) {
   const staffList = [...(S.staffUsers || [])];
   const id = form.id || 'staff-' + Date.now();
   const existingIndex = staffList.findIndex(s => s.id === id);
-  const existing = existingIndex >= 0 ? staffList[existingIndex] : null;
-
-  let passwordHash = existing?.passwordHash || null;
-  let passwordSalt = existing?.passwordSalt || null;
-
-  if (form.password && form.password.trim()) {
-    const res = hashPassword(form.password.trim());
-    passwordHash = res.hash;
-    passwordSalt = res.salt;
-  }
   
   const staffObj = {
     id,
@@ -103,10 +66,9 @@ window.saveStaffMember = async function(form) {
     department: form.department || 'القسم التقني',
     supervisor: form.supervisor || 'المدير العام',
     tasks: form.tasks || '',
-    passwordHash,
-    passwordSalt,
+    password: form.password ? form.password.trim() : (existingIndex >= 0 ? staffList[existingIndex].password : ''),
     role: form.role || 'employee',
-    permissions: existing ? existing.permissions : {},
+    permissions: existingIndex >= 0 ? staffList[existingIndex].permissions : {},
     updatedAt: new Date().toISOString()
   };
 
