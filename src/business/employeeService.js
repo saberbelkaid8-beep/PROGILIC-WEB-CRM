@@ -5,6 +5,7 @@
 import { S, currentUser, setCurrentUser, currentStaffUser, setCurrentStaffUser, hasPermission as storeHasPermission, isGerant as storeIsGerant } from '../state/store.js';
 import { showToast } from '../utils/toast.js';
 import { hashPassword, verifyPassword } from '../utils/crypto.js';
+import { saveEmployeeForTenant } from '../firebase/service.js';
 
 /**
  * The 4 Official PROGILIC Departments from organizational specifications:
@@ -321,6 +322,11 @@ export function upsertEmployee(employeeData) {
   }
 
   saveEmployees(list);
+  const uid = getCurrentUserUid();
+  const empToSave = index >= 0 ? list[index] : list[list.length - 1];
+  if (uid && empToSave) {
+    saveEmployeeForTenant(uid, empToSave).catch(err => console.error("Firestore sync failed:", err));
+  }
   return list;
 }
 

@@ -92,14 +92,7 @@ export function renderEmployeesView() {
               <span>👑</span>
               <span>المسؤول العام (Gérant): ${esc(currentUser?.displayName || currentUser?.email || 'حساب المدير')}</span>
             </div>
-            <button class="btn" onclick="window.openEmployeeLoginPortal()" style="font-weight:700; display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.2); font-size:13px">
-              <span>🔑</span>
-              <span>صفحة دخول الموظفين</span>
-            </button>
-            <button class="btn btn-primary" onclick="window.openAddEmployeeModal()" style="font-weight:700; display:flex; align-items:center; gap:6px; box-shadow:0 4px 12px rgba(37,99,235,0.3)">
-              <span>＋</span>
-              <span>إضافة موظف جديد</span>
-            </button>
+            </div>
           ` : `
             <div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); padding:6px 12px; border-radius:10px; font-size:12px; color:#f59e0b; font-weight:700; display:flex; align-items:center; gap:6px">
               <span>👤</span>
@@ -220,9 +213,6 @@ export function renderEmployeesView() {
             <div style="font-size:42px; margin-bottom:10px">👥</div>
             <div style="font-size:15px; font-weight:700; color:var(--t1)">لا يوجد موظفون يطابقون خيارات البحث</div>
             <p style="font-size:12.5px; margin:6px 0 16px">جرب تغيير كلمات البحث أو إلغاء فلتر الأقسام.</p>
-            ${isGerant ? `
-              <button class="btn btn-primary" onclick="window.openAddEmployeeModal()">+ إضافة موظف جديد الآن</button>
-            ` : ''}
           </div>
         ` : `
           <div style="overflow-x:auto">

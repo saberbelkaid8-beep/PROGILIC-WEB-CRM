@@ -213,6 +213,7 @@ function performRender() { try {
     return;
   }
 
+  /*
   // Staff Login View Router (After Google/Firebase account login)
   if (currentUser && currentUser.emailVerified && !currentStaffUser) {
     let modalHTML = '';
@@ -222,6 +223,7 @@ function performRender() { try {
     app.innerHTML = renderStaffLogin() + modalHTML + renderStaffManagerModal();
     return;
   }
+  */
   
   const alerts = computeAlerts();
   try { clients.forEach(c => autoDetectFeatureOpp(c.issues || [])); } catch(e) { console.error("Error in autoDetectFeatureOpp:", e); }

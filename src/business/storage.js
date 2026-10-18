@@ -335,7 +335,19 @@ export function startRealtimeSync(userId) {
     setSaveError(true);
   });
 
-  activeUnsubscribers.push(unsubUser, unsubClients);
+  // 3. Listen to employees collection
+  const employeesCollRef = collection(db, 'users', userId, 'employees');
+  const unsubEmployees = onSnapshot(employeesCollRef, (snapshot) => {
+    console.log(`[Realtime Sync] Employees snapshot received for ${userId}. Docs count: ${snapshot.docs.length}`);
+    const staff = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    batch(() => {
+      setStaffUsers(staff, userId);
+    });
+  }, (error) => {
+    console.error(`[Realtime Sync] Employees snapshot listener error for ${userId}:`, error);
+  });
+
+  activeUnsubscribers.push(unsubUser, unsubClients, unsubEmployees);
 }
 
 export function stopRealtimeSync() {
