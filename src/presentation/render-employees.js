@@ -248,7 +248,8 @@ export function renderEmployeesView() {
                   const dept = getDepartment(empSafe.department) || DEPARTMENTS[0];
                   const perms = empSafe.permissions || {};
                   const activePermsCount = empSafe.role === 'GERANT' ? 12 : Object.values(perms).filter(Boolean).length;
-                  const isCurrentSession = (currentUser?.isEmployee && currentUser?.employeeId === empSafe.id) || (currentStaffUser && currentStaffUser.id === empSafe.id);
+                  const activeStaffId = S?.currentStaffUser?.id || (typeof currentStaffUser !== 'undefined' && currentStaffUser ? currentStaffUser.id : null);
+                  const isCurrentSession = Boolean((currentUser?.isEmployee && currentUser?.employeeId === empSafe.id) || (activeStaffId && activeStaffId === empSafe.id));
 
                   return `
                     <tr style="border-bottom:1px solid var(--border); transition:background 0.15s ease; ${isCurrentSession ? 'background:rgba(56,189,248,0.06)' : ''}" onmouseenter="this.style.background='rgba(0,0,0,0.015)'" onmouseleave="this.style.background='${isCurrentSession ? 'rgba(56,189,248,0.06)' : 'transparent'}'">
@@ -646,8 +647,12 @@ window.handleSaveEmployee = function(e) {
     status
   };
 
-  if (!isEdit || passwordVal) {
-    payload.password = passwordVal || 'password123';
+  if (!isEdit && !passwordVal) {
+    showToast("يرجى تحديد كلمة مرور للموظف الجديد.", "error");
+    return;
+  }
+  if (passwordVal) {
+    payload.password = passwordVal;
   }
 
   // If new employee, apply department default permissions

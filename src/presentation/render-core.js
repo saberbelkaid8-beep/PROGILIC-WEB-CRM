@@ -435,8 +435,6 @@ function renderStorageBar() {
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="btn btn-ghost btn-xs" onclick="openModal('backupManager')" title="${t('إدارة النسخ الاحتياطية')}" style="color:var(--brand);font-weight:600">💾 ${t('النسخ الاحتياطية')}</button>
         <button class="btn btn-ghost btn-xs" onclick="openDbPurgeModal()" title="${t('تصفية/محو البيانات')}" style="color:var(--r);font-weight:700">🗑️ ${t('تصفية/محو البيانات')}</button>
-        <button class="btn btn-ghost btn-xs" onclick="exportData('json')" title="${t('تصدير JSON')}">📤 ${t('تصدير JSON')}</button>
-        <button class="btn btn-ghost btn-xs" onclick="exportData('dum')" title="${t('تصدير DUM')}">💾 ${t('تصدير DUM')}</button>
         <button class="btn btn-ghost btn-xs" onclick="exportToCSV()" title="${t('تصدير CSV')}">📊 ${t('تصدير CSV')}</button>
         <label class="btn btn-ghost btn-xs" title="${t('استيراد ملف JSON أو DUM')}" style="cursor:pointer;margin:0">
           📥 ${t('استيراد (.json / .dum)')}

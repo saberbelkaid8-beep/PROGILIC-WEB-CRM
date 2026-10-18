@@ -4,6 +4,7 @@
 
 import { S, currentUser, setCurrentUser, currentStaffUser, setCurrentStaffUser, hasPermission as storeHasPermission, isGerant as storeIsGerant } from '../state/store.js';
 import { showToast } from '../utils/toast.js';
+import { hashPassword, verifyPassword } from '../utils/crypto.js';
 
 /**
  * The 4 Official PROGILIC Departments from organizational specifications:
@@ -270,19 +271,41 @@ export function upsertEmployee(employeeData) {
   const list = getEmployees();
   const index = list.findIndex(e => e.id === employeeData.id);
   
+  // Hash password if supplied and remove any plaintext password
+  let passwordHash = undefined;
+  let passwordSalt = undefined;
+  if (employeeData.password && typeof employeeData.password === 'string' && employeeData.password.trim()) {
+    const res = hashPassword(employeeData.password.trim());
+    passwordHash = res.hash;
+    passwordSalt = res.salt;
+  }
+
+  const sanitizedData = { ...employeeData };
+  delete sanitizedData.password;
+  delete sanitizedData.pwd;
+
+  if (passwordHash) {
+    sanitizedData.passwordHash = passwordHash;
+    sanitizedData.passwordSalt = passwordSalt;
+  }
+
   if (index >= 0) {
     list[index] = {
       ...list[index],
-      ...employeeData,
+      ...sanitizedData,
       updatedAt: new Date().toISOString()
     };
+    // Ensure any legacy plaintext password is scrubbed
+    delete list[index].password;
+    delete list[index].pwd;
   } else {
     const newId = employeeData.id || `emp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const newEmp = {
       id: newId,
       fullName: employeeData.fullName || 'موظف جديد',
       username: (employeeData.username || `emp_${Date.now()}`).trim().toLowerCase(),
-      password: employeeData.password || '',
+      passwordHash: passwordHash || null,
+      passwordSalt: passwordSalt || null,
       department: employeeData.department || 'pre_vente',
       position: employeeData.position || getDepartment(employeeData.department).defaultPosition,
       supervisor: employeeData.supervisor || 'المدير العام (Gérant)',
@@ -323,19 +346,28 @@ export function updateEmployeePermissions(id, permissions) {
 }
 
 /**
- * Updates an employee's password (strictly Gérant action)
+ * Updates an employee's password securely using salted cryptographic hashing (strictly Gérant action)
  */
 export function updateEmployeePassword(id, newPassword) {
   const list = getEmployees();
   const emp = list.find(e => e.id === id);
   if (!emp) return false;
-  emp.password = newPassword;
+  const cleanPass = (newPassword || '').trim();
+  if (!cleanPass) return false;
+  
+  const { hash, salt } = hashPassword(cleanPass);
+  emp.passwordHash = hash;
+  emp.passwordSalt = salt;
+  // Remove any legacy plaintext password
+  delete emp.password;
+  delete emp.pwd;
+
   saveEmployees(list);
   return true;
 }
 
 /**
- * Authenticates an employee by username/email and password
+ * Authenticates an employee by username/email and password using salted hash verification
  */
 export function authenticateEmployee(loginInput, password) {
   const cleanLogin = (loginInput || '').trim().toLowerCase();
@@ -347,11 +379,30 @@ export function authenticateEmployee(loginInput, password) {
 
   const list = getEmployees();
   const emp = list.find(e => 
-    (e.username.toLowerCase() === cleanLogin || (e.email && e.email.toLowerCase() === cleanLogin)) &&
-    e.password === cleanPass
+    (e.username.toLowerCase() === cleanLogin || (e.email && e.email.toLowerCase() === cleanLogin))
   );
 
   if (!emp) {
+    throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
+  }
+
+  let isValid = false;
+  if (emp.passwordHash && emp.passwordSalt) {
+    isValid = verifyPassword(cleanPass, emp.passwordHash, emp.passwordSalt);
+  } else if (emp.password) {
+    // Migration helper for legacy accounts: verify and auto-upgrade to salted hash
+    if (emp.password === cleanPass) {
+      isValid = true;
+      const { hash, salt } = hashPassword(cleanPass);
+      emp.passwordHash = hash;
+      emp.passwordSalt = salt;
+      delete emp.password;
+      delete emp.pwd;
+      saveEmployees(list);
+    }
+  }
+
+  if (!isValid) {
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
   }
 

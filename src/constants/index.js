@@ -74,7 +74,6 @@ export function createDefaultGerant(tenantId = 'default', gerantName = 'المد
     department: 'الإدارة العليا',
     supervisor: '-',
     tasks: 'إدارة النظام الكاملة، تحديد الصلاحيات، الإشراف على جميع الأقسام',
-    password: '123',
     role: 'GERANT',
     permissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {})
   };
