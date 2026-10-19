@@ -92,14 +92,7 @@ export function renderEmployeesView() {
               <span>👑</span>
               <span>المسؤول العام (Gérant): ${esc(currentUser?.displayName || currentUser?.email || 'حساب المدير')}</span>
             </div>
-            <button class="btn" onclick="window.openEmployeeLoginPortal()" style="font-weight:700; display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.2); font-size:13px">
-              <span>🔑</span>
-              <span>صفحة دخول الموظفين</span>
-            </button>
-            <button class="btn btn-primary" onclick="window.openAddEmployeeModal()" style="font-weight:700; display:flex; align-items:center; gap:6px; box-shadow:0 4px 12px rgba(37,99,235,0.3)">
-              <span>＋</span>
-              <span>إضافة موظف جديد</span>
-            </button>
+            </div>
           ` : `
             <div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); padding:6px 12px; border-radius:10px; font-size:12px; color:#f59e0b; font-weight:700; display:flex; align-items:center; gap:6px">
               <span>👤</span>
@@ -220,9 +213,6 @@ export function renderEmployeesView() {
             <div style="font-size:42px; margin-bottom:10px">👥</div>
             <div style="font-size:15px; font-weight:700; color:var(--t1)">لا يوجد موظفون يطابقون خيارات البحث</div>
             <p style="font-size:12.5px; margin:6px 0 16px">جرب تغيير كلمات البحث أو إلغاء فلتر الأقسام.</p>
-            ${isGerant ? `
-              <button class="btn btn-primary" onclick="window.openAddEmployeeModal()">+ إضافة موظف جديد الآن</button>
-            ` : ''}
           </div>
         ` : `
           <div style="overflow-x:auto">
@@ -248,7 +238,8 @@ export function renderEmployeesView() {
                   const dept = getDepartment(empSafe.department) || DEPARTMENTS[0];
                   const perms = empSafe.permissions || {};
                   const activePermsCount = empSafe.role === 'GERANT' ? 12 : Object.values(perms).filter(Boolean).length;
-                  const isCurrentSession = (currentUser?.isEmployee && currentUser?.employeeId === empSafe.id) || (currentStaffUser && currentStaffUser.id === empSafe.id);
+                  const activeStaffId = S?.currentStaffUser?.id || (typeof currentStaffUser !== 'undefined' && currentStaffUser ? currentStaffUser.id : null);
+                  const isCurrentSession = Boolean((currentUser?.isEmployee && currentUser?.employeeId === empSafe.id) || (activeStaffId && activeStaffId === empSafe.id));
 
                   return `
                     <tr style="border-bottom:1px solid var(--border); transition:background 0.15s ease; ${isCurrentSession ? 'background:rgba(56,189,248,0.06)' : ''}" onmouseenter="this.style.background='rgba(0,0,0,0.015)'" onmouseleave="this.style.background='${isCurrentSession ? 'rgba(56,189,248,0.06)' : 'transparent'}'">
@@ -450,11 +441,8 @@ window.confirmDeleteEmployee = async function(empId) {
 };
 
 window.openEmployeeLoginPortal = function() {
-  window.loginMode = 'employeePortal';
-  import('../state/store.js').then(m => {
-    m.setCurrentUser(null);
-    R();
-  });
+  S.showStaffPortal = true;
+  R();
 };
 
 window.quickImpersonateEmployee = function(empId) {
@@ -646,8 +634,12 @@ window.handleSaveEmployee = function(e) {
     status
   };
 
-  if (!isEdit || passwordVal) {
-    payload.password = passwordVal || 'password123';
+  if (!isEdit && !passwordVal) {
+    showToast("يرجى تحديد كلمة مرور للموظف الجديد.", "error");
+    return;
+  }
+  if (passwordVal) {
+    payload.password = passwordVal;
   }
 
   // If new employee, apply department default permissions

@@ -260,8 +260,16 @@ window.addEventListener('resize', () => {
 }, { passive: true });
 
 // Reset scroll on navigation away from list
+let lastView = S.view;
 subscribe(() => {
-  if (S.view !== 'list' && S.virtualScrollTop !== 0) {
-    S.virtualScrollTop = 0;
+  if (S.view !== lastView) {
+    lastView = S.view;
+    if (S.view !== 'list' && S.virtualScrollTop !== 0) {
+      queueMicrotask(() => {
+        if (S.view !== 'list' && S.virtualScrollTop !== 0) {
+          S.virtualScrollTop = 0;
+        }
+      });
+    }
   }
 });

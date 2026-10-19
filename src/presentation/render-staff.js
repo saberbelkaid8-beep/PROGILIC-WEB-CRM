@@ -33,6 +33,9 @@ export function renderStaffLogin() {
             </p>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
+            <button class="btn btn-primary" onclick="window.closeStaffPortal()" style="background:#2563eb; color:#fff; border:none; padding:10px 18px; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.4);" title="العودة لإدارة النظام كمسؤول عام">
+              🏢 العودة للنظام كمسؤول (Gérant)
+            </button>
             <button class="btn btn-ghost" onclick="logout()" style="color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:10px 16px; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer;" title="تسجيل الخروج والعودة لصفحة التسجيل">
               🚪 تسجيل الخروج
             </button>
@@ -202,3 +205,11 @@ export function renderStaffManagerModal() {
     </div>
   `;
 }
+
+window.closeStaffPortal = function() {
+  S.showStaffPortal = false;
+  if (typeof window.R === 'function') {
+    window.R();
+  }
+};
+

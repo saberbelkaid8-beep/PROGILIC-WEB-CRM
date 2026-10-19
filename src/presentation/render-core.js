@@ -213,8 +213,8 @@ function performRender() { try {
     return;
   }
 
-  // Staff Login View Router (After Google/Firebase account login)
-  if (currentUser && currentUser.emailVerified && !currentStaffUser) {
+  // Staff Login & User Switching Portal Router
+  if (currentUser && S.showStaffPortal) {
     let modalHTML = '';
     if (S.modal) {
       modalHTML = renderModal();

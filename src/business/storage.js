@@ -81,11 +81,17 @@ export function migrateSchema(d) {
   if (Array.isArray(d)) {
     d = { clients: d };
   } else if (!Array.isArray(d.clients)) {
-    const list = d.data || d.records || d.rows || d.items;
+    const list = d.data || d.records || d.rows || d.items || d.customers || d.donnees || d['العملاء'] || d['عملاء'] || d.clients_list || d.table_clients || (d.backup && d.backup.clients) || (d.snapshot && d.snapshot.clients) || (d.payload && d.payload.clients);
     if (Array.isArray(list)) {
       d = { ...d, clients: list };
     } else {
-      return null;
+      const vals = Object.values(d).filter(v => v && typeof v === 'object' && !Array.isArray(v));
+      const clientLike = vals.filter(v => v && (v.fullName || v.name || v.company || v.phone || v.wilaya || v.location || v.id));
+      if (clientLike.length > 0) {
+        d = { ...d, clients: clientLike };
+      } else {
+        d = { ...d, clients: [] };
+      }
     }
   }
   d.clients = d.clients.map((c, idx) => {
@@ -329,7 +335,28 @@ export function startRealtimeSync(userId) {
     setSaveError(true);
   });
 
-  activeUnsubscribers.push(unsubUser, unsubClients);
+  // 3. Listen to employees collection (real-time cross-device sync)
+  const employeesCollRef = collection(db, 'users', userId, 'employees');
+  const unsubEmployees = onSnapshot(employeesCollRef, (snapshot) => {
+    const remoteStaff = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id
+    }));
+    if (remoteStaff.length > 0) {
+      console.log(`[Realtime Sync] Received ${remoteStaff.length} employees from Firestore for user ${userId}`);
+      setStaffUsers(remoteStaff, userId);
+      try {
+        localStorage.setItem(`crm_staff_users_${userId}`, JSON.stringify(remoteStaff));
+      } catch (e) {}
+      if (typeof window !== 'undefined' && window.R) {
+        window.R();
+      }
+    }
+  }, (error) => {
+    console.warn("Employees collection snapshot listener notice:", error);
+  });
+
+  activeUnsubscribers.push(unsubUser, unsubClients, unsubEmployees);
 }
 
 export function stopRealtimeSync() {
@@ -537,11 +564,41 @@ async function doLoadDataFromFirestore(user) {
       const remoteStaff = await getEmployeesForTenant(user.uid);
       if (Array.isArray(remoteStaff) && remoteStaff.length > 0) {
         setStaffUsers(remoteStaff, user.uid);
+        try {
+          localStorage.setItem(`crm_staff_users_${user.uid}`, JSON.stringify(remoteStaff));
+        } catch (e) {}
+
+        // Upload any locally created offline employees that are missing in remote
+        const { getEmployees } = await import('./employeeService.js');
+        const localList = getEmployees();
+        const missingInRemote = (localList || []).filter(loc => 
+          loc.id !== 'gerant' && !remoteStaff.some(rem => rem.id === loc.id || rem.username === loc.username)
+        );
+        if (missingInRemote.length > 0) {
+          console.log(`[Storage] Uploading ${missingInRemote.length} offline employees to Firestore...`);
+          for (const emp of missingInRemote) {
+            await saveEmployeeForTenant(user.uid, emp);
+          }
+        }
       } else {
-        const defaultGerant = createDefaultGerant(user.uid, user.displayName || user.email?.split('@')[0] || 'المدير العام (GERANT)');
-        defaultGerant.adminEmail = user.email || '';
-        await saveEmployeeForTenant(user.uid, defaultGerant);
-        setStaffUsers([ defaultGerant ], user.uid);
+        // Firestore is empty: check if this device already has local employees from previous sessions
+        const { getEmployees } = await import('./employeeService.js');
+        const localList = getEmployees();
+        const nonGerant = (localList || []).filter(e => e.id !== 'gerant');
+        if (nonGerant.length > 0) {
+          console.log(`[Storage] Pushing ${localList.length} local employees to Firestore for first-time cloud sync...`);
+          for (const emp of localList) {
+            await saveEmployeeForTenant(user.uid, emp);
+          }
+          setStaffUsers(localList, user.uid);
+        } else {
+          const defaultGerant = createDefaultGerant(user.uid, user.displayName || user.email?.split('@')[0] || 'المدير العام (GERANT)');
+          defaultGerant.adminEmail = user.email || '';
+          defaultGerant.status = 'نشط';
+          defaultGerant.createdAt = new Date().toISOString().split('T')[0];
+          await saveEmployeeForTenant(user.uid, defaultGerant);
+          setStaffUsers([ defaultGerant ], user.uid);
+        }
       }
     } catch (staffSyncErr) {
       console.warn("[Storage] Tenant staff sync notice:", staffSyncErr);
@@ -724,15 +781,38 @@ export function parseDumpOrJson(rawText) {
     text = text.slice(1).trim();
   }
 
+  // Strip null bytes (UTF-16 LE/BE conversion artifacts)
+  if (text.includes('\u0000')) {
+    text = text.replace(/\u0000/g, '').trim();
+  }
+
+  // Safe UTF-8 Base64 decoder
+  const decodeBase64Safe = (b64) => {
+    try {
+      const cleanB64 = b64.replace(/\s+/g, '');
+      const binary = atob(cleanB64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch (_) {
+      try { return atob(b64.replace(/\s+/g, '')); } catch (__) { return null; }
+    }
+  };
+
+  // Helper to strip comments and trailing commas from relaxed JSON
+  const stripJsonComments = (str) => {
+    return str.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1').replace(/,\s*([}\]])/g, '$1');
+  };
+
   // Handle Data URL prefix (e.g. data:application/octet-stream;base64,...)
   if (text.startsWith('data:')) {
     const commaIdx = text.indexOf(',');
     if (commaIdx !== -1) {
-      try {
-        const b64 = text.slice(commaIdx + 1).replace(/\s+/g, '');
-        const dec = atob(b64);
-        if (dec) text = dec.trim();
-      } catch (_) {}
+      const b64 = text.slice(commaIdx + 1).replace(/\s+/g, '');
+      const dec = decodeBase64Safe(b64);
+      if (dec) text = dec.trim();
     }
   }
 
@@ -748,16 +828,18 @@ export function parseDumpOrJson(rawText) {
   const extractList = (obj) => {
     if (Array.isArray(obj)) return obj;
     if (obj && typeof obj === 'object') {
-      if (Array.isArray(obj.clients)) return obj.clients;
-      if (Array.isArray(obj.data)) return obj.data;
-      if (Array.isArray(obj.records)) return obj.records;
-      if (Array.isArray(obj.rows)) return obj.rows;
-      if (Array.isArray(obj.items)) return obj.items;
-      if (obj.backup && Array.isArray(obj.backup.clients)) return obj.backup.clients;
-      if (obj.snapshot && Array.isArray(obj.snapshot.clients)) return obj.snapshot.clients;
-      const vals = Object.values(obj);
-      if (vals.length > 0 && vals.every(v => v && typeof v === 'object' && (v.fullName || v.name || v.company || v.phone || v.wilaya || v.id))) {
-        return vals;
+      const candidates = [
+        obj.clients, obj.data, obj.records, obj.rows, obj.items, obj.customers,
+        obj.donnees, obj['العملاء'], obj['عملاء'], obj.clients_list, obj.table_clients,
+        obj.backup?.clients, obj.snapshot?.clients, obj.payload?.clients, obj.PROGILIC_CRM?.clients
+      ];
+      for (const cand of candidates) {
+        if (Array.isArray(cand)) return cand;
+      }
+      const vals = Object.values(obj).filter(v => v && typeof v === 'object' && !Array.isArray(v));
+      const clientLike = vals.filter(v => v && (v.fullName || v.name || v.company || v.phone || v.wilaya || v.location || v.id));
+      if (clientLike.length > 0) {
+        return clientLike;
       }
     }
     return null;
@@ -767,18 +849,28 @@ export function parseDumpOrJson(rawText) {
   try {
     const parsed = JSON.parse(text);
     const clientsList = extractList(parsed);
-    if (clientsList && clientsList.length > 0) {
+    if (clientsList) {
+      return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
+    }
+  } catch (_) {}
+
+  // 1b. Relaxed JSON (comments / trailing commas stripped)
+  try {
+    const stripped = stripJsonComments(text);
+    const parsed = JSON.parse(stripped);
+    const clientsList = extractList(parsed);
+    if (clientsList) {
       return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
     }
   } catch (_) {}
 
   // 2. Base64 encoded JSON (common in binary-like .dum backups)
   try {
-    const decoded = atob(text.replace(/\s+/g, ''));
+    const decoded = decodeBase64Safe(text);
     if (decoded && (decoded.startsWith('{') || decoded.startsWith('['))) {
       const parsed = JSON.parse(decoded);
       const clientsList = extractList(parsed);
-      if (clientsList && clientsList.length > 0) {
+      if (clientsList) {
         return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
       }
     }
@@ -789,19 +881,31 @@ export function parseDumpOrJson(rawText) {
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
-      const parsed = JSON.parse(text.slice(firstBrace, lastBrace + 1));
-      const clientsList = extractList(parsed);
-      if (clientsList && clientsList.length > 0) {
-        return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
+      const jsonCandidate = text.slice(firstBrace, lastBrace + 1);
+      let parsed = null;
+      try { parsed = JSON.parse(jsonCandidate); } catch (_) {
+        try { parsed = JSON.parse(stripJsonComments(jsonCandidate)); } catch (__) {}
+      }
+      if (parsed) {
+        const clientsList = extractList(parsed);
+        if (clientsList) {
+          return { clients: clientsList, ...((typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}) };
+        }
       }
     }
     const firstBracket = text.indexOf('[');
     const lastBracket = text.lastIndexOf(']');
     if (firstBracket !== -1 && lastBracket > firstBracket) {
-      const parsed = JSON.parse(text.slice(firstBracket, lastBracket + 1));
-      const clientsList = extractList(parsed);
-      if (clientsList && clientsList.length > 0) {
-        return { clients: clientsList };
+      const jsonCandidate = text.slice(firstBracket, lastBracket + 1);
+      let parsed = null;
+      try { parsed = JSON.parse(jsonCandidate); } catch (_) {
+        try { parsed = JSON.parse(stripJsonComments(jsonCandidate)); } catch (__) {}
+      }
+      if (parsed) {
+        const clientsList = extractList(parsed);
+        if (clientsList) {
+          return { clients: clientsList };
+        }
       }
     }
   } catch (_) {}

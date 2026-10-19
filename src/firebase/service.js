@@ -13,7 +13,8 @@ import {
   startAfter, 
   runTransaction, 
   writeBatch,
-  deleteField
+  deleteField,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from './config.js';
 
@@ -349,6 +350,45 @@ export async function deleteClientSubItemTransaction(userId, clientId, collectio
 }
 
 // 3. Tenant-Isolated Employees CRUD operations
+export function sanitizeEmployeeForFirestore(emp, tenantId) {
+  if (!emp) return null;
+  const tid = tenantId || (auth?.currentUser ? auth.currentUser.uid : 'default');
+  const safeId = String(emp.id || `emp_${Date.now()}_${Math.floor(Math.random() * 1000)}`);
+  const fullName = String(emp.fullName || emp.name || 'موظف');
+  const name = String(emp.name || emp.fullName || 'موظف');
+  const username = String(emp.username || safeId).toLowerCase().trim();
+  const department = String(emp.department || 'pre_vente');
+  const status = (emp.status === 'معطل' || emp.status === 'inactive') ? 'معطل' : 'نشط';
+
+  const clean = {
+    id: safeId,
+    tenantId: tid,
+    fullName: fullName.slice(0, 100),
+    name: name.slice(0, 100),
+    username: username.slice(0, 50),
+    department: department.slice(0, 100),
+    status: status,
+    position: String(emp.position || 'موظف').slice(0, 100),
+    supervisor: String(emp.supervisor || 'المدير العام (Gérant)').slice(0, 100),
+    phone: String(emp.phone || '').slice(0, 30),
+    email: String(emp.email || '').slice(0, 100),
+    tasks: String(emp.tasks || '').slice(0, 2000),
+    role: String(emp.role || 'employee').slice(0, 50),
+    createdAt: String(emp.createdAt || new Date().toISOString().split('T')[0]),
+    updatedAt: new Date().toISOString(),
+    permissions: (emp.permissions && typeof emp.permissions === 'object') ? emp.permissions : {}
+  };
+
+  if (emp.adminEmail) clean.adminEmail = String(emp.adminEmail).slice(0, 100);
+  else if (auth?.currentUser?.email) clean.adminEmail = String(auth.currentUser.email).slice(0, 100);
+
+  if (emp.lastLogin) clean.lastLogin = String(emp.lastLogin).slice(0, 100);
+  if (emp.passwordHash) clean.passwordHash = String(emp.passwordHash);
+  if (emp.passwordSalt) clean.passwordSalt = String(emp.passwordSalt);
+
+  return clean;
+}
+
 export async function getEmployeesForTenant(tenantId) {
   if (!tenantId || !auth?.currentUser) return [];
   const path = `users/${tenantId}/employees`;
@@ -364,29 +404,52 @@ export async function getEmployeesForTenant(tenantId) {
 }
 
 export async function saveEmployeeForTenant(tenantId, employee) {
-  if (!tenantId || !employee || !employee.id || !auth?.currentUser) return;
-  const path = `users/${tenantId}/employees/${employee.id}`;
+  if (!tenantId || !employee || !employee.id || !auth?.currentUser) return null;
+  const safeId = String(employee.id);
+  const path = `users/${tenantId}/employees/${safeId}`;
   try {
+    const payload = sanitizeEmployeeForFirestore(employee, tenantId);
+    if (!payload) return null;
+
     const docRef = doc(db, path);
-    const payload = {
-      ...employee,
-      tenantId: tenantId,
-      updatedAt: new Date().toISOString()
-    };
-    await setDoc(docRef, payload, { merge: true });
+    await setDoc(docRef, payload);
     return payload;
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    return null;
   }
 }
 
 export async function deleteEmployeeForTenant(tenantId, employeeId) {
-  if (!tenantId || !employeeId || !auth?.currentUser) return;
-  const path = `users/${tenantId}/employees/${employeeId}`;
+  if (!tenantId || !employeeId || !auth?.currentUser) return false;
+  const safeId = String(employeeId);
+  const path = `users/${tenantId}/employees/${safeId}`;
   try {
     const docRef = doc(db, path);
     await deleteDoc(docRef);
+    return true;
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+    return false;
+  }
+}
+
+export function subscribeEmployeesForTenant(tenantId, onUpdate, onError) {
+  if (!tenantId || !auth?.currentUser) return () => {};
+  const path = `users/${tenantId}/employees`;
+  try {
+    const collRef = collection(db, path);
+    return onSnapshot(collRef, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      if (typeof onUpdate === 'function') {
+        onUpdate(list);
+      }
+    }, (error) => {
+      console.warn("Employees realtime sync notice:", error);
+      if (typeof onError === 'function') onError(error);
+    });
+  } catch (err) {
+    console.warn("Failed creating employees subscription:", err);
+    return () => {};
   }
 }

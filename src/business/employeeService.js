@@ -2,8 +2,11 @@
 // Implements the 4 Official PROGILIC Departments and Role-Based Access Control (RBAC)
 // Managed strictly by the Gérant (General Manager)
 
-import { S, currentUser, setCurrentUser, currentStaffUser, setCurrentStaffUser, hasPermission as storeHasPermission, isGerant as storeIsGerant } from '../state/store.js';
+import { S, currentUser, setCurrentUser, currentStaffUser, setCurrentStaffUser, hasPermission as storeHasPermission, isGerant as storeIsGerant, getActiveTenantId, setStaffUsers } from '../state/store.js';
 import { showToast } from '../utils/toast.js';
+import { hashPassword, verifyPassword } from '../utils/crypto.js';
+import { saveEmployeeForTenant, deleteEmployeeForTenant } from '../firebase/service.js';
+import { auth } from '../firebase/config.js';
 
 /**
  * The 4 Official PROGILIC Departments from organizational specifications:
@@ -171,10 +174,12 @@ export const INITIAL_EMPLOYEES = [];
 
 function getCurrentUserUid() {
   try {
-    if (typeof auth !== 'undefined' && auth && auth.currentUser && auth.currentUser.uid) {
+    const tid = getActiveTenantId();
+    if (tid) return tid;
+    if (auth && auth.currentUser && auth.currentUser.uid) {
       return auth.currentUser.uid;
     }
-    if (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) {
+    if (currentUser && currentUser.uid) {
       return currentUser.uid;
     }
   } catch (e) {}
@@ -194,7 +199,9 @@ export function getEmployees() {
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
     }
   } catch (e) {}
   return S && Array.isArray(S.staffUsers) ? S.staffUsers : [];
@@ -207,9 +214,11 @@ export function saveEmployees(employeesList) {
   try {
     const uid = getCurrentUserUid() || 'default';
     const safeList = Array.isArray(employeesList) ? employeesList : [];
-    if (typeof window !== 'undefined' && window.setStaffUsers) {
-      window.setStaffUsers(safeList, uid);
-    }
+    
+    // 1. Update reactive state store
+    setStaffUsers(safeList, uid);
+    
+    // 2. Persist to local cache for offline/instant hydration
     localStorage.setItem(`crm_staff_users_${uid}`, JSON.stringify(safeList));
   } catch (e) {
     console.error("Failed saving employees:", e);
@@ -264,25 +273,58 @@ export function getEmployeeById(id) {
 }
 
 /**
- * Creates or updates an employee
+ * Creates or updates an employee and syncs to Firestore
  */
 export function upsertEmployee(employeeData) {
-  const list = getEmployees();
+  const list = [...getEmployees()];
   const index = list.findIndex(e => e.id === employeeData.id);
+  const uid = getCurrentUserUid() || 'default';
   
+  // Hash password if supplied and remove any plaintext password
+  let passwordHash = undefined;
+  let passwordSalt = undefined;
+  if (employeeData.password && typeof employeeData.password === 'string' && employeeData.password.trim()) {
+    const res = hashPassword(employeeData.password.trim());
+    passwordHash = res.hash;
+    passwordSalt = res.salt;
+  }
+
+  const sanitizedData = { ...employeeData };
+  delete sanitizedData.password;
+  delete sanitizedData.pwd;
+
+  if (passwordHash) {
+    sanitizedData.passwordHash = passwordHash;
+    sanitizedData.passwordSalt = passwordSalt;
+  }
+
+  let finalEmp = null;
+
   if (index >= 0) {
     list[index] = {
       ...list[index],
-      ...employeeData,
+      ...sanitizedData,
+      tenantId: list[index].tenantId || uid,
+      name: sanitizedData.fullName || sanitizedData.name || list[index].name,
+      fullName: sanitizedData.fullName || sanitizedData.name || list[index].fullName,
+      status: sanitizedData.status || list[index].status || 'نشط',
       updatedAt: new Date().toISOString()
     };
+    // Ensure any legacy plaintext password is scrubbed
+    delete list[index].password;
+    delete list[index].pwd;
+    finalEmp = list[index];
   } else {
     const newId = employeeData.id || `emp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const fullName = employeeData.fullName || employeeData.name || 'موظف جديد';
     const newEmp = {
       id: newId,
-      fullName: employeeData.fullName || 'موظف جديد',
+      tenantId: uid,
+      name: fullName,
+      fullName: fullName,
       username: (employeeData.username || `emp_${Date.now()}`).trim().toLowerCase(),
-      password: employeeData.password || '',
+      passwordHash: passwordHash || null,
+      passwordSalt: passwordSalt || null,
       department: employeeData.department || 'pre_vente',
       position: employeeData.position || getDepartment(employeeData.department).defaultPosition,
       supervisor: employeeData.supervisor || 'المدير العام (Gérant)',
@@ -290,52 +332,98 @@ export function upsertEmployee(employeeData) {
       email: employeeData.email || '',
       tasks: employeeData.tasks || getDepartment(employeeData.department).descriptionAr,
       status: employeeData.status || 'نشط',
+      role: employeeData.role || 'employee',
       createdAt: employeeData.createdAt || new Date().toISOString().split('T')[0],
+      updatedAt: new Date().toISOString(),
       lastLogin: null,
       permissions: employeeData.permissions || { ...getDepartment(employeeData.department).defaultPermissions }
     };
     list.push(newEmp);
+    finalEmp = newEmp;
   }
 
   saveEmployees(list);
+
+  // Sync to Firestore under tenant isolation
+  if (uid && uid !== 'default' && finalEmp) {
+    saveEmployeeForTenant(uid, finalEmp).catch(err => {
+      console.warn("[EmployeeService] Background Firestore employee save notice:", err);
+    });
+  }
+
   return list;
 }
 
 /**
- * Deletes an employee by ID
+ * Deletes an employee by ID and syncs to Firestore
  */
 export function deleteEmployee(id) {
+  const uid = getCurrentUserUid() || 'default';
   const list = getEmployees().filter(e => e.id !== id);
   saveEmployees(list);
+
+  if (uid && uid !== 'default' && id) {
+    deleteEmployeeForTenant(uid, id).catch(err => {
+      console.warn("[EmployeeService] Background Firestore employee delete notice:", err);
+    });
+  }
+
   return list;
 }
 
 /**
- * Updates permissions for an employee (strictly Gérant action)
+ * Updates permissions for an employee (strictly Gérant action) and syncs to Firestore
  */
 export function updateEmployeePermissions(id, permissions) {
   const list = getEmployees();
   const emp = list.find(e => e.id === id);
   if (!emp) return false;
   emp.permissions = { ...permissions };
+  emp.updatedAt = new Date().toISOString();
   saveEmployees(list);
+
+  const uid = getCurrentUserUid() || 'default';
+  if (uid && uid !== 'default') {
+    saveEmployeeForTenant(uid, emp).catch(err => {
+      console.warn("[EmployeeService] Background Firestore permissions save notice:", err);
+    });
+  }
+
   return true;
 }
 
 /**
- * Updates an employee's password (strictly Gérant action)
+ * Updates an employee's password securely using salted cryptographic hashing (strictly Gérant action) and syncs to Firestore
  */
 export function updateEmployeePassword(id, newPassword) {
   const list = getEmployees();
   const emp = list.find(e => e.id === id);
   if (!emp) return false;
-  emp.password = newPassword;
+  const cleanPass = (newPassword || '').trim();
+  if (!cleanPass) return false;
+  
+  const { hash, salt } = hashPassword(cleanPass);
+  emp.passwordHash = hash;
+  emp.passwordSalt = salt;
+  emp.updatedAt = new Date().toISOString();
+  // Remove any legacy plaintext password
+  delete emp.password;
+  delete emp.pwd;
+
   saveEmployees(list);
+
+  const uid = getCurrentUserUid() || 'default';
+  if (uid && uid !== 'default') {
+    saveEmployeeForTenant(uid, emp).catch(err => {
+      console.warn("[EmployeeService] Background Firestore password save notice:", err);
+    });
+  }
+
   return true;
 }
 
 /**
- * Authenticates an employee by username/email and password
+ * Authenticates an employee by username/email and password using salted hash verification
  */
 export function authenticateEmployee(loginInput, password) {
   const cleanLogin = (loginInput || '').trim().toLowerCase();
@@ -347,11 +435,30 @@ export function authenticateEmployee(loginInput, password) {
 
   const list = getEmployees();
   const emp = list.find(e => 
-    (e.username.toLowerCase() === cleanLogin || (e.email && e.email.toLowerCase() === cleanLogin)) &&
-    e.password === cleanPass
+    (e.username.toLowerCase() === cleanLogin || (e.email && e.email.toLowerCase() === cleanLogin))
   );
 
   if (!emp) {
+    throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
+  }
+
+  let isValid = false;
+  if (emp.passwordHash && emp.passwordSalt) {
+    isValid = verifyPassword(cleanPass, emp.passwordHash, emp.passwordSalt);
+  } else if (emp.password) {
+    // Migration helper for legacy accounts: verify and auto-upgrade to salted hash
+    if (emp.password === cleanPass) {
+      isValid = true;
+      const { hash, salt } = hashPassword(cleanPass);
+      emp.passwordHash = hash;
+      emp.passwordSalt = salt;
+      delete emp.password;
+      delete emp.pwd;
+      saveEmployees(list);
+    }
+  }
+
+  if (!isValid) {
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
   }
 

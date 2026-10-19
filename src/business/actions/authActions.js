@@ -191,16 +191,18 @@ export function loginUser(username, password, fullname = '') {
         R();
       })
       .catch((error) => {
-        console.error("Login error:", error);
+        console.warn("[Auth Notice] Login credentials rejected:", error.code || error.message);
         let errorMsg = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-          errorMsg = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
+          errorMsg = "بيانات الدخول غير صحيحة. إذا كنت قد سجلت مسبقاً بواسطة Google، يرجى استخدام زر 'متابعة باستخدام Google'.";
         } else if (error.code === 'auth/invalid-email') {
           errorMsg = "البريد الإلكتروني غير صحيح.";
         } else if (error.code === 'auth/user-disabled') {
           errorMsg = "تم تعطيل هذا الحساب من قبل المسؤول.";
+        } else if (error.code === 'auth/too-many-requests') {
+          errorMsg = "تم حظر محاولات الدخول مؤقتاً لكثرة المحاولات الخاطئة. يرجى المحاولة لاحقاً.";
         }
-        showToast(errorMsg, 'error');
+        showToast(errorMsg, 'error', 6000);
         if (btn) {
           btn.disabled = false;
           btn.innerText = originalText;
