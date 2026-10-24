@@ -221,6 +221,7 @@ window.resolveConflict = resolveConflict;
       R();
       try {
         await loadDataFromFirestore(user);
+        actions.loadGlobalActivities().catch(console.warn);
       } catch (loadErr) {
         console.error("loadDataFromFirestore caught gracefully:", loadErr);
       } finally {

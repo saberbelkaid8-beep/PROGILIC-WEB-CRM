@@ -1,24 +1,28 @@
-# PROGILIC CRM - Project Summary
+# ملخص المشروع: نظام PROGILIC CRM v3 مع المخطط الزمني الشامل وسجل العمليات المعتمدة
 
-## Overview
-PROGILIC CRM is a production-grade Customer Relationship Management system designed for multi-tenant business management. It provides tools for tracking clients, managing software licenses, handling technical support issues, and monitoring business requirements.
-
-## Current Architecture
-- **Frontend**: Vanilla JavaScript/TypeScript with Tailwind CSS, using a component-based rendering engine (`render-core.js`, `render-views.js`, etc.).
-- **Backend/Persistence**: Firebase Firestore (Enterprise Edition) for real-time data synchronization.
-- **Security**: Hardened Firestore security rules with attribute-based access control (ABAC).
-- **Offline Capability**: Local IndexedDB caching with automatic background synchronization to Firebase.
-
-## Key Features
-- **Client Management**: Create, read, update, and delete clients, including sub-collections for programs, issues, and requirements.
-- **Data Integrity**: Automated schema migration (v2 -> v3) and strict data validation for all writes.
-- **Reporting & Statistics**: Automated calculation of client scores, license counts, and open issues.
-- **Export/Import**: Robust import/export functionality for `.dum` and `.json` files, supporting relaxed JSON formats and binary/Base64 payloads.
-
-## Deployment Information
-- **Region**: europe-west3
-- **Database**: `ai-studio-a76fe77b-fa2a-40a8-80e2-11da4bb068c7`
-- **Project ID**: `gen-lang-client-0400245577`
-
-## Status
-Verified, linted, tested, and ready for use.
+## 1. الإضافات والتطويرات الجديدة المنجزة
+- **الحفاظ الكامل على المخطط الزمني الخاص بالعميل دون أي مساس**:
+  - تم الإبقاء على تبويب المخطط الزمني للعميل (`Timeline`) داخل الملف الشخصي لكل زبون كما هو تماماً، ليعرض تاريخ وتفاعلات ذلك الزبون الفردي دون أي تغيير.
+- **إضافة خانة جديدة مستقلة في النظام للمخطط الزمني الشامل (⏱️ المخطط الزمني العام)**:
+  - إضافة زر مخصص في الشريط العلوي للواجهة (Header View Switcher) بجانب "👥 العملاء" و "📊 لوحة القيادة".
+  - فتح واجهة مركزية ترصد كافة العمليات والأنشطة التي يتم اعتمادها أو حفظها أو تعديلها أو حذفها عبر كامل نظام الـ CRM.
+- **توثيق وتسجيل اسم المستخدم المنفذ لكل عملية بدقة واحترافية**:
+  - يتم التقاط اسم المستخدم الفعلي (`currentStaffUser.name` أو المسؤول العام `Gérant`) وتثبيته في كل سجل زمني.
+  - إظهار شارة بارزة باسم المستخدم وقسمه الوظيفي (مثل: الدعم الفني، التجاري، المحاسبة، الإدارة العامة) بجانب كل عملية.
+- **فلترة متقدمة وشاملة حسب اسم المستخدم والفترات الزمنية**:
+  1. **تصفية باسم المستخدم**: قائمة منسدلة تمكن من اختيار "جميع المستخدمين" أو أي مستخدم محدد للاطلاع على ما قام به حصراً.
+  2. **أزرار الفترات الزمنية السريعة**: `كل الأوقات`، `اليوم`، `أمس`، `آخر 7 أيام`، `هذا الشهر`، `مخصص 📅`.
+  3. **تحديد النطاق الزمني الدقيق (من الوقت الفلاني إلى الوقت الفلاني)**:
+     - حقل `من تاريخ`: لتحديد بداية الفترة.
+     - حقل `إلى تاريخ`: لتحديد نهاية الفترة.
+     - إمكانية الجمع بين اسم مستخدم وفترة زمنية محددة لمعرفة ماذا فعل المستخدم الفلاني اليوم أو بين تاريخين.
+  4. **تصفية حسب نوع العملية / القسم**: (العملاء، المشاكل التقنية، البرامج والتراخيص، المتطلبات والميزات، سجل المكالمات، الأمان والنسخ الاحتياطي، الموظفون والصلاحيات).
+  5. **بحث فوري في العمليات**: حقل بحث نصي سريع يبحث في اسم المستخدم، العميل، العنوان، وتفاصيل الإجراء.
+- **بطاقات المؤشرات السريعة (KPIs)**:
+  - إجمالي العمليات المسجلة.
+  - عمليات اليوم النشطة.
+  - المستخدم الأكثر نشاطاً وإنجازاً للعمليات.
+  - عدد المشاكل المحلولة والعمليات الناجحة.
+- **تصدير وطباعة التقارير**:
+  - زر تصدير التقرير كملف CSV بصيغة UTF-8 مع تضمين كافة الحقول والمستخدمين.
+  - زر طباعة التقرير الزمني بتنسيق أنيق.

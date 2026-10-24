@@ -5,6 +5,7 @@ import { esc } from '../utils/index.js';
 import { renderLogin } from './render-login.js';
 import { renderStaffLogin, renderStaffManagerModal } from './render-staff.js';
 import { renderList, renderDetail, renderGlobalIntelligence, renderDashboard } from './render-views.js';
+import { renderGlobalTimeline } from './render-timeline-view.js';
 import { renderModal } from './render-modals.js';
 import { renderAiAssistantWidget } from './ai/assistantWidget.js';
 import { renderEmployeesView } from './render-employees.js';
@@ -238,6 +239,8 @@ function performRender() { try {
       pageContent = renderList();
     } else if (S.view === 'dashboard') {
       pageContent = renderDashboard();
+    } else if (S.view === 'global-timeline' || S.view === 'timeline') {
+      pageContent = renderGlobalTimeline();
     } else {
       pageContent = renderDetail();
     }
@@ -254,9 +257,9 @@ function performRender() { try {
 
   const nextHTML = 
     renderHdr(alerts.length) +
-    (S.view === 'list' || S.view === 'dashboard' ? renderAlertBanner(alerts) : '') +
-    `<div class="page ${S.view === 'dashboard' ? 'dashboard-page' : ''}" style="${S.view === 'dashboard' ? 'max-width:1300px; padding:1.5rem;' : ''}">` + pageContent + '</div>' +
-    (S.view === 'list' || S.view === 'dashboard' ? renderStorageBar() : '') +
+    (S.view === 'list' || S.view === 'dashboard' || S.view === 'global-timeline' ? renderAlertBanner(alerts) : '') +
+    `<div class="page ${S.view === 'dashboard' || S.view === 'global-timeline' ? 'dashboard-page' : ''}" style="${S.view === 'dashboard' || S.view === 'global-timeline' ? 'max-width:1300px; padding:1.25rem;' : ''}">` + pageContent + '</div>' +
+    (S.view === 'list' || S.view === 'dashboard' || S.view === 'global-timeline' ? renderStorageBar() : '') +
     modalHTML +
     renderStaffManagerModal() +
     (S.gi ? renderGlobalIntelligence() : '') +
@@ -327,6 +330,7 @@ function renderHdr(alertCount) {
     <div style="display:inline-flex;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);padding:2px;border-radius:var(--r-md);margin-right:12px;gap:2px">
       <button class="btn btn-xs ${S.view === 'list' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('list')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👥 ${t('العملاء')}</button>
       ${hasPermission('dashboard.view') ? `<button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>` : ''}
+      <button class="btn btn-xs ${S.view === 'global-timeline' || S.view === 'timeline' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('global-timeline')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">⏱️ ${t('المخطط الزمني العام')}</button>
     </div>
 
     <span class="hdr-pill">${ac} ${t('نشط')} / ${clients.length}</span>

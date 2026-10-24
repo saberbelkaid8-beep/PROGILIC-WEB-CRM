@@ -53,6 +53,7 @@ export async function triggerManualBackup() {
   try {
     const backup = await createSnapshotBackup(currentUser.uid, reason, clients, S.stats, S.nid);
     if (backup) {
+      logActivity(null, ActivityType.BACKUP_CREATED, "إنشاء نسخة احتياطية", `تم إنشاء نسخة احتياطية يدوية للنظام: "${reason}".`).catch(console.warn);
       showToast(t("تم إنشاء النسخة الاحتياطية بنجاح!"), "success");
       await loadBackupsList();
     }
@@ -78,6 +79,7 @@ export async function triggerRestore(backupId) {
   try {
     const ok = await restoreFromBackup(currentUser.uid, backupId);
     if (ok) {
+      logActivity(null, ActivityType.BACKUP_RESTORED, "استرجاع نسخة احتياطية", `تم استرجاع النظام بنجاح من النسخة الاحتياطية (${backupId}).`).catch(console.warn);
       closeModal();
       R();
     }

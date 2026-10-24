@@ -6,6 +6,7 @@ import { ALL_PERMISSIONS, PERMISSION_GROUPS, buildDeptPermissions } from '../../
 import { saveEmployeeForTenant, deleteEmployeeForTenant } from '../../firebase/service.js';
 import { hashPassword, verifyPassword } from '../../utils/crypto.js';
 import { deleteEmployeeWithPassword, verifyAdminPassword, getEmployeeById } from '../employeeService.js';
+import { logActivity, ActivityType } from '../timelineService.js';
 
 window.loginStaff = function(staffId, password) {
   const cleanPass = (password || '').trim();
@@ -152,6 +153,15 @@ window.saveStaffMember = async function(form) {
     }
   }
 
+  // Log audit activity
+  const isEdit = existingIndex >= 0;
+  logActivity(
+    null,
+    isEdit ? ActivityType.STAFF_EDITED : ActivityType.STAFF_ADDED,
+    isEdit ? "تعديل بيانات وصلاحيات موظف" : "إضافة موظف جديد",
+    `تم ${isEdit ? 'تعديل بيانات وصلاحيات' : 'تسجيل حساب'} الموظف "${staffObj.name}" (${staffObj.department || staffObj.position}).`
+  ).catch(console.warn);
+
   showToast(t("تم حفظ بيانات الموظف بنجاح في قاعدة البيانات!"), "success");
   S.modal = null;
   R();
@@ -193,6 +203,7 @@ window.confirmDeleteEmployeeWithAdminPassword = async function(id, adminPassword
     showToast(t(res.message), "error");
     return false;
   }
+  logActivity(null, ActivityType.STAFF_DELETED, "حذف حساب موظف", `تم حذف حساب الموظف بواسطة كلمة مرور المسؤول العام.`).catch(console.warn);
   showToast(t(res.message), "success");
   window.__deleteTargetEmpId = null;
   S.modal = null;
@@ -225,6 +236,7 @@ window.toggleStaffPermission = async function(staffId, permKey) {
     } catch (e) {}
   }
 
+  logActivity(null, ActivityType.STAFF_EDITED, "تعديل صلاحية مستخدم", `تم تعديل الصلاحية (${permKey}) للموظف "${staffList[idx].name}".`).catch(console.warn);
   showToast(t("تم تحديث الصلاحية بنجاح"), "success");
   R();
 };

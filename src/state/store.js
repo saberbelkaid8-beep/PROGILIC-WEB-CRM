@@ -40,6 +40,13 @@ let internalState = {
   dbPage: 1,
   dbPageSize: 25,
   dbActiveTab: 'overview',
+  globalActivities: [],
+  timelineUserFilter: 'all',
+  timelineDatePreset: 'all',
+  timelineDateFrom: '',
+  timelineDateTo: '',
+  timelineCategoryFilter: 'all',
+  timelineSearch: '',
   stats: {
     activeClients: 0,
     prospectiveClients: 0,

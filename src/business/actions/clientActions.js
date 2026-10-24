@@ -353,6 +353,10 @@ export async function delClient(id) {
     stats
   });
 
+  // Log timeline activity
+  logActivity(id, ActivityType.CLIENT_DELETED, "حذف العميل نهائياً", `تم حذف العميل "${c.fullName}" وجميع بياناته المرتبطة من قاعدة البيانات.`, 'local', { clientName: c.fullName })
+    .catch(err => console.error(err));
+
   S.view = 'list'; S.selId = null;
   R();
 }
@@ -379,6 +383,10 @@ export async function captureGPS() {
         stats: S.stats
       });
       
+      // Log timeline activity
+      logActivity(c.id, ActivityType.GPS_CAPTURED, "تحديد الموقع الجغرافي", `تم التقاط إحداثيات GPS للعميل بنجاح (${lat}, ${lng}).`, 'local', { clientName: c.fullName })
+        .catch(err => console.error(err));
+
       R();
     },
     err => { showToast(t('تعذر تحديد الموقع: ') + err.message + '\n' + t('تأكد من منح الإذن للمتصفح'), 'error'); }

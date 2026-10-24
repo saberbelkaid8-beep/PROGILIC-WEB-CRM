@@ -1,7 +1,8 @@
 import { S, clients, setClients, updateState, currentUser, setCurrentUser, hasPermission, isGerant } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
-import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
+import { logActivity, ActivityType, getTimeline, loadGlobalActivities } from '../timelineService.js';
+import { loadClientTimeline } from './ticketActions.js';
 import { getBackups, deleteBackup } from '../idbStorage.js';
 import { createSnapshotBackup, restoreFromBackup, downloadBackupJSON } from '../backupService.js';
 import { auth, googleProvider, facebookProvider, appleProvider } from '../../firebase/config.js';
@@ -23,7 +24,17 @@ import {
 
 export function goBack() { S.view = 'list'; S.selId = null; R(); }
 
-export function setView(v) { S.view = v; S.selId = null; R(); }
+export function setView(v) { 
+  if (v === 'timeline' || v === 'global-timeline') {
+    S.view = 'global-timeline';
+    S.selId = null;
+    loadGlobalActivities();
+  } else {
+    S.view = v; 
+    S.selId = null; 
+  }
+  R(); 
+}
 
 export function setTab(t) { 
   S.tab = t; 
