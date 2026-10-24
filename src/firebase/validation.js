@@ -6,6 +6,7 @@ export function validateClient(c) {
     id: Number(data.id) || Date.now(),
     fullName: (data.fullName || 'بدون اسم').substring(0, 100) || 'بدون اسم',
     phone: (data.phone || '').substring(0, 30),
+    gmailAccount: (data.gmailAccount || '').substring(0, 254),
     company: (data.company || '').substring(0, 100),
     wilaya: (data.wilaya || '').substring(0, 50),
     commune: (data.commune || '').substring(0, 50),
@@ -35,6 +36,7 @@ export function validateProgram(p) {
     programName: (p.programName || p.product || 'غير محدد').substring(0, 100) || 'غير محدد',
     platform: ["Desktop", "Mobile", "Web", "Hybrid"].includes(p.platform) ? p.platform : "Desktop",
     type: ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"].includes(p.type) ? p.type : "أخرى",
+    version: ["V21", "V23", "V24", "V26", "V27"].includes(p.version) ? p.version : "",
     installationsCount: Number(p.installationsCount) || 1,
     startDate: (p.startDate || '').substring(0, 20),
     endDate: (p.endDate || '').substring(0, 20)

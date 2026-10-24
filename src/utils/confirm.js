@@ -64,7 +64,7 @@ export function showConfirm(message, title = 'تأكيد الإجراء') {
   });
 }
 
-export function showPrompt(message, title = 'إدخل البيانات', defaultValue = '', placeholder = '') {
+export function showPrompt(message, title = 'إدخال البيانات', defaultValue = '', placeholder = '') {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'gi-overlay';
@@ -81,24 +81,24 @@ export function showPrompt(message, title = 'إدخل البيانات', default
     card.style.padding = '1.5rem';
     card.style.boxShadow = '0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)';
     card.style.margin = '1rem';
-    card.style.direction = 'rtl';
-    card.style.textAlign = 'right';
+    card.style.direction = S.lang === 'ar' ? 'rtl' : 'ltr';
+    card.style.textAlign = S.lang === 'ar' ? 'right' : 'left';
     card.style.border = '1px solid var(--border)';
     
     card.innerHTML = `
       <div style="font-size: 16px; font-weight: 700; color: var(--t1); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px;">
         <span>📝</span>
-        <span>${esc(title)}</span>
+        <span>${esc(t(title))}</span>
       </div>
       <div style="font-size: 13px; color: var(--t2); margin-bottom: 1rem; line-height: 1.6;">
-        ${esc(message).replace(/\n/g, '<br>')}
+        ${esc(t(message)).replace(/\n/g, '<br>')}
       </div>
       <div style="margin-bottom: 1.5rem;">
-        <input type="text" class="fctl prompt-input" style="width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--t1); padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px;" value="${esc(defaultValue)}" placeholder="${esc(placeholder)}" autofocus>
+        <input type="text" class="fctl prompt-input" style="width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--t1); padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px;" value="${esc(defaultValue)}" placeholder="${esc(t(placeholder))}" autofocus>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
-        <button class="btn btn-outline prompt-cancel" style="padding: 6px 14px; font-size: 12px;">إلغاء</button>
-        <button class="btn btn-primary prompt-ok" style="padding: 6px 14px; font-size: 12px; color: white !important;">متابعة</button>
+        <button class="btn btn-outline prompt-cancel" style="padding: 6px 14px; font-size: 12px;">${t('إلغاء')}</button>
+        <button class="btn btn-primary prompt-ok" style="padding: 6px 14px; font-size: 12px; color: white !important;">${S.lang === 'fr' ? 'Continuer' : S.lang === 'en' ? 'Continue' : 'متابعة'}</button>
       </div>
     `;
     

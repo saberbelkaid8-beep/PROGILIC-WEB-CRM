@@ -5,7 +5,10 @@ import { auth } from '../firebase/config.js';
 
 
 let internalState = {
-  lang: (typeof localStorage !== 'undefined' && localStorage.getItem('crm_lang')) || 'ar',
+  lang: (() => {
+    const savedLanguage = typeof localStorage !== 'undefined' && localStorage.getItem('crm_lang');
+    return ['ar', 'fr', 'en'].includes(savedLanguage) ? savedLanguage : 'ar';
+  })(),
   view: 'list',
   selId: null,
   tab: 'overview',
@@ -19,6 +22,7 @@ let internalState = {
   showStaffManager: false,
   showStaffPortal: true,
   fWilaya: '',
+  fCommune: '',
   fActivity: '',
   fActType: '',
   fProgram: '',
@@ -41,6 +45,7 @@ let internalState = {
   dbPageSize: 25,
   dbActiveTab: 'overview',
   globalActivities: [],
+  timelineCloudStatus: 'local-only',
   timelineUserFilter: 'all',
   timelineDatePreset: 'all',
   timelineDateFrom: '',

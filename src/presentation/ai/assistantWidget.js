@@ -79,6 +79,7 @@ export async function submitAiPrompt(userText) {
   const activeContext = {
     currentPage: S.view || 'dashboard',
     selectedClientId: S.selId || null,
+    language: S.lang || 'ar',
     currentFilters: {
       wilaya: S.dbFilterWilaya,
       program: S.dbFilterProg,
@@ -106,8 +107,8 @@ export async function submitAiPrompt(userText) {
     S.aiCurrentResult = {
       intent: 'ERROR',
       confidence: 0,
-      summary: 'حدث خطأ غير متوقع أثناء معالجة الطلب.',
-      plan: ['يرجى إعادة المحاولة أو التحقق من الاتصال.']
+      summary: S.lang === 'fr' ? 'Une erreur est survenue pendant le traitement de la demande.' : S.lang === 'en' ? 'An unexpected error occurred while processing the request.' : 'حدث خطأ غير متوقع أثناء معالجة الطلب.',
+      plan: [S.lang === 'fr' ? 'Réessayez ou vérifiez votre connexion.' : S.lang === 'en' ? 'Please try again or check your connection.' : 'يرجى إعادة المحاولة أو التحقق من الاتصال.']
     };
   } finally {
     isProcessing = false;
@@ -222,8 +223,8 @@ export function renderAiAssistantWidget() {
 
         <!-- QUICK SUGGESTIONS -->
         <div style="display:flex; gap:6px; flex-wrap:wrap">
-          <span class="ai-chip" onclick="submitAiPrompt('${S.lang === 'fr' ? 'Ajouter nouveau client nommé Ahmed à Oran' : (S.lang === 'en' ? 'Add new client named Ahmed in Oran' : 'إضافة عميل جديد باسم أحمد من وهران')}')">➕ ${t('إضافة عميل')}</span>
-          <span class="ai-chip" onclick="submitAiPrompt('${S.lang === 'fr' ? 'Rechercher pharmacie' : (S.lang === 'en' ? 'Search pharmacy' : 'البحث عن صيدلية')}')">🔍 ${S.lang === 'fr' ? 'Pharmacie' : (S.lang === 'en' ? 'Pharmacy' : 'صيدلية')}</span>
+          <span class="ai-chip" onclick="submitAiPrompt('${S.lang === 'fr' ? 'Ajouter un nouveau client nommé Ahmed à Oran' : (S.lang === 'en' ? 'Add a new client named Ahmed in Oran' : 'إضافة عميل جديد باسم أحمد من وهران')}')">➕ ${t('إضافة عميل')}</span>
+          <span class="ai-chip" onclick="submitAiPrompt('${S.lang === 'fr' ? 'Rechercher une pharmacie' : (S.lang === 'en' ? 'Search for a pharmacy' : 'البحث عن صيدلية')}')">🔍 ${S.lang === 'fr' ? 'Pharmacie' : (S.lang === 'en' ? 'Pharmacy' : 'صيدلية')}</span>
           <span class="ai-chip" onclick="submitAiPrompt('${S.lang === 'fr' ? 'Ouvrir tableau de bord' : (S.lang === 'en' ? 'Open dashboard' : 'لوحة القيادة')}')">📊 ${t('لوحة القيادة')}</span>
         </div>
 
@@ -263,7 +264,7 @@ export function renderAiAssistantWidget() {
         ${result ? `
           <div style="background:var(--border-soft); border:1px solid var(--border); border-radius:12px; padding:10px; font-size:12px">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
-              <strong style="color:var(--t1)">${result.summary || (S.lang === 'fr' ? 'Compris' : (S.lang === 'en' ? 'Understood' : 'تم الفهم'))}</strong>
+              <strong data-user-content="true" style="color:var(--t1)">${result.summary || (S.lang === 'fr' ? 'Compris' : (S.lang === 'en' ? 'Understood' : 'تم الفهم'))}</strong>
               <span style="font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px; background:${result.confidence >= 0.85 ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}; color:${result.confidence >= 0.85 ? '#10B981' : '#F59E0B'}">
                 ${Math.round((result.confidence || 0) * 100)}% ${S.lang === 'fr' ? 'confiance' : (S.lang === 'en' ? 'confidence' : 'ثقة')}
               </span>
@@ -271,12 +272,12 @@ export function renderAiAssistantWidget() {
 
             ${(result.plan && result.plan.length > 0) ? `
               <ul style="margin:4px 0 0 16px; padding:0; color:var(--t2); font-size:11.5px; line-height:1.5">
-                ${result.plan.map(step => `<li>${step}</li>`).join('')}
+                ${result.plan.map(step => `<li data-user-content="true">${step}</li>`).join('')}
               </ul>
             ` : ''}
 
             ${execution ? `
-              <div style="margin-top:8px; padding-top:6px; border-top:1px dashed var(--border); font-size:11px; color:${execution.success ? '#10B981' : '#EF4444'}; font-weight:700">
+              <div data-user-content="true" style="margin-top:8px; padding-top:6px; border-top:1px dashed var(--border); font-size:11px; color:${execution.success ? '#10B981' : '#EF4444'}; font-weight:700">
                 ${execution.message}
               </div>
             ` : ''}

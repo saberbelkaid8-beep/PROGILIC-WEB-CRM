@@ -180,6 +180,10 @@ function morph(dom, vdom) {
 function performRender() { try {
   const app = document.getElementById('app');
   if (!app) return;
+  const direction = (S.lang || 'ar') === 'ar' ? 'rtl' : 'ltr';
+  document.documentElement.lang = S.lang || 'ar';
+  document.documentElement.dir = direction;
+  document.body.dir = direction;
 
   // Dark Mode Configuration safely
   let isDark = false;
@@ -204,6 +208,7 @@ function performRender() { try {
   // Login View Router - Direct clean HTML render to avoid morph collision with desktop UI
   if (!currentUser) {
     app.innerHTML = renderLogin();
+    localizeRenderedDom(app);
     return;
   }
 
@@ -211,6 +216,7 @@ function performRender() { try {
   if (currentUser && !currentUser.emailVerified) {
     window.loginMode = 'verificationPending';
     app.innerHTML = renderLogin();
+    localizeRenderedDom(app);
     return;
   }
 
@@ -221,6 +227,7 @@ function performRender() { try {
       modalHTML = renderModal();
     }
     app.innerHTML = renderStaffLogin() + modalHTML + renderStaffManagerModal();
+    localizeRenderedDom(app);
     return;
   }
   
@@ -273,13 +280,14 @@ function performRender() { try {
   while (doc.body.firstChild) {
     tempWrapper.appendChild(doc.body.firstChild);
   }
+  localizeRenderedDom(tempWrapper);
 
   // Perform surgical DOM updates using Morphing Reconciliation with graceful fallback
   try {
     morph(app, tempWrapper);
   } catch (morphErr) {
     console.warn("DOM Morph notice, falling back to innerHTML:", morphErr);
-    app.innerHTML = nextHTML;
+    app.innerHTML = tempWrapper.innerHTML;
   }
 
   // Trigger Recharts rendering if dashboard chart container exists
@@ -305,6 +313,7 @@ function performRender() { try {
         </div>
       `;
     }
+    localizeRenderedDom(appEl);
   }
 } }
 
@@ -317,7 +326,7 @@ export function R() {
   }
 }
 
-import { t, toggleLanguage, setLanguage } from '../utils/i18n.js';
+import { t, toggleLanguage, setLanguage, localizeRenderedDom } from '../utils/i18n.js';
 
 // Helper to render Header Panel
 function renderHdr(alertCount) {
@@ -330,14 +339,14 @@ function renderHdr(alertCount) {
     <div style="display:inline-flex;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);padding:2px;border-radius:var(--r-md);margin-right:12px;gap:2px">
       <button class="btn btn-xs ${S.view === 'list' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('list')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👥 ${t('العملاء')}</button>
       ${hasPermission('dashboard.view') ? `<button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>` : ''}
-      <button class="btn btn-xs ${S.view === 'global-timeline' || S.view === 'timeline' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('global-timeline')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">⏱️ ${t('المخطط الزمني العام')}</button>
+      ${hasPermission('timeline.view') ? `<button class="btn btn-xs ${S.view === 'global-timeline' || S.view === 'timeline' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('global-timeline')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">⏱️ ${t('المخطط الزمني العام')}</button>` : ''}
     </div>
 
     <span class="hdr-pill">${ac} ${t('نشط')} / ${clients.length}</span>
     <div class="hdr-right">
       <!-- 3-Way Language Selector -->
-      <div class="lang-switch-group language-toggle" id="lang-toggle" role="group" aria-label="Language selector" style="display:inline-flex; align-items:center; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:var(--r-md); padding:2px; margin-left:8px; margin-right:8px; gap:2px">
-        <button class="btn btn-xs ${S.lang === 'ar' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('ar')" title="اللغة العربية" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">عربي</button>
+      <div class="lang-switch-group language-toggle" id="lang-toggle" role="group" aria-label="${t('تغيير اللغة')}" style="display:inline-flex; align-items:center; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:var(--r-md); padding:2px; margin-left:8px; margin-right:8px; gap:2px">
+        <button class="btn btn-xs ${S.lang === 'ar' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('ar')" title="${t('اللغة العربية')}" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">${t('العربية')}</button>
         <button class="btn btn-xs ${S.lang === 'fr' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('fr')" title="Français" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">FR</button>
         <button class="btn btn-xs ${S.lang === 'en' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('en')" title="English" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">EN</button>
       </div>
@@ -352,7 +361,7 @@ function renderHdr(alertCount) {
       <span style="font-size:13px;font-weight:600;margin-left:8px;color:var(--t2)">
         👤 ${currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? currentUser.email : '')}
       </span>
-      <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="تبديل المستخدم" style="margin-left:4px; color:#94a3b8;">🔄 تبديل</button>
+      <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="${t('تبديل المستخدم')}" style="margin-left:4px; color:#94a3b8;">🔄 ${t('تبديل المستخدم')}</button>
       <button class="btn btn-ghost btn-xs" onclick="logout()" title="${t('تسجيل الخروج')}" style="margin-left:10px;color:var(--r)">${t('تسجيل الخروج')}</button>
       <button class="dm-btn" title="${t('الوضع الليلي')}" onclick="toggleDark()" id="dmBtn">🌙</button>
       ${hasPermission('analytics.view') ? `<button class="bell-btn" title="${t('الذكاء الاصطناعي')}" onclick="S.gi=!S.gi;R()" style="font-size:14px">🧠</button>` : ''}

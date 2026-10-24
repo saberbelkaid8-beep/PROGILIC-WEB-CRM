@@ -453,3 +453,52 @@ export function subscribeEmployeesForTenant(tenantId, onUpdate, onError) {
     return () => {};
   }
 }
+
+export async function saveTenantActivity(tenantId, activity) {
+  const safeTenantId = sanitizeUserId(tenantId);
+  if (!safeTenantId || !activity?.id) return null;
+  const path = `users/${safeTenantId}/activities/${String(activity.id)}`;
+  const payload = {
+    id: String(activity.id),
+    clientId: activity.clientId ? Number(activity.clientId) : null,
+    clientName: String(activity.clientName || '').slice(0, 100),
+    type: String(activity.type || 'UNKNOWN').slice(0, 50),
+    category: String(activity.category || 'system').slice(0, 30),
+    title: String(activity.title || '').slice(0, 200),
+    description: String(activity.description || '').slice(0, 2000),
+    timestamp: String(activity.timestamp || new Date().toISOString()),
+    userName: String(activity.userName || '').slice(0, 100),
+    userRole: String(activity.userRole || '').slice(0, 100),
+    userId: String(activity.userId || '').slice(0, 128),
+    actorUid: String(activity.actorUid || ''),
+    actorEmail: String(activity.actorEmail || '').slice(0, 254),
+    source: String(activity.source || 'local').slice(0, 20)
+  };
+  try {
+    await setDoc(doc(db, path), payload);
+    return payload.id;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return null;
+  }
+}
+
+export async function getTenantActivities(tenantId, clientId = null) {
+  const safeTenantId = sanitizeUserId(tenantId);
+  if (!safeTenantId) return null;
+  const path = `users/${safeTenantId}/activities`;
+  try {
+    const activitiesRef = collection(db, path);
+    const activitiesQuery = clientId === null
+      ? activitiesRef
+      : query(activitiesRef, where('clientId', '==', Number(clientId)));
+    const snapshot = await getDocs(activitiesQuery);
+    return snapshot.docs.map(activityDoc => ({
+      ...activityDoc.data(),
+      id: activityDoc.data().id || activityDoc.id
+    }));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return null;
+  }
+}

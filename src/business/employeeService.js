@@ -116,6 +116,9 @@ export const PERMISSION_DEFINITIONS = [
   { key: 'clients.view_timeline', label: 'عرض الخط الزمني للأنشطة', group: 'العملاء (Clients)', desc: 'استعراض تاريخ الأنشطة والتفاعلات اليومية' },
   { key: 'clients.view_contact_history', label: 'عرض سجل التواصل والمكالمات', group: 'العملاء (Clients)', desc: 'الاطلاع على المكالمات والزيارات المسجلة' },
 
+  // Global activity timeline
+  { key: 'timeline.view', label: 'عرض المخطط الزمني وتقريره', group: 'المخطط الزمني (Activity Timeline)', desc: 'عرض سجل العمليات وتصفية الأنشطة وإعداد تقرير الإدارة' },
+
   // 2. البرامج والتراخيص (Programs & Licenses - 7)
   { key: 'programs.view', label: 'عرض البرامج والتراخيص', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'الاطلاع على البرامج المرخصة والأجهزة', legacyKey: 'canManagePrograms' },
   { key: 'programs.create', label: 'إضافة برامج ورخص جديدة', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'تسجيل رخص برامج جديدة للعملاء' },
@@ -604,7 +607,7 @@ export function authenticateEmployee(loginInput, password) {
   }
 
   // Update last login
-  emp.lastLogin = new Date().toLocaleString('ar-DZ');
+  emp.lastLogin = new Date().toISOString();
   saveEmployees(list);
 
   return emp;

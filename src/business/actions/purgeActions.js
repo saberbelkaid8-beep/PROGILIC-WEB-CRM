@@ -3,6 +3,7 @@ import { R } from '../../presentation/render-core.js';
 import { simulatePurge, executePurge, getPurgeAuditLogs } from '../purgeService.js';
 import { showToast } from '../../utils/toast.js';
 import { t } from '../../utils/i18n.js';
+import { ActivityType, logActivity } from '../timelineService.js';
 
 export function openDbPurgeModal() {
   const defaultNote = S.lang === 'fr' 
@@ -102,9 +103,15 @@ export async function handleExecutePurge() {
   try {
     updateState({ purgeIsExecuting: true });
     
-    await executePurge(config, (progress) => {
+    const result = await executePurge(config, (progress) => {
       updateState({ purgeProgress: progress });
     });
+    logActivity(
+      null,
+      ActivityType.SYSTEM_PURGE,
+      'تصفية بيانات النظام',
+      `اكتملت عملية التصفية (${config.targetScope}) بملاحظة: ${config.operatorNote}. العملاء المتأثرون: ${result.summary.totalClientsAffected}، المشاكل: ${result.summary.issuesCount}، البرامج: ${result.summary.programsCount}.`
+    ).catch(console.warn);
 
     updateState({
       modal: null,

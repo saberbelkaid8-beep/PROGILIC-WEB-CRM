@@ -17,7 +17,7 @@ export function renderStaffLogin() {
             <div style="display:inline-block; font-size:11px; font-weight:800; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:20px; padding:3px 12px; margin-bottom:6px; letter-spacing:0.5px;">PROGILIC CRM • USER ACCESS PORTAL</div>
             <h1 style="font-size:24px; font-weight:800; color:#ffffff; margin:0 0 6px 0;">👥 بوابة تسجيل دخول المستخدمين</h1>
             <p style="font-size:13px; color:#94a3b8; margin:0;">
-              الحساب المسجل: <strong style="color:#38bdf8;">${esc(currentUserEmail || 'المسؤول')}</strong>
+              ${S.lang === 'fr' ? 'Compte connecté :' : S.lang === 'en' ? 'Signed-in account:' : 'الحساب المسجل:'} <strong data-user-content="true" style="color:#38bdf8;">${esc(currentUserEmail || (S.lang === 'fr' ? 'Administrateur' : S.lang === 'en' ? 'Administrator' : 'المسؤول'))}</strong>
             </p>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
@@ -32,9 +32,9 @@ export function renderStaffLogin() {
 
         <div style="background:rgba(15,23,42,0.5); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:14px 18px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:center;">
           <p style="font-size:13.5px; color:#cbd5e1; margin:0; line-height:1.6;">
-            اختر حساب المستخدم وأدخل كلمة المرور الصحيحة للمتابعة. يتحكم الرئيس (<strong>GERANT</strong>) في تحديد وتوزيع الصلاحيات على المستخدمين.
+            ${S.lang === 'fr' ? 'Sélectionnez un compte utilisateur et saisissez son mot de passe. Le gérant gère les autorisations des utilisateurs.' : S.lang === 'en' ? 'Select a user account and enter its password. The administrator manages user permissions.' : 'اختر حساب المستخدم وأدخل كلمة المرور الصحيحة للمتابعة. يتحكم المسؤول في تحديد وتوزيع الصلاحيات على المستخدمين.'}
           </p>
-          <span style="font-size:12px; color:#38bdf8; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.2); padding:4px 10px; border-radius:8px; font-weight:700;">
+          <span class="staff-count" style="font-size:12px; color:#38bdf8; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.2); padding:4px 10px; border-radius:8px; font-weight:700;">
             ${staffList.length} مستخدم مسجل
           </span>
         </div>
@@ -53,8 +53,8 @@ export function renderStaffLogin() {
                       ${isG ? '👑' : '👤'}
                     </div>
                     <div>
-                      <div style="font-weight:800; font-size:15px; color:#f8fafc;">${esc(m.name || m.fullName)}</div>
-                      <div style="font-size:12px; color:#94a3b8; font-weight:600;">${esc(m.position || 'مستخدم')}</div>
+                      <div class="staff-name" style="font-weight:800; font-size:15px; color:#f8fafc;">${esc(m.name || m.fullName)}</div>
+                      <div class="staff-position" style="font-size:12px; color:#94a3b8; font-weight:600;">${m.position ? esc(m.position) : t('مستخدم')}</div>
                     </div>
                   </div>
                   <span style="font-size:10.5px; background:${isG ? 'rgba(245,158,11,0.15)' : 'rgba(56,189,248,0.12)'}; color:${isG ? '#f59e0b' : '#38bdf8'}; border:1px solid ${isG ? 'rgba(245,158,11,0.3)' : 'rgba(56,189,248,0.2)'}; padding:2px 8px; border-radius:6px; font-weight:700;">
@@ -64,14 +64,14 @@ export function renderStaffLogin() {
 
                 <div style="font-size:11.5px; color:#94a3b8;">
                   <span><strong>اسم الحساب:</strong> <code style="direction:ltr; font-family:monospace; color:${isG ? '#f59e0b' : '#38bdf8'}; font-weight:700;">${esc(m.username || 'user')}</code></span>
-                  ${m.supervisor ? ` | <span><strong>المسؤول:</strong> ${esc(m.supervisor)}</span>` : ''}
+                  ${m.supervisor ? ` | <span><strong>المسؤول:</strong> <span class="staff-supervisor">${esc(m.supervisor)}</span></span>` : ''}
                 </div>
 
                 <div style="display:flex; gap:8px; margin-top:6px;">
                   <input 
                     type="password" 
                     id="staff-pwd-${m.id}" 
-                    placeholder="${isG ? 'أدخل كلمة مرور الرئيس (افتراضياً: admin)...' : 'كلمة المرور...'}" 
+                    placeholder="${isG ? (S.lang === 'fr' ? 'Saisissez le mot de passe du gérant...' : S.lang === 'en' ? 'Enter the administrator password...' : 'أدخل كلمة مرور المسؤول...') : (S.lang === 'fr' ? 'Mot de passe...' : S.lang === 'en' ? 'Password...' : 'كلمة المرور...')}"
                     value=""
                     autocomplete="current-password"
                     onkeydown="if(event.key==='Enter') loginStaff('${m.id}', this.value)"
@@ -316,5 +316,3 @@ window.closeStaffPortal = function() {
     window.R();
   }
 };
-
-

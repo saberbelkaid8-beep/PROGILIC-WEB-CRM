@@ -97,6 +97,7 @@ export async function downloadBackup(backupId, format = 'json') {
   const backup = S.backups.find(b => b.id === backupId);
   if (backup) {
     downloadBackupJSON(backup, format);
+    logActivity(null, ActivityType.DATA_EXPORTED, "تحميل نسخة احتياطية", `تم تحميل النسخة الاحتياطية (${backupId}) بصيغة ${format}.`).catch(console.warn);
   }
 }
 
@@ -115,10 +116,10 @@ export async function triggerDeleteBackup(backupId) {
   if (!confirmed) return;
   try {
     await deleteBackup(currentUser.uid, backupId);
+    logActivity(null, ActivityType.BACKUP_DELETED, "حذف نسخة احتياطية", `تم حذف النسخة الاحتياطية (${backupId}).`).catch(console.warn);
     showToast(t("تم حذف النسخة الاحتياطية بنجاح."), "success");
     await loadBackupsList();
   } catch (err) {
     console.error("Failed to delete backup:", err);
   }
 }
-

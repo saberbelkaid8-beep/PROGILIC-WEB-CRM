@@ -2,12 +2,15 @@
  * Offline / Local Intent Parser using regex rules and fuzzy entity matching.
  * Used as a fallback when offline or when network latency is constrained.
  */
+import { WILAYAS } from '../../constants/index.js';
 
 export function parseLocalIntent(text, activeContext = {}) {
   const clean = (text || '').trim();
   if (!clean) return null;
 
   const lower = clean.toLowerCase();
+  const language = activeContext.language || 'ar';
+  const localized = (ar, fr, en) => language === 'fr' ? fr : language === 'en' ? en : ar;
 
   // 1. Navigation intents
   if (lower.includes('لوحة') || lower.includes('الرئيسية') || lower.includes('dashboard') || lower.includes('tableau de bord') || lower.includes('home')) {
@@ -15,8 +18,8 @@ export function parseLocalIntent(text, activeContext = {}) {
       intent: 'NAVIGATE',
       confidence: 0.95,
       targetPage: 'dashboard',
-      summary: 'التنقل إلى لوحة التحكم / Navigation to Dashboard',
-      plan: ['فتح لوحة التحكم الرئيسية / Open main dashboard']
+      summary: localized('التنقل إلى لوحة التحكم', 'Ouverture du tableau de bord', 'Opening the dashboard'),
+      plan: [localized('فتح لوحة التحكم الرئيسية', 'Ouvrir le tableau de bord principal', 'Open the main dashboard')]
     };
   }
   if (lower.includes('العملاء') || lower.includes('قائمة العملاء') || lower.includes('clients') || lower.includes('liste client') || lower.includes('customer')) {
@@ -24,21 +27,21 @@ export function parseLocalIntent(text, activeContext = {}) {
       intent: 'NAVIGATE',
       confidence: 0.95,
       targetPage: 'clients',
-      summary: 'التنقل إلى قائمة العملاء / Navigation to Clients',
-      plan: ['فتح شاشة العملاء / Open clients view']
+      summary: localized('التنقل إلى قائمة العملاء', 'Ouverture de la liste des clients', 'Opening the client list'),
+      plan: [localized('فتح شاشة العملاء', 'Ouvrir la liste des clients', 'Open the clients view')]
     };
   }
 
   // 2. Search / Filter intents
   if (lower.startsWith('بحث') || lower.startsWith('ابحث') || lower.startsWith('جد') || lower.includes('فحص') ||
       lower.startsWith('search') || lower.startsWith('find') || lower.startsWith('chercher') || lower.startsWith('recherch') || lower.startsWith('trouv')) {
-    const query = clean.replace(/^(بحث|ابحث عن|ابحث|جد|عن|search|find|look for|chercher|rechercher|trouver)\s+/i, '');
+    const query = clean.replace(/^(ابحث عن|بحث عن|ابحث|بحث|جد|عن|look for|search for|search|find|rechercher|chercher|trouver)\s+/i, '');
     return {
       intent: 'SEARCH_CLIENTS',
       confidence: 0.88,
       extractedData: { query },
-      summary: `البحث عن: "${query}"`,
-      plan: [`تطبيق فلتر البحث الكلي بقيمة "${query}"`]
+      summary: localized(`البحث عن: "${query}"`, `Recherche de : "${query}"`, `Searching for: "${query}"`),
+      plan: [localized(`تطبيق فلتر البحث الكلي بقيمة "${query}"`, `Appliquer le filtre de recherche « ${query} »`, `Apply the search filter for "${query}"`)]
     };
   }
 
@@ -51,19 +54,8 @@ export function parseLocalIntent(text, activeContext = {}) {
     const phoneMatch = clean.match(/0[567]\d{8}/);
     const phone = phoneMatch ? phoneMatch[0] : '';
     
-    // Algerian Wilayas list for intelligent geo extraction
-    const ALGERIA_WILAYAS = [
-      'أدرار', 'الشلف', 'الأغواط', 'أم البواقي', 'باتنة', 'بجاية', 'بسكرة', 'بشار', 'البليدة', 'البويرة',
-      'تمنراست', 'تبسة', 'تلمسان', 'تيارت', 'تيزي وزو', 'الجزائر', 'الجلفة', 'جيجل', 'سطيف', 'سعيدة',
-      'سكيكدة', 'سيدي بلعباس', 'عنابة', 'قالمة', 'قسنطينة', 'المدية', 'مستغانم', 'المسيلة', 'معسكر',
-      'ورقلة', 'وهران', 'البيض', 'إليزي', 'برج بوعريريج', 'بومرداس', 'الطارف', 'تندوف', 'تيسمسيلت',
-      'الوادي', 'خنشلة', 'سوق أهراس', 'تيبازة', 'ميلة', 'عين الدفلى', 'النعامة', 'عين تموشنت', 'غرداية',
-      'غليزان', 'تيميمون', 'برج باجي مختار', 'أولاد جلال', 'بني عباس', 'إن صالح', 'إن قزام', 'تقرت',
-      'جانت', 'المغير', 'المنيعة'
-    ];
-
     let extractedWilaya = '';
-    for (const w of ALGERIA_WILAYAS) {
+    for (const w of WILAYAS) {
       if (clean.includes(w) || clean.includes(`من ${w}`) || clean.includes(`في ${w}`)) {
         extractedWilaya = w;
         break;
@@ -87,8 +79,15 @@ export function parseLocalIntent(text, activeContext = {}) {
         wilaya: extractedWilaya,
         status: 'نشط'
       },
-      summary: `تجهيز مسودة إضافة العميل "${fullName || 'جديد'}"${extractedWilaya ? ` من ${extractedWilaya}` : ''}. يرجى المراجعة والتأكيد.`,
-      plan: ['فتح نافذة إضافة عميل جديد', 'تعبئة الحقول المستخرجة بانتظار التأكيد']
+      summary: localized(
+        `تجهيز مسودة إضافة العميل "${fullName || 'جديد'}"${extractedWilaya ? ` من ${extractedWilaya}` : ''}. يرجى المراجعة والتأكيد.`,
+        `Préparation du brouillon pour le client « ${fullName || 'nouveau client'} »${extractedWilaya ? ` à ${extractedWilaya}` : ''}. Vérifiez les informations et confirmez.`,
+        `Preparing a draft for client "${fullName || 'new client'}"${extractedWilaya ? ` in ${extractedWilaya}` : ''}. Review and confirm.`
+      ),
+      plan: [
+        localized('فتح نافذة إضافة عميل جديد', 'Ouvrir le formulaire de création d’un client', 'Open the new client form'),
+        localized('تعبئة الحقول المستخرجة بانتظار التأكيد', 'Préremplir les champs extraits avant confirmation', 'Fill in the extracted fields for review')
+      ]
     };
   }
 
@@ -98,8 +97,12 @@ export function parseLocalIntent(text, activeContext = {}) {
       intent: 'OPEN_CLIENT_DETAILS',
       confidence: 0.90,
       extractedData: { clientId: activeContext.selectedClientId },
-      summary: `فتح ملف العميل الحالي (${activeContext.selectedClientName || ''})`,
-      plan: ['عرض التفاصيل الكاملة للعميل']
+      summary: localized(
+        `فتح ملف العميل الحالي (${activeContext.selectedClientName || ''})`,
+        `Ouverture de la fiche du client actuel (${activeContext.selectedClientName || ''})`,
+        `Opening the current client record (${activeContext.selectedClientName || ''})`
+      ),
+      plan: [localized('عرض التفاصيل الكاملة للعميل', 'Afficher tous les détails du client', 'Show all client details')]
     };
   }
 
@@ -108,7 +111,15 @@ export function parseLocalIntent(text, activeContext = {}) {
     intent: 'UNKNOWN',
     confidence: 0.40,
     extractedData: { rawText: clean },
-    summary: 'لم يتم التعرف التلقائي على الأمر أوفلاين. يرجى تجربة صيغة أوضح.',
-    clarificationNeeded: ['يرجى استخدام عبارات صريحة مثل: إضافة عميل، البحث عن، أو فتح صفحة العملاء.']
+    summary: localized(
+      'لم يتم التعرف تلقائياً على الأمر دون اتصال. يرجى تجربة صيغة أوضح.',
+      'Commande non reconnue hors ligne. Essayez une formulation plus précise.',
+      'The command was not recognized offline. Try a clearer request.'
+    ),
+    clarificationNeeded: [localized(
+      'يرجى استخدام عبارات صريحة مثل: إضافة عميل، البحث عن، أو فتح صفحة العملاء.',
+      'Utilisez une demande explicite, par exemple : ajouter un client, rechercher ou ouvrir la liste des clients.',
+      'Use a clear request, such as adding a client, searching, or opening the client list.'
+    )]
   };
 }

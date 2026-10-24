@@ -3,6 +3,7 @@ import { showToast } from '../utils/toast.js';
 import { showConfirm } from '../utils/confirm.js';
 import { t } from '../utils/i18n.js';
 import { computeScore } from './intelligence.js';
+import { ActivityType, logActivity } from './timelineService.js';
 import { R } from '../presentation/render-core.js';
 import { 
   S, 
@@ -674,6 +675,7 @@ export function exportData(format = 'json'){
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+    logActivity(null, ActivityType.DATA_EXPORTED, 'تصدير نسخة بيانات', `تم تصدير بيانات ${clients.length} عميل بصيغة ${ext.toUpperCase()}.`).catch(console.warn);
   }catch(e){showToast(t('فشل التصدير: ')+e.message, 'error');}
 }
 
@@ -775,6 +777,7 @@ export function exportToCSV(){
     a.href=url;a.download=`progilic-clients-export-${td()}.csv`;
     document.body.appendChild(a);a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+    logActivity(null, ActivityType.DATA_EXPORTED, 'تصدير بيانات العملاء', `تم تصدير تقرير CSV لعدد ${clients.length} عميل.`).catch(console.warn);
   }catch(e){showToast(t('فشل تصدير CSV: ')+e.message, 'error');}
 }
 

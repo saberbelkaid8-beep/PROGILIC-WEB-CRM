@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setClients, S, updateState } from '../../src/state/store.js';
+import { setClients, S, updateState, setCurrentUser } from '../../src/state/store.js';
 import { setAdvFil, clearAdvFil, setSortBy } from '../../src/business/actions.js';
 
 describe('Business Actions', () => {
   beforeEach(() => {
-    updateState({ fWilaya: '', sortBy: 'id', sortOrder: 'desc' });
+    setCurrentUser({ uid: 'business-actions-admin', role: 'gerant' });
+    updateState({ fWilaya: '', fCommune: '', fActivity: '', fActType: '', fProgram: '', sortBy: 'id', sortOrder: 'desc' });
     vi.clearAllMocks();
   });
 

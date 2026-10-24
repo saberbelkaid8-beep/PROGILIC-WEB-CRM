@@ -54,7 +54,7 @@ service cloud.firestore {
     function isValidClient(data) {
       return data.keys().hasAll(['id', 'fullName', 'status'])
           && data.keys().hasOnly([
-            'id', 'fullName', 'status', 'phone', 'company', 'wilaya', 'commune', 'location',
+            'id', 'fullName', 'status', 'phone', 'gmailAccount', 'company', 'wilaya', 'commune', 'location',
             'businessType', 'businessField', 'startDate', 'endDate', 'lastContact', 'notes',
             'gps', 'score', 'openIssuesCount', 'requirementsCount', 'programsCount',
             'installationsCount', 'updatedAt', '_subcollectionsLoaded'
@@ -63,6 +63,7 @@ service cloud.firestore {
           && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
           && data.status is string && data.status in ["نشط", "محتمل", "متوقف"]
           && (!data.keys().contains('phone') || data.phone is string && data.phone.size() <= 30)
+          && (!data.keys().contains('gmailAccount') || data.gmailAccount is string && data.gmailAccount.size() <= 254)
           && (!data.keys().contains('company') || data.company is string && data.company.size() <= 100)
           && (!data.keys().contains('wilaya') || data.wilaya is string && data.wilaya.size() <= 50)
           && (!data.keys().contains('commune') || data.commune is string && data.commune.size() <= 50)
@@ -84,11 +85,12 @@ service cloud.firestore {
 
     function isValidProgram(data) {
       return data.keys().hasAll(['id', 'programName', 'platform', 'type'])
-          && data.keys().hasOnly(['id', 'programName', 'platform', 'type', 'installationsCount', 'startDate', 'endDate'])
+          && data.keys().hasOnly(['id', 'programName', 'platform', 'type', 'version', 'installationsCount', 'startDate', 'endDate'])
           && data.id is number
           && data.programName is string && data.programName.size() >= 1 && data.programName.size() <= 100
           && data.platform is string && data.platform in ["Desktop", "Mobile", "Web", "Hybrid"]
           && data.type is string && data.type in ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"]
+          && (!data.keys().contains('version') || data.version is string && data.version in ["", "V21", "V23", "V24", "V26", "V27"])
           && (!data.keys().contains('installationsCount') || data.installationsCount is number)
           && (!data.keys().contains('startDate') || data.startDate is string && data.startDate.size() <= 20)
           && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20);
@@ -143,6 +145,31 @@ service cloud.firestore {
           && (!data.keys().contains('permissions') || data.permissions is map);
     }
 
+    function isValidActivity(data, userId) {
+      return data.keys().hasAll([
+            'id', 'clientId', 'clientName', 'type', 'category', 'title', 'description',
+            'timestamp', 'userName', 'userRole', 'userId', 'actorUid', 'actorEmail', 'source'
+          ])
+          && data.keys().hasOnly([
+            'id', 'clientId', 'clientName', 'type', 'category', 'title', 'description',
+            'timestamp', 'userName', 'userRole', 'userId', 'actorUid', 'actorEmail', 'source'
+          ])
+          && data.id is string && data.id.size() <= 128
+          && (data.clientId == null || data.clientId is number)
+          && data.clientName is string && data.clientName.size() <= 100
+          && data.type is string && data.type.size() <= 50
+          && data.category is string && data.category.size() <= 30
+          && data.title is string && data.title.size() <= 200
+          && data.description is string && data.description.size() <= 2000
+          && data.timestamp is string && data.timestamp.size() <= 40
+          && data.userName is string && data.userName.size() <= 100
+          && data.userRole is string && data.userRole.size() <= 100
+          && data.userId is string && data.userId.size() <= 128
+          && data.actorUid == userId
+          && data.actorEmail is string && data.actorEmail.size() <= 254
+          && data.source is string && data.source.size() <= 20;
+    }
+
     // --- COLLECTION ROUTES ---
 
     // 1. Users profile metadata & global pre-aggregated stats
@@ -167,11 +194,19 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // 5. Connectivity verification test doc (Ping endpoint)
+    // 5. Shared tenant activity audit log; only the authenticated owner can write, and records are immutable.
+    match /users/{userId}/activities/{activityId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidActivity(incoming(), userId);
+      allow update: if isOwner(userId)
+                    && isValidActivity(incoming(), userId)
+                    && incoming() == existing();
+      allow delete: if false;
+    }
+
+    // 6. Connectivity verification test doc (Ping endpoint)
     match /test/{docId} {
       allow get: if isSignedIn();
     }
   }
 }
-
-

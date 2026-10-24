@@ -1,26 +1,43 @@
 /**
  * PROGILIC CRM v3 - Global Timeline & Activity Audit View
  * Comprehensive timeline rendering of all CRM operations with user attribution,
- * multi-criteria filtering (by user, date range, category), search, and CSV/Print export.
+ * multi-criteria filtering (by user, date range, category), search, and CSV export.
  */
 
-import { S, clients, staffUsers } from '../state/store.js';
+import { S, clients, staffUsers, hasPermission } from '../state/store.js';
 import { getActivityVisuals } from '../business/timelineService.js';
-import { getFilteredTimelineList } from '../business/actions/timelineActions.js';
+import { buildTimelineReport, getFilteredTimelineList } from '../business/actions/timelineActions.js';
 import { esc } from '../utils/index.js';
 import { t } from '../utils/i18n.js';
 
 export function renderGlobalTimeline() {
+  if (!hasPermission('timeline.view')) {
+    return `<div class="empty"><div class="empty-icon">🔒</div><div class="empty-text">${t('ليس لديك صلاحية عرض المخطط الزمني')}</div></div>`;
+  }
   const allActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
   const filtered = getFilteredTimelineList();
+  const report = buildTimelineReport(filtered);
   const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
+  const cloudStatus = {
+    synced: { label: 'السجل السحابي متزامن مع أجهزة الموظفين', color: '#059669' },
+    pending: { label: 'أنشطة جديدة تنتظر المزامنة السحابية', color: '#D97706' },
+    partial: { label: 'تعذر تأكيد اكتمال السجل السحابي؛ قد يكون التقرير غير مكتمل', color: '#DC2626' },
+    'local-only': { label: 'يعرض السجل المحلي فقط لعدم وجود حساب سحابي', color: '#64748B' }
+  }[S.timelineCloudStatus] || { label: 'حالة مزامنة السجل غير معروفة', color: '#D97706' };
 
   // Calculate High-Level KPIs
   const totalCount = allActivities.length;
   const filteredCount = filtered.length;
   
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayCount = allActivities.filter(a => a.timestamp && a.timestamp.startsWith(todayStr)).length;
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayCount = allActivities.filter(a => {
+    const timestamp = new Date(a.timestamp);
+    return !Number.isNaN(timestamp.getTime())
+      && timestamp.getFullYear() === today.getFullYear()
+      && timestamp.getMonth() === today.getMonth()
+      && timestamp.getDate() === today.getDate();
+  }).length;
 
   // Top Active User
   const userCounts = {};
@@ -41,19 +58,22 @@ export function renderGlobalTimeline() {
   const solvedCount = allActivities.filter(a => a.type === 'ISSUE_RESOLVED').length;
 
   // Collect unique user names for the User Filter dropdown
-  const uniqueUsers = new Set();
+  const uniqueUsers = new Map();
+  const addUser = (id, name) => {
+    const userName = name || 'المسؤول العام';
+    uniqueUsers.set(String(id || userName), { id: String(id || userName), name: userName });
+  };
   if (S.staffUsers && S.staffUsers.length > 0) {
     S.staffUsers.forEach(s => {
       const n = s.name || s.fullName;
-      if (n) uniqueUsers.add(n);
+      if (n) addUser(s.id, n);
     });
   }
   allActivities.forEach(a => {
-    if (a.userName) uniqueUsers.add(a.userName);
+    if (a.userName) addUser(a.userId || a.actorUid, a.userName);
   });
-  // Ensure Gérant is in the list
-  uniqueUsers.add('المسؤول العام');
-  const userOptions = Array.from(uniqueUsers).sort();
+  addUser('gerant', 'المسؤول العام');
+  const userOptions = Array.from(uniqueUsers.values()).sort((a, b) => a.name.localeCompare(b.name));
 
   // Check if any filter is active
   const isAnyFilterActive = 
@@ -67,7 +87,10 @@ export function renderGlobalTimeline() {
   // Group filtered activities by Date Day
   const groupedByDate = {};
   filtered.forEach(a => {
-    const dayKey = a.timestamp ? a.timestamp.split('T')[0] : 'سابقاً';
+    const timestamp = new Date(a.timestamp);
+    const dayKey = !Number.isNaN(timestamp.getTime())
+      ? `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}`
+      : 'سابقاً';
     if (!groupedByDate[dayKey]) groupedByDate[dayKey] = [];
     groupedByDate[dayKey].push(a);
   });
@@ -89,19 +112,17 @@ export function renderGlobalTimeline() {
             </span>
           </div>
           <p style="font-size:12.5px; color:var(--t2); margin:0; line-height:1.5">
-            ${t('تتبع زمني فوري وشامل لجميع العمليات المعتمدة في النظام مع توثيق اسم المستخدم المنفذ والتاريخ والوقت بدقة.')}
+            ${t('سجل عمليات موحد لحساب المؤسسة، مع اسم الموظف المنفذ والتاريخ والوقت والتصفية والتقرير الإداري.')}
           </p>
         </div>
 
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+          <span role="status" style="font-size:11px; color:${cloudStatus.color}; font-weight:700">${t(cloudStatus.label)}</span>
           <button class="btn btn-outline btn-sm" onclick="refreshGlobalTimeline()" title="${t('تحديث السجل')}" style="font-size:11.5px; padding:6px 12px">
             🔄 ${t('تحديث')}
           </button>
           <button class="btn btn-outline btn-sm" onclick="exportGlobalTimelineCSV()" title="${t('تصدير كـ CSV')}" style="font-size:11.5px; padding:6px 12px; color:var(--brand); border-color:var(--brand)">
             📊 ${t('تصدير CSV')}
-          </button>
-          <button class="btn btn-ghost btn-sm" onclick="printGlobalTimeline()" title="${t('طباعة التقرير')}" style="font-size:11.5px; padding:6px 12px">
-            🖨️ ${t('طباعة')}
           </button>
         </div>
       </div>
@@ -166,9 +187,9 @@ export function renderGlobalTimeline() {
             </label>
             <select class="premium-select" onchange="setTimelineUserFilter(this.value)" style="width:100%; padding:7px 10px; font-size:12px; border-radius:var(--r-md); border:1px solid var(--border); background:var(--surface); color:var(--t1)">
               <option value="all" ${S.timelineUserFilter === 'all' ? 'selected' : ''}>👤 ${t('جميع المستخدمين (الكل)')}</option>
-              ${userOptions.map(u => `
-                <option value="${esc(u)}" ${S.timelineUserFilter === u ? 'selected' : ''}>
-                  👤 ${esc(u)}
+              ${userOptions.map(user => `
+                <option value="${esc(user.id)}" ${S.timelineUserFilter === user.id || S.timelineUserFilter === user.name ? 'selected' : ''}>
+                  👤 ${esc(user.name)}
                 </option>
               `).join('')}
             </select>
@@ -188,6 +209,7 @@ export function renderGlobalTimeline() {
               <option value="contacts" ${S.timelineCategoryFilter === 'contacts' ? 'selected' : ''}>📞 ${t('سجل التواصل والمكالمات')}</option>
               <option value="backup" ${S.timelineCategoryFilter === 'backup' ? 'selected' : ''}>💾 ${t('النسخ الاحتياطي والأمان')}</option>
               <option value="staff" ${S.timelineCategoryFilter === 'staff' ? 'selected' : ''}>🔑 ${t('المستخدمون والصلاحيات')}</option>
+              <option value="system" ${S.timelineCategoryFilter === 'system' ? 'selected' : ''}>⚙️ ${t('عمليات النظام')}</option>
             </select>
           </div>
 
@@ -276,6 +298,8 @@ export function renderGlobalTimeline() {
         </div>
 
       </div>
+
+      ${renderTimelineReport(report, filtered, locale)}
 
       <!-- Timeline Feed Stream -->
       ${filtered.length === 0 ? `
@@ -401,5 +425,91 @@ export function renderGlobalTimeline() {
       `}
 
     </div>
+  `;
+}
+
+function renderTimelineReport(report, activities, locale) {
+  const categoryNames = {
+    clients: 'العملاء',
+    programs: 'البرامج والتراخيص',
+    issues: 'المشاكل والدعم',
+    requirements: 'المتطلبات',
+    contacts: 'التواصل',
+    backup: 'النسخ الاحتياطي',
+    staff: 'المستخدمون والصلاحيات',
+    system: 'النظام'
+  };
+  const maxCategory = Math.max(1, ...report.categories.map(item => item.count));
+  const maxDay = Math.max(1, ...report.days.map(item => item.count));
+  const maxUser = Math.max(1, ...report.users.slice(0, 5).map(item => item.count));
+  const activeFilters = [
+    S.timelineUserFilter !== 'all' ? `المستخدم: ${S.timelineUserFilter}` : '',
+    S.timelineCategoryFilter !== 'all' ? `القسم: ${categoryNames[S.timelineCategoryFilter] || S.timelineCategoryFilter}` : '',
+    S.timelineDateFrom || S.timelineDateTo ? `الفترة: ${S.timelineDateFrom || 'البداية'} - ${S.timelineDateTo || 'اليوم'}` : S.timelineDatePreset !== 'all' ? `الفترة: ${S.timelineDatePreset}` : '',
+    S.timelineSearch ? `بحث: ${S.timelineSearch}` : ''
+  ].filter(Boolean);
+
+  return `
+    <section style="background:var(--card); border:1px solid var(--border); border-radius:var(--r-lg); padding:1.25rem; margin-bottom:1.5rem">
+      <div style="display:flex; justify-content:space-between; align-items:start; flex-wrap:wrap; gap:8px; margin-bottom:1rem">
+        <div>
+          <h2 style="font-size:17px; font-weight:800; color:var(--t1); margin:0 0 4px">📈 تقرير الإدارة عن الأنشطة</h2>
+          <div style="font-size:11.5px; color:var(--t3)">تحليل العمليات الظاهرة وفق الفلاتر الحالية، وليس تقرير طباعة.</div>
+        </div>
+        <span style="font-size:11px; color:var(--t2)">${activeFilters.length ? activeFilters.map(esc).join(' · ') : 'كل العمليات المسجلة'}</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:9px; margin-bottom:1rem">
+        ${[
+          ['إجمالي العمليات', report.total, '#2563EB'],
+          ['مستخدمون نشطون', report.users.length, '#8B5CF6'],
+          ['عملاء جدد', report.clientsCreated, '#10B981'],
+          ['حذف عملاء', report.clientsDeleted, '#EF4444'],
+          ['مشاكل مسجلة / محلولة', `${report.issuesCreated} / ${report.issuesResolved}`, '#F59E0B']
+        ].map(([label, value, color]) => `
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px">
+            <div style="font-size:10.5px; color:var(--t3); margin-bottom:4px">${label}</div>
+            <strong style="font-size:19px; color:${color}">${value}</strong>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px">
+        <div style="background:var(--surface); border-radius:10px; padding:12px">
+          <h3 style="font-size:12px; font-weight:800; color:var(--t1); margin:0 0 9px">توزيع العمليات حسب القسم</h3>
+          ${report.categories.length ? report.categories.map(item => `
+            <div style="margin:7px 0">
+              <div style="display:flex; justify-content:space-between; font-size:10.5px; color:var(--t2); margin-bottom:3px"><span>${categoryNames[item.category] || esc(item.category)}</span><strong>${item.count}</strong></div>
+              <div style="height:6px; background:var(--border); border-radius:99px; overflow:hidden"><div style="height:100%; width:${Math.round(item.count / maxCategory * 100)}%; background:var(--brand); border-radius:99px"></div></div>
+            </div>
+          `).join('') : '<div style="font-size:11px;color:var(--t3)">لا توجد عمليات ضمن الفلاتر الحالية.</div>'}
+        </div>
+        <div style="background:var(--surface); border-radius:10px; padding:12px">
+          <h3 style="font-size:12px; font-weight:800; color:var(--t1); margin:0 0 9px">أكثر المستخدمين نشاطاً</h3>
+          ${report.users.length ? report.users.slice(0, 5).map((user, index) => `
+            <div style="display:flex; align-items:center; gap:8px; margin:8px 0; font-size:11px">
+              <span style="width:20px; color:var(--t3)">${index + 1}.</span><span style="flex:1;color:var(--t1)">${esc(user.name)}</span><strong>${user.count}</strong>
+              <span style="width:48px; height:5px; background:var(--border); border-radius:99px; overflow:hidden"><span style="display:block;height:100%;width:${Math.round(user.count / maxUser * 100)}%;background:#8B5CF6"></span></span>
+            </div>
+          `).join('') : '<div style="font-size:11px;color:var(--t3)">لا يوجد مستخدمون ضمن النتائج.</div>'}
+        </div>
+        <div style="background:var(--surface); border-radius:10px; padding:12px">
+          <h3 style="font-size:12px; font-weight:800; color:var(--t1); margin:0 0 9px">حركة العمليات حسب اليوم</h3>
+          ${report.days.length ? report.days.map(day => `
+            <div style="display:flex; align-items:center; gap:8px; margin:8px 0; font-size:10.5px">
+              <time style="width:82px; color:var(--t2)" dir="ltr">${new Date(`${day.date}T12:00:00`).toLocaleDateString(locale,{day:'numeric',month:'short'})}</time>
+              <span style="flex:1; height:6px; background:var(--border); border-radius:99px; overflow:hidden"><span style="display:block;height:100%;width:${Math.round(day.count / maxDay * 100)}%;background:#10B981"></span></span><strong>${day.count}</strong>
+            </div>
+          `).join('') : '<div style="font-size:11px;color:var(--t3)">لا توجد تواريخ صالحة لعرض الحركة اليومية.</div>'}
+        </div>
+        <div style="background:var(--surface); border-radius:10px; padding:12px">
+          <h3 style="font-size:12px; font-weight:800; color:var(--t1); margin:0 0 9px">أكثر أنواع الإجراءات تكراراً</h3>
+          ${report.actions.length ? report.actions.map(action => `
+            <div style="display:flex; justify-content:space-between; gap:8px; margin:8px 0; font-size:10.5px; color:var(--t2)"><span>${esc(t(action.label))}</span><strong>${action.count}</strong></div>
+          `).join('') : '<div style="font-size:11px;color:var(--t3)">لا توجد إجراءات ضمن النتائج.</div>'}
+        </div>
+      </div>
+      <div style="font-size:10.5px; color:var(--t3); margin-top:10px">التقرير يعرض ${activities.length} عملية مطابقة؛ استخدم تصدير CSV لتنزيل تفاصيل هذه العمليات.</div>
+    </section>
   `;
 }

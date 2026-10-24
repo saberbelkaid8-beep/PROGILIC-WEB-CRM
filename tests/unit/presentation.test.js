@@ -1,10 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderList, renderDetail, renderDashboard } from '../../src/presentation/render-views.js';
-import { S, setClients, updateState } from '../../src/state/store.js';
+import { S, setClients, setCurrentStaffUser, setCurrentUser, updateState } from '../../src/state/store.js';
 
 describe('Presentation Layer - Views', () => {
   beforeEach(() => {
+    setCurrentUser({ uid: 'presentation-test-owner', role: 'gerant' });
+    setCurrentStaffUser(null);
     updateState({ isLoading: false, filter: 'الكل', q: '' });
+  });
+
+  afterEach(() => {
+    setCurrentStaffUser(null);
+    setCurrentUser(null);
+    setClients([]);
   });
 
   it('should render loading skeleton when isLoading is true', () => {

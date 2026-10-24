@@ -1,5 +1,5 @@
 import { S, clients } from '../state/store.js';
-import { BUSINESS_TYPES, PLATFORMS, PROGRAM_TYPES, ISSUE_TYPES, PRIORITY_LEVELS, ISSUE_STATUSES, ISSUE_SOURCES, REQ_STATUSES, IMPACT_LEVELS, WILAYAS } from '../constants/index.js';
+import { BUSINESS_TYPES, PLATFORMS, PROGRAM_TYPES, PROGRAM_VERSIONS, ISSUE_TYPES, PRIORITY_LEVELS, ISSUE_STATUSES, ISSUE_SOURCES, REQ_STATUSES, IMPACT_LEVELS, WILAYAS } from '../constants/index.js';
 import { gc, selOpts, td, wOpts, actTypeOpts, esc } from '../utils/index.js';
 import { getPurgeAuditLogs } from '../business/purgeService.js';
 
@@ -60,6 +60,7 @@ function renderClientModal(){
       <div class="fgroup"><label class="flbl">${t('الهاتف')}</label><input class="fctl" id="f_ph" dir="ltr" value="${esc(c.phone)}"></div>
       <div class="fgroup"><label class="flbl">${t('الولاية')}</label><select class="fctl" id="f_wi" onchange="updateCommunesOpts()"><option value="">${t('اختر الولاية')}</option>${wOpts(c.wilaya)}</select></div>
     </div>
+    <div class="fgroup"><label class="flbl">${t('حساب Gmail')}</label><input type="email" class="fctl" id="f_gmail" dir="ltr" autocomplete="email" value="${esc(c.gmailAccount)}" placeholder="name@gmail.com"></div>
     <div class="frow">
       <div class="fgroup"><label class="flbl">${t('البلدية')}</label><select class="fctl" id="f_cm"><option value="">${t('اختر البلدية')}</option>${cOpts(c.wilaya, c.commune)}</select></div>
       <div class="fgroup"><label class="flbl">${t('العنوان')} / ${t('المنطقة / الحي')}</label><input class="fctl" id="f_lo" value="${esc(c.location)}"></div>
@@ -92,6 +93,10 @@ function renderClientModal(){
         <div class="fgroup">
           <label class="flbl">${t('نوع البرنامج')}</label>
           <select class="fctl" id="f_p_ty">${selOpts(PROGRAM_TYPES, 'تجاري')}</select>
+        </div>
+        <div class="fgroup">
+          <label class="flbl">${t('إصدار البرنامج')}</label>
+          <select class="fctl" id="f_p_ver"><option value="">${t('اختر الإصدار')}</option>${selOpts(PROGRAM_VERSIONS, '')}</select>
         </div>
         <div class="fgroup">
           <label class="flbl">${t('عدد الأجهزة')}</label>
@@ -129,6 +134,10 @@ function renderProgramModal(){
       <div class="fgroup">
         <label class="flbl">${t('النوع')}</label>
         <select class="fctl" id="fp_ty">${selOpts(PROGRAM_TYPES,p.type||'تجاري')}</select>
+      </div>
+      <div class="fgroup">
+        <label class="flbl">${t('إصدار البرنامج')}</label>
+        <select class="fctl" id="fp_ver"><option value="">${t('اختر الإصدار')}</option>${selOpts(PROGRAM_VERSIONS,p.version||'')}</select>
       </div>
     </div>
     <div class="fgroup">
@@ -235,7 +244,7 @@ function renderBackupManagerModal() {
   const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
   return `
     <div class="mhdr">
-      <div class="mtitle" style="display:flex;align-items:center;gap:8px">💾 ${t('إدارة النسخ الاحتياطية')} <span style="font-size:11px;font-weight:normal;background:var(--border);padding:2px 8px;border-radius:99px;color:var(--t2)">rolling 30 snapshots</span></div>
+      <div class="mtitle" style="display:flex;align-items:center;gap:8px">💾 ${t('إدارة النسخ الاحتياطية')} <span style="font-size:11px;font-weight:normal;background:var(--border);padding:2px 8px;border-radius:99px;color:var(--t2)">${S.lang === 'fr' ? '30 sauvegardes conservées' : S.lang === 'en' ? '30 retained backups' : '30 نسخة محفوظة'}</span></div>
       <button class="mclose" onclick="closeModal()">×</button>
     </div>
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:1rem;font-size:12px;color:var(--t2);line-height:1.6">
@@ -332,7 +341,7 @@ function renderConflictModal() {
     <div class="mftr" style="justify-content: flex-start; gap: 8px;">
       <button class="btn" style="background:#10b981; color:white; flex:1;" onclick="resolveConflict('local')">الاحتفاظ بتعديلاتي</button>
       <button class="btn" style="background:#3b82f6; color:white; flex:1;" onclick="resolveConflict('server')">اعتماد بيانات الخادم</button>
-      <button class="btn btn-text" onclick="resolveConflict('merge')" style="flex:1; border:1px solid #cbd5e1;">دمج (Keep Both)</button>
+      <button class="btn btn-text" onclick="resolveConflict('merge')" style="flex:1; border:1px solid #cbd5e1;">${S.lang === 'fr' ? 'Fusionner les deux' : S.lang === 'en' ? 'Keep both' : 'دمج الخيارين'}</button>
     </div>
   `;
 }
@@ -354,10 +363,10 @@ function renderDbPurgeModal() {
   const totalIssues = clients.reduce((acc, c) => acc + (c.issues || []).length, 0);
 
   const titleText = S.lang === 'fr' 
-    ? 'Console de Purge & Nettoyage de Base de Données'
-    : (S.lang === 'en' 
-      ? 'Database Purge & Maintenance Console' 
-      : 'لوحة تصفية ومحو قاعدة البيانات — Copilot Enterprise DB Console');
+    ? 'Console de purge et de maintenance de la base de données'
+    : (S.lang === 'en'
+      ? 'Database purge and maintenance console'
+      : 'لوحة تصفية ومحو قاعدة البيانات');
 
   const subTitleText = S.lang === 'fr'
     ? 'Gestion des opérations de purge, archivage et nettoyage sécurisé des données'
@@ -380,7 +389,7 @@ function renderDbPurgeModal() {
     <!-- Live Telemetry Banner -->
     <div style="background:#161b22;border-bottom:1px solid #30363d;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:#c9d1d9">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="background:rgba(56,139,253,0.15);color:#58a6ff;padding:3px 8px;border-radius:6px;border:1px solid rgba(56,139,253,0.3);font-weight:600">☁️ Firestore Connected</span>
+        <span style="background:rgba(56,139,253,0.15);color:#58a6ff;padding:3px 8px;border-radius:6px;border:1px solid rgba(56,139,253,0.3);font-weight:600">☁️ ${S.lang === 'fr' ? 'Firestore connecté' : S.lang === 'en' ? 'Firestore connected' : 'متصل بقاعدة فايرستور'}</span>
         <span>👥 ${t('العملاء')}: <strong style="color:#f0f6fc">${totalClients}</strong></span>
         <span>📦 ${t('البرامج')}: <strong style="color:#f0f6fc">${totalProgs}</strong></span>
         <span>🐛 ${t('التذاكر والمشاكل')}: <strong style="color:#f0f6fc">${totalIssues}</strong></span>
@@ -390,9 +399,9 @@ function renderDbPurgeModal() {
 
     <!-- Purge Mode Tabs -->
     <div style="display:flex;background:#0d1117;border-bottom:1px solid #30363d;padding:0 20px;gap:4px">
-      <button class="btn" style="border:none;border-bottom:2px solid ${tab==='filtered'?'#58a6ff':'transparent'};background:transparent;color:${tab==='filtered'?'#58a6ff':'#8b949e'};font-weight:600;font-size:12px;padding:10px 14px;border-radius:0" onclick="setPurgeTab('filtered')">🎯 ${S.lang==='fr'?'Filtre Intelligent (Smart Filter)':S.lang==='en'?'Smart Filter':'تصفية بشرط (Smart Filter)'}</button>
-      <button class="btn" style="border:none;border-bottom:2px solid ${tab==='selective'?'#58a6ff':'transparent'};background:transparent;color:${tab==='selective'?'#58a6ff':'#8b949e'};font-weight:600;font-size:12px;padding:10px 14px;border-radius:0" onclick="setPurgeTab('selective')">🔥 ${S.lang==='fr'?'Portée Sélective (Selective Scope)':S.lang==='en'?'Selective Scope':'محو مخصص (Selective Scope)'}</button>
-      <button class="btn" style="border:none;border-bottom:2px solid ${tab==='all'?'#f85149':'transparent'};background:transparent;color:${tab==='all'?'#f85149':'#8b949e'};font-weight:600;font-size:12px;padding:10px 14px;border-radius:0" onclick="setPurgeTab('all')">⚠️ ${S.lang==='fr'?'Réinitialisation Totale (Zero Wipe)':S.lang==='en'?'Zero Wipe Reset':'إعادة ضبط كاملة (Zero Wipe)'}</button>
+      <button class="btn" style="border:none;border-bottom:2px solid ${tab==='filtered'?'#58a6ff':'transparent'};background:transparent;color:${tab==='filtered'?'#58a6ff':'#8b949e'};font-weight:600;font-size:12px;padding:10px 14px;border-radius:0" onclick="setPurgeTab('filtered')">🎯 ${S.lang==='fr'?'Filtre intelligent':S.lang==='en'?'Smart filter':'تصفية بشرط'}</button>
+      <button class="btn" style="border:none;border-bottom:2px solid ${tab==='selective'?'#58a6ff':'transparent'};background:transparent;color:${tab==='selective'?'#58a6ff':'#8b949e'};font-weight:600;font-size:12px;padding:10px 14px;border-radius:0" onclick="setPurgeTab('selective')">🔥 ${S.lang==='fr'?'Portée sélective':S.lang==='en'?'Selective scope':'محو مخصص'}</button>
+      <button class="btn" style="border:none;border-bottom:2px solid ${tab==='all'?'#f85149':'transparent'};background:transparent;color:${tab==='all'?'#f85149':'#8b949e'};font-weight:600;font-size:12px;padding:10px 14px;border-radius:0" onclick="setPurgeTab('all')">⚠️ ${S.lang==='fr'?'Réinitialisation totale':S.lang==='en'?'Complete reset':'إعادة ضبط كاملة'}</button>
       <button class="btn" style="border:none;border-bottom:2px solid ${tab==='audit'?'#a371f7':'transparent'};background:transparent;color:${tab==='audit'?'#a371f7':'#8b949e'};font-weight:600;font-size:12px;padding:10px 14px;border-radius:0;margin-right:auto" onclick="setPurgeTab('audit')">📜 ${S.lang==='fr'?'Journaux d\'audit':S.lang==='en'?'Audit Logs':'سجلات التدقيق'} (${auditLogs.length})</button>
     </div>
 
@@ -468,7 +477,7 @@ function renderDbPurgeModal() {
 
         ${tab === 'all' ? `
           <div style="background:rgba(239, 68, 68, 0.08);border:1px solid rgba(239, 68, 68, 0.3);border-radius:var(--r-md);padding:14px;margin-bottom:14px;color:#ef4444">
-            <div style="font-weight:800;font-size:14px;margin-bottom:6px">⚠️ ${S.lang==='fr'?'Avertissement à haut risque : Effacement total de la base (Zero Wipe)':S.lang==='en'?'High Risk Warning: Total Database Wipe (Zero Wipe)':'تحذير عالي الخطورة: محو وتصفير شامل لكل قاعدة البيانات (Zero Wipe)'}</div>
+            <div style="font-weight:800;font-size:14px;margin-bottom:6px">⚠️ ${S.lang==='fr'?'Avertissement de risque élevé : suppression totale de la base de données':S.lang==='en'?'High-risk warning: complete database wipe':'تحذير عالي الخطورة: محو كامل لقاعدة البيانات'}</div>
             <div style="font-size:12px;line-height:1.6;color:var(--t1)">
               ${S.lang==='fr'
                 ?'Tous les clients, logiciels, tickets et demandes seront définitivement supprimés de <strong>Firestore Cloud</strong>, et les compteurs remis à zéro. Cette action est irréversible !'
@@ -536,7 +545,7 @@ function renderDbPurgeModal() {
 
           <!-- Type-to-Confirm Guard -->
           <div style="background:#161b22;border:1px solid #30363d;border-radius:var(--r-sm);padding:12px;color:#f0f6fc">
-            <div style="font-size:12px;font-weight:700;color:#f85149;margin-bottom:6px">🔐 ${S.lang==='fr'?'Confirmation par code (Type to Confirm) :':S.lang==='en'?'Type to Confirm:':'تأكيد العملية رمزياً (Type to Confirm):'}</div>
+            <div style="font-size:12px;font-weight:700;color:#f85149;margin-bottom:6px">🔐 ${S.lang==='fr'?'Confirmation par saisie du code :':S.lang==='en'?'Enter the confirmation code:':'تأكيد العملية بكتابة الرمز:'}</div>
             <div style="font-size:11px;color:#8b949e;margin-bottom:8px">
               ${S.lang==='fr'?'Veuillez taper le code suivant':S.lang==='en'?'Please type the following code':'يرجى كتابة الرمز التالي'} <strong style="color:#58a6ff;background:#21262d;padding:2px 6px;border-radius:4px" dir="ltr">${requiredCode}</strong> ${S.lang==='fr'?'pour déverrouiller l\'exécution :':S.lang==='en'?'to enable execution:':'لتفعيل زر التنفيذ:'}
             </div>
@@ -591,7 +600,7 @@ function renderAuditTabContent(auditLogs) {
   return `
     <div style="display:flex;flex-direction:column;gap:10px">
       <div style="font-size:12px;color:var(--t2);margin-bottom:4px">
-        ${S.lang==='fr'?'Journal d\'audit des opérations de purge (Enterprise Security Audit Trail) :':S.lang==='en'?'Purge & Wipe Audit Trail (Enterprise Security Audit Trail):':'سجل العمليات التاريخية للمحو والتصفية (Enterprise Security Audit Trail):'}
+        ${S.lang==='fr'?'Journal d’audit des opérations de purge :':S.lang==='en'?'Purge and deletion audit log:':'سجل تدقيق عمليات التصفية والمحو:'}
       </div>
 
       ${auditLogs.map(log => {
@@ -682,4 +691,3 @@ function renderStaffMemberModal(){
     </div>
   `;
 }
-

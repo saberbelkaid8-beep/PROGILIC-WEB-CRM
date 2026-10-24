@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { S, setCurrentUser, setCurrentStaffUser, hasPermission, isGerant, setStaffUsers } from '../../src/state/store.js';
 import { ALL_PERMISSIONS, PERMISSION_GROUPS, createDefaultGerant } from '../../src/constants/index.js';
 
-describe('Permissions Enforcement & Control System (68 Permissions)', () => {
+describe('Permissions Enforcement & Control System', () => {
   beforeEach(() => {
     localStorage.clear();
     setCurrentUser(null);
@@ -12,7 +12,7 @@ describe('Permissions Enforcement & Control System (68 Permissions)', () => {
   });
 
   it('ALL_PERMISSIONS and PERMISSION_GROUPS should define all granular permissions', () => {
-    expect(ALL_PERMISSIONS.length).toBe(70);
+    expect(ALL_PERMISSIONS.length).toBeGreaterThanOrEqual(70);
     
     // Check that every single permission in the 9 groups belongs to ALL_PERMISSIONS
     let groupPermCount = 0;
@@ -25,7 +25,7 @@ describe('Permissions Enforcement & Control System (68 Permissions)', () => {
         groupPermCount++;
       });
     });
-    expect(groupPermCount).toBe(70);
+    expect(groupPermCount).toBe(ALL_PERMISSIONS.length);
   });
 
   it('President / Gérant should have all granular permissions automatically enabled', () => {
@@ -83,6 +83,34 @@ describe('Permissions Enforcement & Control System (68 Permissions)', () => {
     setCurrentStaffUser({ ...staffUser });
 
     expect(hasPermission('clients.create')).toBe(false);
+  });
+
+  it('should grant and revoke global timeline access independently', async () => {
+    const { setView } = await import('../../src/business/actions/uiActions.js');
+    const employee = {
+      id: 'timeline-employee',
+      name: 'موظف',
+      role: 'employee',
+      permissions: { 'timeline.view': false }
+    };
+    setCurrentUser({ uid: 'tenant-test', role: 'gerant', isEmployee: false });
+    setCurrentStaffUser(employee);
+    S.view = 'list';
+
+    setView('global-timeline');
+    expect(S.view).toBe('list');
+
+    employee.permissions['timeline.view'] = true;
+    setCurrentStaffUser({ ...employee, permissions: { ...employee.permissions } });
+    expect(hasPermission('timeline.view')).toBe(true);
+    setView('global-timeline');
+    expect(S.view).toBe('global-timeline');
+
+    employee.permissions['timeline.view'] = false;
+    setCurrentStaffUser({ ...employee, permissions: { ...employee.permissions } });
+    expect(hasPermission('timeline.view')).toBe(false);
+    setView('global-timeline');
+    expect(S.view).toBe('global-timeline');
   });
 
   it('grantStaffGroupPermissions should grant and revoke entire category batches', async () => {

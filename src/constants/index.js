@@ -1,13 +1,8 @@
+import locationData from '../data/algeria-locations.json';
+
 export const SCHEMA_VERSION = 3;
 
-export const WILAYAS = [
-  "أدرار", "الشلف", "الأغواط", "أم البواقي", "باتنة", "بجاية", "بسكرة", "بشار", "البليدة", "البويرة",
-  "تمنراست", "تبسة", "تلمسان", "تيارت", "تيزي وزو", "الجزائر", "الجلفة", "جيجل", "سطيف", "سعيدة",
-  "سكيكدة", "سيدي بلعباس", "عنابة", "قالمة", "قسنطينة", "المدية", "مستغانم", "المسيلة", "معسكر", "ورقلة",
-  "وهران", "البيض", "إليزي", "برج بوعريريج", "بومرداس", "الطارف", "تندوف", "تيسمسيلت", "الوادي", "خنشلة",
-  "سوق أهراس", "تيبازة", "ميلة", "عين الدفلى", "النعامة", "عين تموشنت", "غرداية", "غليزان", "تيميمون", "برج باجي مختار",
-  "أولاد جلال", "بني عباس", "إن صالح", "إن قزام", "تقرت", "جانت", "المغير", "المنيعة"
-];
+export const WILAYAS = locationData.map(wilaya => wilaya.name_ar);
 
 export const BUSINESS_TYPES = [
   "تجارة جملة", "تجارة تجزئة", "شركة خدمات", "صناعة / تصنيع", "مطاعم وفنادق", "صحة وصيدلة", "تعليم وتكوين", "بناء وعقارات", "نقل ولوجستيك", "زراعة وأغذية", "تقنية ومعلوماتية", "مالية وتأمين", "أخرى"
@@ -31,6 +26,7 @@ export const ACTIVITY_TYPES = {
 
 export const PLATFORMS = ["Desktop", "Mobile", "Web", "Hybrid"];
 export const PROGRAM_TYPES = ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"];
+export const PROGRAM_VERSIONS = ["V21", "V23", "V24", "V26", "V27"];
 
 export const PRIORITY_LEVELS = ["عاجل", "عالية", "متوسطة", "منخفضة"];
 export const ISSUE_STATUSES = ["مفتوح", "قيد المعالجة", "محلول", "مغلق"];
@@ -60,7 +56,8 @@ export const ALL_PERMISSIONS = [
   'departments.view', 'departments.create', 'departments.edit', 'departments.delete',
   'permissions.view', 'permissions.assign', 'permissions.revoke',
   'settings.view', 'settings.edit',
-  'account.view', 'account.change_password', 'account.manage_sessions'
+  'account.view', 'account.change_password', 'account.manage_sessions',
+  'timeline.view'
 ];
 
 export const PERMISSION_GROUPS = [
@@ -78,6 +75,14 @@ export const PERMISSION_GROUPS = [
       { key: 'clients.manage_status', label: 'إدارة وتغيير حالة العميل', desc: 'تغيير حالة العميل بين نشط، محتمل، ومتوقف' },
       { key: 'clients.view_timeline', label: 'عرض الخط الزمني للأنشطة', desc: 'استعراض تاريخ الأنشطة والتفاعلات اليومية' },
       { key: 'clients.view_contact_history', label: 'عرض سجل التواصل والمكالمات', desc: 'الاطلاع على المكالمات والزيارات المسجلة' }
+    ]
+  },
+  {
+    id: 'timeline',
+    title: 'المخطط الزمني وتقارير الأنشطة',
+    icon: '⏱️',
+    permissions: [
+      { key: 'timeline.view', label: 'عرض المخطط الزمني وتقريره', desc: 'عرض سجل العمليات وتصفية الأنشطة وإعداد تقرير الإدارة' }
     ]
   },
   {
@@ -318,5 +323,3 @@ export function createDefaultGerant(tenantId = 'default', gerantName = 'المد
 export const DEFAULT_STAFF_USERS = [
   createDefaultGerant('default')
 ];
-
-

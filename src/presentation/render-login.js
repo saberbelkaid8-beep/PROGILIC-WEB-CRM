@@ -969,7 +969,7 @@ export function renderLogin() {
       <div class="prog-lang-picker">
         <button type="button" class="prog-lang-btn ${curLang === 'fr' ? 'active' : ''}" onclick="setLanguage('fr')">FR</button>
         <button type="button" class="prog-lang-btn ${curLang === 'en' ? 'active' : ''}" onclick="setLanguage('en')">EN</button>
-        <button type="button" class="prog-lang-btn ${curLang === 'ar' ? 'active' : ''}" onclick="setLanguage('ar')">عربي</button>
+        <button type="button" class="prog-lang-btn ${curLang === 'ar' ? 'active' : ''}" onclick="setLanguage('ar')">AR</button>
       </div>
 
       <button type="button" class="prog-theme-btn" onclick="toggleDark()" title="${t('الوضع الليلي')}">

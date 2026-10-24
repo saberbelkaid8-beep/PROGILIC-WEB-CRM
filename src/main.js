@@ -3,24 +3,30 @@
 function showErrorScreen(error, type = "خطأ غير متوقع") {
   const app = document.getElementById('app');
   if (app) {
-    const errorDetails = error ? (error.stack || error.message || String(error)) : "تفاصيل غير متوفرة";
+    const isFrench = S.lang === 'fr';
+    const isEnglish = S.lang === 'en';
+    const direction = S.lang === 'ar' ? 'rtl' : 'ltr';
+    const errorDetails = error ? (error.stack || error.message || String(error)) : (isFrench ? 'Aucun détail disponible' : isEnglish ? 'No details available' : 'تفاصيل غير متوفرة');
+    const safeErrorDetails = String(errorDetails).replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
     app.innerHTML = `
-      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; font-family:system-ui, -apple-system, sans-serif; background:#f8fafc; color:#1e293b; direction:rtl; text-align:center;">
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; font-family:system-ui, -apple-system, sans-serif; background:#f8fafc; color:#1e293b; direction:${direction}; text-align:center;">
         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:32px; max-width:500px; width:100%; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);">
           <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
-          <h2 style="font-size:20px; font-weight:700; margin-bottom:8px; color:#0f172a;">عذراً، حدث خطأ أثناء تشغيل النظام</h2>
+          <h2 style="font-size:20px; font-weight:700; margin-bottom:8px; color:#0f172a;">${isFrench ? 'Une erreur est survenue au démarrage du système' : isEnglish ? 'An error occurred while starting the application' : 'عذراً، حدث خطأ أثناء تشغيل النظام'}</h2>
           <p style="font-size:14px; color:#64748b; margin-bottom:20px; line-height:1.6;">
-            قد يكون ذلك بسبب قيود الخصوصية في هذا المتصفح، أو حظر الملفات المؤقتة في وضع المتصفح الخفي، أو مشكلة مؤقتة في المزامنة. يرجى محاولة تحديث الصفحة أو مسح الذاكرة المؤقتة.
+            ${isFrench ? 'Cela peut être dû aux paramètres de confidentialité du navigateur, au blocage du stockage en mode privé ou à un problème temporaire de synchronisation. Actualisez la page ou videz le cache.' : isEnglish ? 'This may be caused by browser privacy settings, blocked storage in private browsing, or a temporary synchronization issue. Refresh the page or clear the cache.' : 'قد يكون ذلك بسبب قيود الخصوصية في هذا المتصفح، أو حظر الملفات المؤقتة في وضع المتصفح الخفي، أو مشكلة مؤقتة في المزامنة. يرجى محاولة تحديث الصفحة أو مسح الذاكرة المؤقتة.'}
           </p>
           <div style="background:#f1f5f9; border-radius:8px; padding:12px; margin-bottom:24px; font-family:monospace; font-size:11px; color:#475569; text-align:left; overflow-x:auto; white-space:pre-wrap; max-height:120px; border:1px solid #cbd5e1;">
-            <strong>[${type}]</strong>: ${errorDetails}
+            <strong>[${isFrench ? 'Erreur' : isEnglish ? 'Error' : type}]</strong>: ${safeErrorDetails}
           </div>
           <div style="display:flex; gap:12px; justify-content:center;">
             <button onclick="window.location.reload()" style="background:#1a73e8; color:#ffffff; border:none; padding:10px 20px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:background 0.2s;">
-              تحديث الصفحة
+              ${isFrench ? 'Actualiser la page' : isEnglish ? 'Refresh page' : 'تحديث الصفحة'}
             </button>
             <button onclick="try { localStorage.clear(); sessionStorage.clear(); window.location.reload(); } catch(e) { window.location.reload(); }" style="background:transparent; color:#64748b; border:1px solid #cbd5e1; padding:10px 20px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:background 0.2s;">
-              مسح الذاكرة وتحديث
+              ${isFrench ? 'Vider le cache et actualiser' : isEnglish ? 'Clear cache and reload' : 'مسح الذاكرة وتحديث'}
             </button>
           </div>
         </div>
@@ -58,7 +64,7 @@ import * as actions from './business/actions.js';
 import { R } from './presentation/render-core.js';
 import { updateActTypeOpts, updateCommunesOpts, onClientStatusChange } from './utils/index.js';
 import { exportData, exportToDump, exportToCSV, importData, importFromDump, triggerImportDumOrJson, clearAllData, resolveConflict } from './business/storage.js';
-import { toggleLanguage, setLanguage } from './utils/i18n.js';
+import { toggleLanguage, setLanguage, applyLanguageToDocument } from './utils/i18n.js';
 import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
 import { createDefaultGerant } from './constants/index.js';
 
@@ -94,8 +100,7 @@ window.resolveConflict = resolveConflict;
   // Boot application
   function boot() {
     const curLang = S.lang || 'ar';
-    document.documentElement.dir = curLang === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = curLang;
+    applyLanguageToDocument(curLang);
     actions.initDark();
 
     let isLoggedOut = false;

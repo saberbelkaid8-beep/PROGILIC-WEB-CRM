@@ -5,7 +5,124 @@
  */
 
 import { addActivity, getActivities } from './idbStorage.js';
-import { currentUser, currentStaffUser, clients, S } from '../state/store.js';
+import { currentUser, currentStaffUser, clients, S, hasPermission } from '../state/store.js';
+import { getTenantActivities, saveTenantActivity } from '../firebase/service.js';
+
+const pendingActivitiesKey = uid => `progilic_crm_pending_activities_${uid}`;
+const activityMigrationKey = uid => `progilic_crm_activity_migration_${uid}`;
+let activitySyncPromise = null;
+
+function readPendingActivities(uid) {
+  try {
+    const pending = JSON.parse(localStorage.getItem(pendingActivitiesKey(uid)) || '[]');
+    return Array.isArray(pending) ? pending : [];
+  } catch (error) {
+    console.warn('[Timeline] Failed to read pending cloud activities:', error);
+    return [];
+  }
+}
+
+function writePendingActivities(uid, pending) {
+  try {
+    localStorage.setItem(pendingActivitiesKey(uid), JSON.stringify(pending));
+    return true;
+  } catch (error) {
+    console.error('[Timeline] Failed to persist pending cloud activities:', error);
+    return false;
+  }
+}
+
+function mergeActivities(...lists) {
+  const merged = new Map();
+  lists.flat().filter(Boolean).forEach(activity => {
+    const key = String(activity.id || `${activity.timestamp}-${activity.type}-${activity.clientId || ''}`);
+    merged.set(key, activity);
+  });
+  return [...merged.values()].sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+}
+
+async function migrateLocalActivities(uid) {
+  try {
+    if (localStorage.getItem(activityMigrationKey(uid)) === 'complete') return;
+    const localActivities = await getActivities(uid, null);
+    let cachedActivities = [];
+    try {
+      cachedActivities = JSON.parse(localStorage.getItem(`progilic_crm_activities_${uid}`) || '[]');
+    } catch (error) {
+      console.warn('[Timeline] Failed to read cached history during migration:', error);
+    }
+
+    const cursorValue = localStorage.getItem(activityMigrationKey(uid));
+    const cursor = cursorValue ? JSON.parse(cursorValue) : null;
+    const pendingIds = new Set(readPendingActivities(uid).map(activity => String(activity.id)));
+    const legacyActivities = mergeActivities(localActivities || [], cachedActivities || [])
+      .filter(activity => activity.id && activity.actorUid === uid && activity.source !== 'baseline')
+      .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || ''))
+        || String(a.id).localeCompare(String(b.id)))
+      .filter(activity => !cursor
+        || String(activity.timestamp || '') > cursor.timestamp
+        || (String(activity.timestamp || '') === cursor.timestamp && String(activity.id) > cursor.id));
+
+    while (legacyActivities.length) {
+      const batch = legacyActivities.splice(0, 100);
+      const pending = readPendingActivities(uid);
+      const queued = new Set(pending.map(activity => String(activity.id)));
+      batch.forEach(activity => {
+        if (!queued.has(String(activity.id)) && !pendingIds.has(String(activity.id))) pending.push(activity);
+      });
+      if (!writePendingActivities(uid, pending) || !(await syncPendingActivities(uid))) {
+        S.timelineCloudStatus = 'pending';
+        return;
+      }
+
+      const lastActivity = batch[batch.length - 1];
+      localStorage.setItem(activityMigrationKey(uid), JSON.stringify({
+        timestamp: String(lastActivity.timestamp || ''),
+        id: String(lastActivity.id)
+      }));
+    }
+    localStorage.setItem(activityMigrationKey(uid), 'complete');
+  } catch (error) {
+    S.timelineCloudStatus = 'partial';
+    console.error('[Timeline] Failed to migrate local history to the shared audit log:', error);
+  }
+}
+
+export async function syncPendingActivities(uid = currentUser?.uid) {
+  if (!uid || !currentUser || uid !== currentUser.uid) return false;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    S.timelineCloudStatus = 'pending';
+    return false;
+  }
+  if (activitySyncPromise) return activitySyncPromise;
+
+  activitySyncPromise = (async () => {
+    const pending = readPendingActivities(uid);
+    let remaining = pending;
+    for (const activity of pending) {
+      if (!currentUser || uid !== currentUser.uid) break;
+      try {
+        const savedId = await saveTenantActivity(uid, activity);
+        if (savedId) remaining = remaining.filter(item => String(item.id) !== String(activity.id));
+      } catch (error) {
+        console.error('[Timeline] Failed to sync activity to the tenant audit log:', error);
+      }
+      writePendingActivities(uid, remaining);
+    }
+    S.timelineCloudStatus = remaining.length ? 'pending' : 'synced';
+    return remaining.length === 0;
+  })().finally(() => {
+    activitySyncPromise = null;
+  });
+
+  return activitySyncPromise;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    syncPendingActivities().catch(error => console.error('[Timeline] Online sync failed:', error));
+  });
+}
 
 export const ActivityType = {
   // Clients
@@ -37,6 +154,7 @@ export const ActivityType = {
   // Backups & Data
   BACKUP_CREATED: 'BACKUP_CREATED',
   BACKUP_RESTORED: 'BACKUP_RESTORED',
+  BACKUP_DELETED: 'BACKUP_DELETED',
   DATA_IMPORTED: 'DATA_IMPORTED',
   DATA_EXPORTED: 'DATA_EXPORTED',
 
@@ -96,10 +214,12 @@ export function getActivityVisuals(type) {
       return { icon: '💾', label: 'إنشاء نسخة احتياطية', category: 'backup', colorClass: 'bg-violet-500/10 text-violet-500 border-violet-500/20' };
     case ActivityType.BACKUP_RESTORED:
       return { icon: '🔄', label: 'استرجاع نسخة احتياطية', category: 'backup', colorClass: 'bg-orange-500/10 text-orange-500 border-orange-500/20' };
+    case ActivityType.BACKUP_DELETED:
+      return { icon: '🗑️', label: 'حذف نسخة احتياطية', category: 'backup', colorClass: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
     case ActivityType.DATA_IMPORTED:
       return { icon: '📥', label: 'استيراد بيانات', category: 'backup', colorClass: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
     case ActivityType.DATA_EXPORTED:
-      return { icon: '📊', label: 'تصدير بيانات CSV', category: 'backup', colorClass: 'bg-blue-500/10 text-blue-500 border-blue-500/20' };
+      return { icon: '📊', label: 'تصدير بيانات أو تقرير', category: 'backup', colorClass: 'bg-blue-500/10 text-blue-500 border-blue-500/20' };
 
     case ActivityType.STAFF_ADDED:
       return { icon: '👥', label: 'إضافة مستخدم جديد', category: 'staff', colorClass: 'bg-teal-500/10 text-teal-500 border-teal-500/20' };
@@ -117,7 +237,7 @@ export function getActivityVisuals(type) {
 }
 
 /**
- * Logs an activity event to IndexedDB, memory, and localStorage.
+ * Logs an activity locally and syncs it to the shared tenant audit log.
  * Automatically attributes the operation to the active staff user name.
  * 
  * @param {number|string|null} clientId Client ID if related
@@ -158,7 +278,7 @@ export async function logActivity(clientId, type, title, description, source = '
   const category = visuals.category || 'system';
 
   const activity = {
-    id: Date.now() + Math.floor(Math.random() * 1000),
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     clientId: clientId ? Number(clientId) : null,
     clientName,
     type,
@@ -190,15 +310,42 @@ export async function logActivity(clientId, type, title, description, source = '
     console.warn("Notice: LocalStorage activity cache failed:", e);
   }
 
-  // 3. Persist to IndexedDB
+  // 3. Persist locally and queue the shared tenant copy before attempting network sync.
+  let savedId = activity.id;
   try {
-    const savedId = await addActivity(uid, activity);
-    console.log(`[Timeline] Logged event #${savedId} [${type}] by ${userName}`);
-    return savedId;
+    savedId = await addActivity(uid, activity);
   } catch (err) {
     console.error("[Timeline] Failed to log activity to IDB:", err);
-    return activity.id;
   }
+
+  if (currentUser?.uid) {
+    const pending = readPendingActivities(currentUser.uid);
+    if (!pending.some(item => String(item.id) === String(activity.id))) {
+      pending.push(activity);
+    }
+    if (writePendingActivities(currentUser.uid, pending)) {
+      S.timelineCloudStatus = 'pending';
+      await syncPendingActivities(currentUser.uid);
+    } else {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        S.timelineCloudStatus = 'partial';
+        console.error('[Timeline] Could not queue activity for cloud sync because local storage is unavailable while offline.');
+        return activity.id;
+      }
+      try {
+        const saved = await saveTenantActivity(currentUser.uid, activity);
+        S.timelineCloudStatus = saved ? 'synced' : 'partial';
+      } catch (error) {
+        S.timelineCloudStatus = 'partial';
+        console.error('[Timeline] Failed to save activity to the shared audit log:', error);
+      }
+    }
+  } else {
+    S.timelineCloudStatus = 'local-only';
+  }
+
+  console.log(`[Timeline] Logged event #${savedId} [${type}] by ${userName}`);
+  return savedId;
 }
 
 /**
@@ -208,6 +355,7 @@ export async function logActivity(clientId, type, title, description, source = '
  * @returns {Promise<Array>} Sorted activities (newest first)
  */
 export async function getTimeline(clientId) {
+  if (!hasPermission('clients.view_timeline')) return [];
   if (!currentUser) {
     // Check in-memory state if offline
     if (Array.isArray(S.globalActivities)) {
@@ -218,13 +366,14 @@ export async function getTimeline(clientId) {
     return [];
   }
   try {
-    const list = await getActivities(currentUser.uid, clientId);
-    if ((!list || list.length === 0) && Array.isArray(S.globalActivities)) {
-      return S.globalActivities
-        .filter(a => Number(a.clientId) === Number(clientId))
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-    }
-    return list;
+    const [localList, cloudList] = await Promise.all([
+      getActivities(currentUser.uid, clientId),
+      getTenantActivities(currentUser.uid, clientId)
+    ]);
+    const stateList = Array.isArray(S.globalActivities)
+      ? S.globalActivities.filter(activity => Number(activity.clientId) === Number(clientId))
+      : [];
+    return mergeActivities(localList || [], cloudList || [], stateList);
   } catch (err) {
     console.error(`[Timeline] Failed to get activities for client ${clientId}:`, err);
     return [];
@@ -233,10 +382,15 @@ export async function getTimeline(clientId) {
 
 /**
  * Loads all CRM-wide activities for the Global Timeline view.
- * Merges IndexedDB with localStorage cache, or generates baseline history if initial run.
+ * Merges Firestore, IndexedDB, and the localStorage cache for an authorized user.
  */
 export async function loadGlobalActivities() {
   const uid = currentUser?.uid || 'offline-tenant';
+  if (currentUser) await migrateLocalActivities(uid);
+  if (!hasPermission('timeline.view')) {
+    S.globalActivities = [];
+    return [];
+  }
   try {
     const cacheKey = `progilic_crm_activities_${uid}`;
     let cached = [];
@@ -246,131 +400,28 @@ export async function loadGlobalActivities() {
     } catch (e) {}
 
     let dbActivities = [];
+    let cloudActivities = [];
     if (currentUser) {
-      dbActivities = await getActivities(currentUser.uid, null);
+      [dbActivities, cloudActivities] = await Promise.all([
+        getActivities(currentUser.uid, null),
+        getTenantActivities(currentUser.uid)
+      ]);
+      S.timelineCloudStatus = Array.isArray(cloudActivities) ? 'synced' : 'partial';
     }
 
-    // Merge cached + db activities deduplicating
-    const map = new Map();
-    (cached || []).forEach(a => {
-      const key = a.id || (a.timestamp + '-' + a.type + '-' + (a.clientId || '0'));
-      map.set(key, a);
-    });
-    (dbActivities || []).forEach(a => {
-      const key = a.id || (a.timestamp + '-' + a.type + '-' + (a.clientId || '0'));
-      map.set(key, a);
-    });
+    let merged = mergeActivities(cached || [], dbActivities || [], cloudActivities || []);
 
-    let merged = Array.from(map.values());
-
-    // If completely empty and clients exist, synthesize realistic baseline activities from client records
-    if (merged.length === 0 && Array.isArray(clients) && clients.length > 0) {
-      merged = generateBaselineActivities(clients, S.staffUsers || []);
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(merged));
-      } catch (e) {}
-    }
-
-    merged.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     S.globalActivities = merged;
+    if (currentUser && readPendingActivities(currentUser.uid).length) {
+      S.timelineCloudStatus = 'pending';
+      syncPendingActivities(currentUser.uid).catch(error => console.error('[Timeline] Pending activity sync failed:', error));
+    } else if (!currentUser) {
+      S.timelineCloudStatus = 'local-only';
+    }
     return merged;
   } catch (err) {
     console.error("Failed to load global activities:", err);
+    S.timelineCloudStatus = currentUser ? 'partial' : 'local-only';
     return S.globalActivities || [];
   }
-}
-
-/**
- * Generates an initial baseline history from existing client datasets so the
- * timeline exhibits authentic history right after startup.
- */
-function generateBaselineActivities(clientsList, staffList) {
-  const activities = [];
-  const staffNames = (staffList || []).map(s => ({
-    name: s.name || s.fullName,
-    role: s.department || s.position || 'فريق العمل',
-    id: s.id
-  }));
-  if (staffNames.length === 0) {
-    staffNames.push({ name: 'المسؤول العام', role: 'الإدارة العامة (Gérant)', id: 'gerant' });
-  }
-
-  clientsList.forEach((c, cIdx) => {
-    const assignedUser = staffNames[cIdx % staffNames.length];
-    const clientDate = c.startDate || new Date(Date.now() - (cIdx + 1) * 86400000 * 3).toISOString();
-
-    // 1. Client Creation Event
-    activities.push({
-      id: 10000 + c.id * 10 + 1,
-      clientId: c.id,
-      clientName: c.fullName,
-      type: ActivityType.CLIENT_CREATED,
-      category: 'clients',
-      title: 'تسجيل وإنشاء حساب العميل',
-      description: `تم إدراج العميل "${c.fullName}" بنجاح في قاعدة البيانات (${c.wilaya} - ${c.businessType || 'نشاط تجاري'}).`,
-      timestamp: clientDate.includes('T') ? clientDate : `${clientDate}T09:30:00.000Z`,
-      userName: assignedUser.name,
-      userRole: assignedUser.role,
-      userId: assignedUser.id,
-      source: 'baseline'
-    });
-
-    // 2. Program Additions
-    (c.programs || []).forEach((p, pIdx) => {
-      activities.push({
-        id: 10000 + c.id * 10 + 2 + pIdx,
-        clientId: c.id,
-        clientName: c.fullName,
-        type: ActivityType.PROGRAM_ADDED,
-        category: 'programs',
-        title: 'اعتماد وتثبيت ترخيص البرنامج',
-        description: `تم ترخيص وتثبيت برنامج "${p.programName}" على ${p.installationsCount || 1} أجهزة للعميل.`,
-        timestamp: p.startDate ? (p.startDate.includes('T') ? p.startDate : `${p.startDate}T11:15:00.000Z`) : clientDate,
-        userName: assignedUser.name,
-        userRole: assignedUser.role,
-        userId: assignedUser.id,
-        source: 'baseline'
-      });
-    });
-
-    // 3. Issue Reports & Resolutions
-    (c.issues || []).forEach((iss, iIdx) => {
-      activities.push({
-        id: 10000 + c.id * 10 + 5 + iIdx,
-        clientId: c.id,
-        clientName: c.fullName,
-        type: iss.status === 'محلول' ? ActivityType.ISSUE_RESOLVED : ActivityType.ISSUE_ADDED,
-        category: 'issues',
-        title: iss.status === 'محلول' ? 'معالجة وإغلاق مشكلة تقنية' : 'تسجيل تذكرة دعم فني',
-        description: iss.status === 'محلول' 
-          ? `تم حل التذكرة "${iss.title}" بنجاح. الحل: ${iss.solution || 'تم تقديم الدعم الفني وتحديث الإعدادات.'}`
-          : `تم فتح تذكرة جديدة بعنوان "${iss.title}" بأولوية ${iss.priority || 'متوسطة'}.`,
-        timestamp: iss.date ? (iss.date.includes('T') ? iss.date : `${iss.date}T14:20:00.000Z`) : clientDate,
-        userName: assignedUser.name,
-        userRole: assignedUser.role,
-        userId: assignedUser.id,
-        source: 'baseline'
-      });
-    });
-
-    // 4. Contact Logs
-    (c.contactHistory || []).forEach((cnt, cntIdx) => {
-      activities.push({
-        id: 10000 + c.id * 10 + 8 + cntIdx,
-        clientId: c.id,
-        clientName: c.fullName,
-        type: ActivityType.CONTACT_ADDED,
-        category: 'contacts',
-        title: 'تسجيل تواصل ومتابعة هاتفية',
-        description: `تم التواصل مع العميل: "${cnt.note || 'متابعة دورية ومراجعة جودة الخدمة'}"`,
-        timestamp: cnt.date ? (cnt.date.includes('T') ? cnt.date : `${cnt.date}T16:00:00.000Z`) : clientDate,
-        userName: assignedUser.name,
-        userRole: assignedUser.role,
-        userId: assignedUser.id,
-        source: 'baseline'
-      });
-    });
-  });
-
-  return activities;
 }

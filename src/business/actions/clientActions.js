@@ -108,6 +108,7 @@ export async function saveProgram(editId) {
     programName: nm,
     platform: gv('fp_pl') || 'Desktop',
     type: gv('fp_ty') || 'تجاري',
+    version: gv('fp_ver') || '',
     installationsCount: Math.max(1, gn('fp_ic', 1)),
     startDate: gv('fp_sd') || '',
     endDate: gv('fp_ed') || ''
@@ -182,6 +183,7 @@ export async function saveClient(editId) {
   const d = {
     fullName: fn,
     phone: gv('f_ph'),
+    gmailAccount: gv('f_gmail'),
     company: gv('f_co'),
     wilaya: gv('f_wi'),
     commune: gv('f_cm'),
@@ -240,8 +242,21 @@ export async function saveClient(editId) {
         oldStatus: oldC.status,
         stats
       });
-      // Log timeline activity
-      logActivity(clientEditId, ActivityType.CLIENT_EDITED, "تعديل بيانات العميل", "تم تعديل تفاصيل الملف الشخصي للعميل بنجاح.")
+      const fieldLabels = {
+        fullName: 'الاسم واللقب', phone: 'الهاتف', gmailAccount: 'Gmail', company: 'الشركة',
+        wilaya: 'الولاية', commune: 'البلدية', location: 'العنوان', businessType: 'النشاط',
+        businessField: 'التخصص', status: 'الحالة', startDate: 'تاريخ البداية', endDate: 'تاريخ النهاية',
+        lastContact: 'آخر تواصل', notes: 'ملاحظات'
+      };
+      const changedFields = Object.keys(fieldLabels).filter(key => oldC[key] !== d[key]);
+      logActivity(
+        clientEditId,
+        ActivityType.CLIENT_EDITED,
+        "تعديل بيانات العميل",
+        changedFields.length
+          ? `تم تعديل الحقول: ${changedFields.map(key => fieldLabels[key]).join('، ')}.`
+          : 'تم حفظ ملف العميل دون تغيير بيانات.'
+      )
         .catch(err => console.error(err));
       showToast(t('تم تحديث بيانات العميل'));
     }
@@ -269,6 +284,7 @@ export async function saveClient(editId) {
         programName: pName,
         platform: gv('f_p_pl') || 'Desktop',
         type: gv('f_p_ty') || 'تجاري',
+        version: gv('f_p_ver') || '',
         installationsCount: Math.max(1, gn('f_p_ic', 1)),
         startDate: startDateVal || td(),
         endDate: gv('f_ed') || ''
@@ -392,4 +408,3 @@ export async function captureGPS() {
     err => { showToast(t('تعذر تحديد الموقع: ') + err.message + '\n' + t('تأكد من منح الإذن للمتصفح'), 'error'); }
   );
 }
-

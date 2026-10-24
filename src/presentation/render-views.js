@@ -5,19 +5,18 @@ import { computeScore, computeGlobalStats, generateAutoNote, computeRiskProfile,
 import { getActivityVisuals } from '../business/timelineService.js';
 import { performSearch } from '../business/searchIndex.js';
 import { t } from '../utils/i18n.js';
-import { getWilayasList } from '../utils/algeria.js';
 import { hasPermission, isGerant } from '../state/store.js';
 export function renderList(){
   if (!hasPermission('clients.view')) {
     return `
       <div style="background:var(--card); border:1px solid var(--border); border-radius:16px; padding:3rem 2rem; text-align:center; max-width:600px; margin:2rem auto; direction:rtl">
         <div style="font-size:48px; margin-bottom:1rem">🔒</div>
-        <h2 style="font-size:18px; font-weight:800; color:var(--t1); margin-bottom:8px">عذراً، ليس لديك صلاحية عرض قائمة العملاء</h2>
+        <h2 style="font-size:18px; font-weight:800; color:var(--t1); margin-bottom:8px">${t('عذراً، ليس لديك صلاحية عرض قائمة العملاء')}</h2>
         <p style="font-size:13px; color:var(--t2); line-height:1.6; margin-bottom:1.5rem">
-          صلاحية <code>clients.view</code> غير مفعلة لحسابك حالياً. يمكنك التواصل مع المسؤول العام (Gérant) لتفعيل الصلاحية من لوحة التحكم.
+          ${S.lang === 'fr' ? 'La permission' : S.lang === 'en' ? 'The' : 'صلاحية'} <code>clients.view</code> ${S.lang === 'fr' ? 'n’est pas activée pour votre compte. Contactez l’administrateur pour l’activer depuis le panneau de configuration.' : S.lang === 'en' ? 'permission is not enabled for your account. Contact the administrator to enable it in the control panel.' : 'غير مفعلة لحسابك حالياً. يمكنك التواصل مع المسؤول لتفعيلها من لوحة التحكم.'}
         </p>
         <button class="btn btn-primary btn-sm" onclick="logoutStaff()">
-          👥 تبديل حساب المستخدم
+          👥 ${S.lang === 'fr' ? 'Changer de compte utilisateur' : S.lang === 'en' ? 'Switch user account' : 'تبديل حساب المستخدم'}
         </button>
       </div>
     `;
@@ -85,7 +84,7 @@ export function renderList(){
     ${S.q?`<div class="search-result-bar">
       🔍 <strong>${fil.length}</strong> ${t('نتيجة لـ')} "<em>${esc(S.q)}</em>"
       <div style="margin-right:auto;display:flex;gap:4px;flex-wrap:wrap">
-        ${['الاسم','الشركة','الولاية','النشاط','التخصص','الهاتف'].map(f=>`<span class="sf-tag">${t(f)}</span>`).join('')}
+        ${[...new Set(fil.flatMap(client => searchMatch(client,S.q).fields))].map(f=>`<span class="sf-tag">${t(f)}</span>`).join('')}
       </div>
       <button class="search-clear" onclick="onQ('')">✕ ${t('مسح')}</button>
     </div>`:''}
@@ -259,6 +258,7 @@ function renderOverview(c){
       <div class="iitem"><div class="ilbl">${t('الاسم الكامل')}</div><div class="ival">${esc(c.fullName)}</div></div>
       <div class="iitem"><div class="ilbl">${t('الشركة / المؤسسة')}</div><div class="ival ${c.company?'':'muted'}">${esc(c.company)||"—"}</div></div>
       <div class="iitem"><div class="ilbl">${t('الهاتف')}</div><div class="ival" dir="ltr" style="text-align:${S.lang === 'ar' ? 'right' : 'left'}">${hasPermission('clients.view_sensitive') ? (esc(c.phone)||"—") : (c.phone ? '0550•• •••• 🔒' : '—')}</div></div>
+      <div class="iitem"><div class="ilbl">${t('حساب Gmail')}</div><div class="ival" dir="ltr" style="text-align:${S.lang === 'ar' ? 'right' : 'left'}">${esc(c.gmailAccount)||"—"}</div></div>
       <div class="iitem"><div class="ilbl">${t('الولاية')}</div><div class="ival">${esc(c.wilaya)||"—"}</div></div>
       <div class="iitem"><div class="ilbl">${t('المنطقة / الحي')}</div><div class="ival ${c.location?'':'muted'}">${esc(c.location)||"—"}</div></div>
       <div class="iitem"><div class="ilbl">${t('الحالة')}</div><div class="ival">${sBdg(c.status)}</div></div>
@@ -266,7 +266,7 @@ function renderOverview(c){
       <div class="iitem"><div class="ilbl">${t('تخصص النشاط')}</div><div class="ival ${c.businessField?'':'muted'}">${t(c.businessField)||"—"}</div></div>
       ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return`
       <div class="iitem"><div class="ilbl">${t('إجمالي البرامج')}</div><div class="ival">${ps.total} ${ps.total>0?`<span style="font-size:11px;color:var(--t3)">· ${ps.totalInstalls} ${t('جهاز')}</span>`:''}</div></div>
-      <div class="iitem"><div class="ilbl">${t('البرنامج')}</div><div class="ival ${pp.length?'':'muted'}">${pp.length?esc(pp[0].programName):'—'}</div></div>`})()}
+      <div class="iitem"><div class="ilbl">${t('البرنامج')}</div><div class="ival ${pp.length?'':'muted'}">${pp.length?`${esc(pp[0].programName)}${pp[0].version?` · ${esc(pp[0].version)}`:''}`:'—'}</div></div>`})()}
       <div class="iitem"><div class="ilbl">${t('تاريخ البداية')}</div><div class="ival">${fmtD(c.startDate)}</div></div>
       <div class="iitem"><div class="ilbl">${t('نوع الترخيص')}</div><div class="ival" style="color:var(--brand);font-weight:600">مدى الحياة (Licence à vie)</div></div>
       <div class="iitem"><div class="ilbl">${t('آخر تواصل')}</div><div class="ival"><span class="last-contact-clickable" onclick="setTab('contacts')" title="${t('عرض التفاصيل')}">${fmtD(c.lastContact)||'—'} 📋</span></div></div>
@@ -387,7 +387,7 @@ function renderPrograms(c){
       :progs.map(p=>`
         <div class="prog-card ${progStatusCls(p)}">
           <div class="prog-top">
-            <div class="prog-name">${platformIcon(p.platform)} ${esc(p.programName)}</div>
+            <div class="prog-name">${platformIcon(p.platform)} ${esc(p.programName)}${p.version?` · ${esc(p.version)}`:''}</div>
             ${progStatusLabel(p)}
           </div>
           <div class="prog-meta">
@@ -431,6 +431,7 @@ function renderReport(c){
 
   const scColor  = sc.total>=75?'var(--g)':sc.total>=50?'var(--w)':sc.total>=25?'var(--brand)':'var(--r)';
   const riskColor= rp.level==='high'?'var(--r)':rp.level==='medium'?'var(--w)':'var(--g)';
+  const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
   const riskLbl  = rp.level==='high'?'خطر عالٍ':rp.level==='medium'?'تحت المراقبة':'وضع مستقر';
   const riskBdgCls= rp.level==='high'?'bdg-r':rp.level==='medium'?'bdg-y':'bdg-g';
 
@@ -486,7 +487,7 @@ function renderReport(c){
         <span class="rh-mi">📍 ${esc(c.wilaya)||"—"}</span>
         <span class="rh-mi" dir="ltr">📞 ${esc(c.phone)||"—"}</span>
         <span class="rh-mi">${activityIcon(c.businessType)} ${esc(c.businessType)||"—"}</span>
-        <span class="rh-mi">📅 تاريخ التقرير: ${new Date().toLocaleDateString('ar-DZ',{day:'numeric',month:'long',year:'numeric'})}</span>
+        <span class="rh-mi">📅 ${t('تاريخ التقرير:')} ${new Date().toLocaleDateString(locale,{day:'numeric',month:'long',year:'numeric'})}</span>
       </div>
     </div>
 
@@ -782,31 +783,33 @@ export function renderGlobalIntelligence(){
 }
 
 function renderAdvFilterPanel(){
+  if (!hasPermission('filters.advanced')) return '';
   const cnt=countAdvFil();
-  const wilayas=getWilayasList().map(w => w.name_ar); 
   const activities=BUSINESS_TYPES;
   const actTypes=S.fActivity
     ?getActTypes(S.fActivity)
     :[...new Set(clients.map(c=>c.businessField).filter(Boolean))].sort();
-  const programs=[...new Set(clients.flatMap(c=>(c.programs||[]).map(p=>p.programName)).filter(Boolean))].sort();
-  const opt=(arr,cur)=>`<option value="">${t('الكل')}</option>`+arr.map(v=>`<option value="${v}"${cur===v?' selected':''}>${t(v)}</option>`).join('');
+  const programs=[...new Set(clients.flatMap(c=>[...(Array.isArray(c.programNames)?c.programNames:[]),...(Array.isArray(c.programs)?c.programs.map(p=>p?.programName):[])]).filter(Boolean))].sort();
+  const opt=(arr,cur)=>`<option value="">${t('الكل')}</option>`+arr.map(v=>`<option value="${esc(v)}"${cur===v?' selected':''}>${esc(t(v))}</option>`).join('');
   const totalFiltered=applyFilters(clients).length;
   
   const optW = () => `<option value="">${t('الكل')}</option>` + wOpts(S.fWilaya);
 
   return`
   <div class="adv-fil-panel${S.showAdvFil?'':' hidden'}">
-    <div class="adf-group">
-      <div class="adf-lbl">${t('الولاية')}</div>
-      <select class="adf-sel${S.fWilaya?' has-val':''}" onchange="setAdvFil('fWilaya',this.value)">${optW()}</select>
-    </div>
-    <div class="adf-group">
-      <div class="adf-lbl">${t('البلدية')}</div>
-      <select class="adf-sel${S.fCommune?' has-val':''}" onchange="setAdvFil('fCommune',this.value)">
-        <option value="">${t('الكل')}</option>
-        ${cOpts(S.fWilaya, S.fCommune)}
-      </select>
-    </div>
+    ${hasPermission('filters.by_wilaya') ? `
+      <div class="adf-group">
+        <div class="adf-lbl">${t('الولاية')}</div>
+        <select class="adf-sel${S.fWilaya?' has-val':''}" onchange="setAdvFil('fWilaya',this.value)">${optW()}</select>
+      </div>
+      <div class="adf-group">
+        <div class="adf-lbl">${t('البلدية')}</div>
+        <select class="adf-sel${S.fCommune?' has-val':''}" onchange="setAdvFil('fCommune',this.value)">
+          <option value="">${t('الكل')}</option>
+          ${cOpts(S.fWilaya, S.fCommune)}
+        </select>
+      </div>
+    ` : ''}
     <div class="adf-group">
       <div class="adf-lbl">${t('النشاط الرئيسي')}</div>
       <select class="adf-sel${S.fActivity?' has-val':''}" onchange="setAdvFil('fActivity',this.value)">
@@ -817,10 +820,10 @@ function renderAdvFilterPanel(){
       <div class="adf-lbl">${t('تخصص النشاط')}${S.fActivity?` (${t(S.fActivity)})`:''}</div>
       <select class="adf-sel${S.fActType?' has-val':''}" onchange="setAdvFil('fActType',this.value)">${opt(actTypes,S.fActType)}</select>
     </div>
-    <div class="adf-group">
+    ${hasPermission('filters.by_program') ? `<div class="adf-group">
       <div class="adf-lbl">${t('البرنامج')}</div>
       <select class="adf-sel${S.fProgram?' has-val':''}" onchange="setAdvFil('fProgram',this.value)">${opt(programs,S.fProgram)}</select>
-    </div>
+    </div>` : ''}
     <div class="adv-fil-footer">
       <span class="adv-fil-summary">${cnt>0?`<strong>${totalFiltered}</strong> ${t('نتيجة لـ')} (${cnt} filters)`:`${t('جميع العملاء')} (${clients.length})`}</span>
       ${cnt>0?`<button class="btn btn-ghost btn-xs" onclick="clearAdvFil()">✕ ${t('مسح الفلاتر')}</button>`:''}
@@ -990,12 +993,12 @@ export function renderDashboard() {
     return `
       <div style="background:var(--card); border:1px solid var(--border); border-radius:16px; padding:3rem 2rem; text-align:center; max-width:600px; margin:2rem auto; direction:rtl">
         <div style="font-size:48px; margin-bottom:1rem">🔒</div>
-        <h2 style="font-size:18px; font-weight:800; color:var(--t1); margin-bottom:8px">عذراً، ليس لديك صلاحية عرض لوحة المعلومات الإحصائية</h2>
+        <h2 style="font-size:18px; font-weight:800; color:var(--t1); margin-bottom:8px">${t('عذراً، ليس لديك صلاحية عرض لوحة المعلومات الإحصائية')}</h2>
         <p style="font-size:13px; color:var(--t2); line-height:1.6; margin-bottom:1.5rem">
-          صلاحية <code>dashboard.view</code> غير مفعلة لحسابك. يمكنك طلب تفعيلها من المسؤول العام (Gérant) أو الانتقال إلى قسم آخر مصرح لك به.
+          ${S.lang === 'fr' ? 'La permission' : S.lang === 'en' ? 'The' : 'صلاحية'} <code>dashboard.view</code> ${S.lang === 'fr' ? 'n’est pas activée pour votre compte. Demandez son activation à l’administrateur ou consultez une autre rubrique autorisée.' : S.lang === 'en' ? 'permission is not enabled for your account. Ask the administrator to enable it or open another section you can access.' : 'غير مفعلة لحسابك. يمكنك طلب تفعيلها من المسؤول أو الانتقال إلى قسم آخر مصرح لك به.'}
         </p>
         <button class="btn btn-primary btn-sm" onclick="logoutStaff()">
-          👥 تبديل حساب المستخدم
+          👥 ${S.lang === 'fr' ? 'Changer de compte utilisateur' : S.lang === 'en' ? 'Switch user account' : 'تبديل حساب المستخدم'}
         </button>
       </div>
     `;
@@ -1003,10 +1006,22 @@ export function renderDashboard() {
   try {
     // 0. Ensure safe clients array
     const safeClients = Array.isArray(clients) ? clients.filter(c => c && typeof c === 'object') : [];
+    const clientPrograms = client => (Array.isArray(client.programs) ? client.programs : []).filter(program => program?.programName);
+    const clientProgramNames = client => [...new Set([
+      ...(Array.isArray(client.programNames) ? client.programNames : []),
+      ...clientPrograms(client).map(program => program.programName)
+    ].filter(Boolean))];
+    const clientInstallations = client => {
+      const programs = clientPrograms(client);
+      return programs.length
+        ? programs.reduce((total, program) => total + (Number(program.installationsCount) || 1), 0)
+        : Number(client.installationsCount) || 0;
+    };
+    const hasLegacyProgram = client => clientProgramNames(client).some(name => /v15|v16/i.test(name));
 
     // 1. Dynamic list of Wilayas and Licensed Programs
     const uniqueWilayas = [...new Set(safeClients.map(c => c.wilaya).filter(Boolean))].sort();
-    const uniquePrograms = [...new Set(safeClients.flatMap(c => (Array.isArray(c.programs) ? c.programs : []).map(p => p && p.programName).filter(Boolean)))].sort();
+    const uniquePrograms = [...new Set(safeClients.flatMap(clientProgramNames))].sort();
 
     // Helper score categorization
     function getScoreStyle(score) {
@@ -1039,14 +1054,11 @@ export function renderDashboard() {
       // Licensed Program filter
       if (S.dbFilterProg && S.dbFilterProg !== 'all') {
         if (S.dbFilterProg === 'v15_v16') {
-          const hasOld = (Array.isArray(c.programs) ? c.programs : []).some(p => p && (p.programName.includes('v15') || p.programName.includes('v16')));
-          if (!hasOld) return false;
+          if (!hasLegacyProgram(c)) return false;
         } else if (S.dbFilterProg === 'multi_device') {
-          const totalInst = (Array.isArray(c.programs) ? c.programs : []).reduce((sum, p) => sum + (Number(p?.installationsCount) || 1), 0);
-          if (totalInst < 2) return false;
+          if (clientInstallations(c) < 2) return false;
         } else {
-          const hasProg = (Array.isArray(c.programs) ? c.programs : []).some(p => p && p.programName === S.dbFilterProg);
-          if (!hasProg) return false;
+          if (!clientProgramNames(c).includes(S.dbFilterProg)) return false;
         }
       }
       // Health Tier filter
@@ -1071,14 +1083,14 @@ export function renderDashboard() {
         valA = (computeScore(a) || {}).total ?? 0;
         valB = (computeScore(b) || {}).total ?? 0;
       } else if (S.dbSortKey === 'programs') {
-        valA = (Array.isArray(a.programs) ? a.programs : []).length;
-        valB = (Array.isArray(b.programs) ? b.programs : []).length;
+        valA = Number(a.programsCount) || clientProgramNames(a).length;
+        valB = Number(b.programsCount) || clientProgramNames(b).length;
       } else if (S.dbSortKey === 'issues') {
         valA = (Array.isArray(a.issues) ? a.issues : []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
         valB = (Array.isArray(b.issues) ? b.issues : []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
       } else if (S.dbSortKey === 'installs') {
-        valA = (Array.isArray(a.programs) ? a.programs : []).reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0);
-        valB = (Array.isArray(b.programs) ? b.programs : []).reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0);
+        valA = clientInstallations(a);
+        valB = clientInstallations(b);
       } else if (S.dbSortKey === 'wilaya') {
         valA = (a.wilaya || '').toLowerCase();
         valB = (b.wilaya || '').toLowerCase();
@@ -1096,8 +1108,7 @@ export function renderDashboard() {
     const totalFilteredCount = filteredClients.length;
     const avgFilteredScore = totalFilteredCount ? Math.round(filteredClients.reduce((sum, c) => sum + ((computeScore(c) || {}).total ?? 0), 0) / totalFilteredCount) : 0;
     const totalFilteredInstalls = filteredClients.reduce((sum, c) => {
-      const progs = Array.isArray(c?.programs) ? c.programs : [];
-      return sum + progs.reduce((pSum, p) => pSum + (Number(p?.installationsCount) || 1), 0);
+      return sum + clientInstallations(c);
     }, 0);
     const totalFilteredIssues = filteredClients.reduce((sum, c) => {
       const issues = Array.isArray(c?.issues) ? c.issues : [];
@@ -1126,22 +1137,28 @@ export function renderDashboard() {
     const programInstalls = {};
     filteredClients.forEach(c => {
       if (!c) return;
-      (Array.isArray(c.programs) ? c.programs : []).forEach(p => {
-        if (p && p.programName) {
-          programCounts[p.programName] = (programCounts[p.programName] || 0) + 1;
-          programInstalls[p.programName] = (programInstalls[p.programName] || 0) + (Number(p.installationsCount) || 1);
-        }
-      });
+      const programs = clientPrograms(c);
+      if (programs.length) {
+        programs.forEach(program => {
+          programCounts[program.programName] = (programCounts[program.programName] || 0) + 1;
+          programInstalls[program.programName] = (programInstalls[program.programName] || 0) + (Number(program.installationsCount) || 1);
+        });
+      } else {
+        clientProgramNames(c).forEach(name => {
+          programCounts[name] = (programCounts[name] || 0) + 1;
+          programInstalls[name] = (programInstalls[name] || 0) + 1;
+        });
+      }
     });
     const sortedPrograms = Object.entries(programCounts)
       .map(([name, count]) => ({ name, count: count || 0, installs: programInstalls[name] || 0 }))
       .sort((a, b) => (b.count || 0) - (a.count || 0));
 
     // Old versions eligible for upgrade
-    const eligibleForUpgrade = filteredClients.filter(c => (Array.isArray(c.programs) ? c.programs : []).some(p => p && (p.programName.includes('v15') || p.programName.includes('v16'))));
+    const eligibleForUpgrade = filteredClients.filter(hasLegacyProgram);
 
     // Multi-device clients
-    const multiDeviceClients = filteredClients.filter(c => (Array.isArray(c.programs) ? c.programs : []).reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0) >= 2);
+    const multiDeviceClients = filteredClients.filter(c => clientInstallations(c) >= 2);
 
     // 5. Generate AI Smart Sentinel Advisor Alerts (filtered)
     const recs = [];
@@ -1236,11 +1253,11 @@ export function renderDashboard() {
               📊 ${t('لوحة القيادة والذكاء التجاري')}
             </h1>
             <span class="copilot-badge" style="font-size:11px; padding:3px 10px; background:linear-gradient(90deg, #1e60f2, #8b5cf6); color:#fff; border-radius:12px; font-weight:700">
-              <span>✨</span> PROGILIC v3 Intelligence
+              <span>✨</span> PROGILIC v3 ${S.lang === 'fr' ? 'Intelligence' : S.lang === 'en' ? 'Intelligence' : 'الذكاء'}
             </span>
           </div>
           <p style="font-size:13px; color:var(--t2); margin:4px 0 0 0; display:flex; align-items:center; gap:8px">
-            <span>👤 الحساب النشط: <strong>${esc(S.currentUser?.email || S.currentUser?.displayName || 'حساب المدير العام (Gérant)')}</strong></span>
+            <span>👤 ${S.lang === 'fr' ? 'Compte actif :' : S.lang === 'en' ? 'Active account:' : 'الحساب النشط:'} <strong>${esc(S.currentUser?.email || S.currentUser?.displayName || (S.lang === 'fr' ? 'Administrateur général' : S.lang === 'en' ? 'General administrator' : 'حساب المدير العام'))}</strong></span>
             <span>•</span>
             <span style="color:#10B981; font-weight:700">${clients.length} ${t('عميل')} • ${S.stats?.totalLicensedDevices || 0} ${t('ترخيص')}</span>
           </p>
@@ -1916,7 +1933,7 @@ window.renderRechartsChart = function() {
         if (c.status === 'نشط') {
           monthBucket.activeClients += 1;
         }
-        const installs = (c.programs || []).reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0);
+        const installs = clientInstallations(c);
         monthBucket.licenses += installs;
 
         const issuesCount = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
@@ -2043,5 +2060,3 @@ window.renderRechartsChart = function() {
     container.innerHTML = `<div style="color:var(--r); font-size:11px; padding:10px;">فشل تشغيل المخطط التفاعلي: ${err.message}</div>`;
   }
 };
-
-

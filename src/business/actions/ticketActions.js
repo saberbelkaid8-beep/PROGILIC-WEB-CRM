@@ -426,6 +426,10 @@ export async function delReq(cid, rid) {
 
 export async function loadClientTimeline(clientId) {
   if (!clientId) return;
+  if (!hasPermission('clients.view_timeline')) {
+    showToast(t('ليس لديك صلاحية عرض الخط الزمني للعميل'), 'error');
+    return;
+  }
   try {
     const list = await getTimeline(clientId);
     updateState({ clientActivities: list });
@@ -434,4 +438,3 @@ export async function loadClientTimeline(clientId) {
     console.error("Failed to load client timeline:", err);
   }
 }
-

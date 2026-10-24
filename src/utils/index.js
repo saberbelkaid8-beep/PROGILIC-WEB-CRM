@@ -44,11 +44,20 @@ import { getWilayasList, getCommunesForWilaya, getWilayaByName } from './algeria
 
 export function wOpts(cur) { 
   const isLatin = S.lang === 'fr' || S.lang === 'en';
-  return getWilayasList().map(w => {
+  const wilayas = getWilayasList();
+  const options = wilayas.map(w => {
     const val = w.name_ar; // Store the Arabic name in DB for backwards compatibility
     const display = isLatin ? w.name_fr : w.name_ar;
     return `<option value="${val}"${cur === val ? ' selected' : ''}>${w.id} - ${display}</option>`;
-  }).join('');
+  });
+  if (cur && !wilayas.some(wilaya => wilaya.name_ar === cur)) {
+    const currentWilaya = wilayas.find(wilaya => wilaya.id === getWilayaByName(cur));
+    if (currentWilaya) {
+      const display = isLatin ? currentWilaya.name_fr : cur;
+      options.unshift(`<option value="${esc(cur)}" selected>${currentWilaya.id} - ${esc(display)}</option>`);
+    }
+  }
+  return options.join('');
 }
 
 export function cOpts(wilayaName, curCommune) {
@@ -56,11 +65,16 @@ export function cOpts(wilayaName, curCommune) {
   const wid = getWilayaByName(wilayaName);
   if (!wid) return '';
   const isLatin = S.lang === 'fr' || S.lang === 'en';
-  return getCommunesForWilaya(wid).map(c => {
+  const communes = getCommunesForWilaya(wid);
+  const options = communes.map(c => {
     const val = c.name_ar;
     const display = isLatin ? c.name_fr : c.name_ar;
     return `<option value="${val}"${curCommune === val ? ' selected' : ''}>${display}</option>`;
-  }).join('');
+  });
+  if (curCommune && !communes.some(commune => commune.name_ar === curCommune)) {
+    options.unshift(`<option value="${esc(curCommune)}" selected>${esc(curCommune)}</option>`);
+  }
+  return options.join('');
 }
 
 export function updateCommunesOpts() {
@@ -140,24 +154,29 @@ export function normalizePhone(p) { return (p || '').replace(/[\s\-\.]/g, '') }
 
 export function searchMatch(c, rawQ) {
   if (!rawQ) return { match: true, fields: [] };
-  // Fallback if no global search results are passed, but preferably we get them from performSearch
-  // Actually, we can just use the old searchMatch for highlighting if needed, or find the result in MiniSearch.
-  // We'll rewrite this to get fields from minisearch directly if we want to be clean, 
-  // but to keep highlighting working simply we can retain the old fields logic for visual matching.
-  const q = rawQ.trim().toLowerCase();
+  const normalize = value => String(value || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const q = normalize(rawQ);
   if (!q) return { match: true, fields: [] };
   const fields = [];
-  if ((c.fullName || '').toLowerCase().includes(q)) fields.push('الاسم');
-  if ((c.company || '').toLowerCase().includes(q)) fields.push('الشركة');
-  if ((c.wilaya || '').toLowerCase().includes(q)) fields.push('الولاية');
-  if ((c.businessType || '').toLowerCase().includes(q)) fields.push('النشاط');
-  if ((c.businessField || '').toLowerCase().includes(q)) fields.push('التخصص');
+  if (normalize(c.fullName).includes(q)) fields.push('الاسم');
+  if (normalize(c.company).includes(q)) fields.push('الشركة');
+  if (normalize(c.wilaya).includes(q)) fields.push('الولاية');
+  if (normalize(c.businessType).includes(q)) fields.push('النشاط');
+  if (normalize(c.businessField).includes(q)) fields.push('التخصص');
   const ph = normalizePhone(c.phone); const qph = normalizePhone(rawQ);
   if (ph && qph.length >= 4 && ph.includes(qph)) fields.push('الهاتف');
   
   // Search within program names
-  const progNames = c.programNames || (c.programs || []).map(p => p.programName);
-  if (progNames.some(name => name.toLowerCase().includes(q))) {
+  const progNames = [...(Array.isArray(c.programNames) ? c.programNames : []), ...(Array.isArray(c.programs) ? c.programs.map(p => p?.programName) : [])];
+  if (progNames.some(name => normalize(name).includes(q))) {
     fields.push('البرنامج');
   }
   
@@ -188,7 +207,7 @@ export function applyFilters(list) {
   if (S.fActType) fil = fil.filter(c => c.businessField === S.fActType);
   if (S.fProgram) {
     fil = fil.filter(c => {
-      const progNames = c.programNames || (c.programs || []).map(p => p.programName);
+      const progNames = [...(Array.isArray(c.programNames) ? c.programNames : []), ...(Array.isArray(c.programs) ? c.programs.map(p => p?.programName) : [])];
       return progNames.some(name => name === S.fProgram);
     });
   }

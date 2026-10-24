@@ -623,7 +623,7 @@ export async function addActivity(uid, activity) {
   };
   if (useFallback) {
     if (!inMemoryStore.activities[uid]) inMemoryStore.activities[uid] = [];
-    formatted.id = Date.now() + Math.floor(Math.random() * 1000);
+    formatted.id = formatted.id || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     inMemoryStore.activities[uid].push(formatted);
     return formatted.id;
   }
@@ -631,7 +631,7 @@ export async function addActivity(uid, activity) {
     const db = await openUserDB(uid);
     if (useFallback || !db) {
       if (!inMemoryStore.activities[uid]) inMemoryStore.activities[uid] = [];
-      formatted.id = Date.now() + Math.floor(Math.random() * 1000);
+      formatted.id = formatted.id || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       inMemoryStore.activities[uid].push(formatted);
       return formatted.id;
     }
@@ -649,7 +649,7 @@ export async function addActivity(uid, activity) {
     console.error("[IDB] addActivity error, falling back to in-memory:", err);
     useFallback = true;
     if (!inMemoryStore.activities[uid]) inMemoryStore.activities[uid] = [];
-    formatted.id = Date.now() + Math.floor(Math.random() * 1000);
+    formatted.id = formatted.id || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     inMemoryStore.activities[uid].push(formatted);
     return formatted.id;
   }

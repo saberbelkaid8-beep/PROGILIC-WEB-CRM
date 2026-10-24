@@ -184,6 +184,7 @@ window.deleteStaffMember = async function(id, adminPassword = null) {
       showToast(t(res.message), "error");
       return;
     }
+    logActivity(null, ActivityType.STAFF_DELETED, "حذف حساب موظف", `تم حذف حساب الموظف (${id}) بواسطة كلمة مرور المسؤول العام.`).catch(console.warn);
     showToast(t(res.message), "success");
     if (S.modal === 'adminPasswordConfirm') S.modal = null;
     R();
@@ -233,7 +234,9 @@ window.toggleStaffPermission = async function(staffId, permKey) {
   if (tenantId) {
     try {
       await saveEmployeeForTenant(tenantId, staffList[idx]);
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Failed saving employee permission to Firestore:', e);
+    }
   }
 
   logActivity(null, ActivityType.STAFF_EDITED, "تعديل صلاحية مستخدم", `تم تعديل الصلاحية (${permKey}) للموظف "${staffList[idx].name}".`).catch(console.warn);
@@ -264,9 +267,17 @@ window.grantAllStaffPermissions = async function(staffId, grant) {
   if (tenantId) {
     try {
       await saveEmployeeForTenant(tenantId, staffList[idx]);
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Failed saving employee permissions to Firestore:', e);
+    }
   }
 
+  logActivity(
+    null,
+    ActivityType.STAFF_EDITED,
+    "تعديل جميع صلاحيات موظف",
+    `تم ${grant ? 'منح' : 'إلغاء'} جميع الصلاحيات للموظف "${staffList[idx].name}".`
+  ).catch(console.warn);
   showToast(grant ? t("تم منح جميع الصلاحيات بنجاح") : t("تم إلغاء جميع الصلاحيات"), "success");
   R();
 };
@@ -299,9 +310,17 @@ window.grantStaffGroupPermissions = async function(staffId, groupId, grant) {
   if (tenantId) {
     try {
       await saveEmployeeForTenant(tenantId, staffList[idx]);
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Failed saving employee group permissions to Firestore:', e);
+    }
   }
 
+  logActivity(
+    null,
+    ActivityType.STAFF_EDITED,
+    "تعديل صلاحيات مجموعة موظف",
+    `تم ${grant ? 'منح' : 'إلغاء'} صلاحيات مجموعة "${group.name || group.id}" للموظف "${staffList[idx].name}".`
+  ).catch(console.warn);
   showToast(grant ? t("تم منح صلاحيات المجموعة بنجاح") : t("تم إلغاء صلاحيات المجموعة"), "success");
   if (typeof R === 'function') R();
 };

@@ -4,6 +4,8 @@ import * as utilsIndex from '../../src/utils/index.js';
 import * as utilsToast from '../../src/utils/toast.js';
 import * as uiActions from '../../src/business/actions/uiActions.js';
 import { S, updateState, setClients, setCurrentUser } from '../../src/state/store.js';
+import { validateClient, validateProgram } from '../../src/firebase/validation.js';
+import * as storage from '../../src/business/storage.js';
 
 vi.mock('../../src/utils/index.js', async (importOriginal) => {
   const actual = await importOriginal();
@@ -64,5 +66,31 @@ describe('Validation Logic', () => {
     await saveClient(null);
     
     expect(utilsToast.showToast).toHaveBeenCalledWith('تم إضافة العميل بنجاح');
+  });
+
+  it('saveClient should retain the Gmail account and initial program version', async () => {
+    utilsIndex.gv.mockImplementation((id) => ({
+      f_fn: 'Test Client',
+      f_gmail: 'client@gmail.com',
+      f_st: 'نشط',
+      f_p_nm: 'PROGILIC POS',
+      f_p_ver: 'V24'
+    })[id] || '');
+
+    await saveClient(null);
+
+    expect(storage.enqueueSyncAction).toHaveBeenCalledWith('ADD_CLIENT', expect.objectContaining({
+      clientData: expect.objectContaining({
+        gmailAccount: 'client@gmail.com',
+        programs: [expect.objectContaining({ version: 'V24' })]
+      })
+    }));
+  });
+
+  it('Firebase validation should retain Gmail and supported program versions', () => {
+    expect(validateClient({ fullName: 'Test Client', gmailAccount: 'client@gmail.com' }).gmailAccount)
+      .toBe('client@gmail.com');
+    expect(validateProgram({ programName: 'PROGILIC POS', version: 'V24' }).version).toBe('V24');
+    expect(validateProgram({ programName: 'PROGILIC POS', version: 'V25' }).version).toBe('');
   });
 });
