@@ -60,10 +60,11 @@ import { updateActTypeOpts, updateCommunesOpts, onClientStatusChange } from './u
 import { exportData, exportToDump, exportToCSV, importData, importFromDump, triggerImportDumOrJson, clearAllData, resolveConflict } from './business/storage.js';
 import { toggleLanguage, setLanguage } from './utils/i18n.js';
 import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
+import { createDefaultGerant } from './constants/index.js';
 
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
-import { S, setCurrentUser, setCurrentStaffUser, setClients, subscribe, updateState } from './state/store.js';
+import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, setClients, subscribe, updateState } from './state/store.js';
 import { loadDataFromFirestore, stopRealtimeSync, loadCache } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 
@@ -210,6 +211,11 @@ window.resolveConflict = resolveConflict;
         localStorage.removeItem('crm_active_employee_session');
         localStorage.removeItem('crm_logged_out');
       } catch (e) {}
+      
+      // If no user profile has logged in yet, show the Users Login Page so user can select their account
+      if (!currentStaffUser) {
+        S.showStaffPortal = true;
+      }
       
       // Trigger initial render immediately with cached or empty state so screen never stays white
       R();

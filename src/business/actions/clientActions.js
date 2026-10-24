@@ -197,12 +197,12 @@ export async function saveClient(editId) {
   console.log("saveClient: form data d =", JSON.stringify(d));
 
   const clientEditId = editId !== null && editId !== 'null' ? editId : null;
-  if (clientEditId === null && !hasPermission('canAddClients')) {
-    showToast('⚠️ لا تملك صلاحية إضافة عملاء جدد. الصلاحيات محددة من طرف المسؤول العام (Gérant).', 'error');
+  if (clientEditId === null && !hasPermission('clients.create') && !hasPermission('canAddClients')) {
+    showToast('⚠️ لا تملك صلاحية إضافة عملاء جدد. الصلاحيات محددة من طرف الرئيس (Gérant).', 'error');
     return;
   }
-  if (clientEditId !== null && !hasPermission('canEditClients')) {
-    showToast('⚠️ لا تملك صلاحية تعديل بيانات العملاء. الصلاحيات محددة من طرف المسؤول العام (Gérant).', 'error');
+  if (clientEditId !== null && !hasPermission('clients.edit') && !hasPermission('canEditClients')) {
+    showToast('⚠️ لا تملك صلاحية تعديل بيانات العملاء. الصلاحيات محددة من طرف الرئيس (Gérant).', 'error');
     return;
   }
   const stats = { ...(S.stats || {}) };
@@ -314,8 +314,8 @@ export async function saveClient(editId) {
 // 4. Client Issues Operations (Transactional - Now Enqueued with Optimistic Updates)
 
 export async function delClient(id) {
-  if (!hasPermission('canDeleteClients')) {
-    showToast('⚠️ لا تملك صلاحية حذف العملاء نهائياً. هذه الصلاحية خاصة بالمسؤول العام (Gérant).', 'error');
+  if (!hasPermission('clients.delete') && !hasPermission('canDeleteClients')) {
+    showToast('⚠️ لا تملك صلاحية حذف العملاء نهائياً. هذه الصلاحية خاصة بالرئيس (Gérant).', 'error');
     return;
   }
   const confirmMsg = S.lang === 'fr'

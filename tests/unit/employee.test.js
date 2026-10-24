@@ -10,7 +10,8 @@ import {
   authenticateEmployee,
   hasPermission,
   loginAsEmployeeSession,
-  exitEmployeeSession
+  exitEmployeeSession,
+  verifyEmployeePassword
 } from '../../src/business/employeeService.js';
 import { setCurrentUser } from '../../src/state/store.js';
 
@@ -152,5 +153,23 @@ describe('Employee and Departments Service', () => {
     expect(hasPermission('canAddClients')).toBe(false);
     expect(hasPermission('canDeleteClients')).toBe(false);
     expect(hasPermission('canManageEmployees')).toBe(false);
+  });
+
+  it('should verify employee real password and protect against unauthorized deletion', () => {
+    const newEmp = upsertEmployee({
+      id: 'emp_secure_del_test',
+      fullName: 'موظف محمي',
+      username: 'secure.emp',
+      department: 'commercial',
+      password: 'RealSecretPassword2026!'
+    }).find(e => e.id === 'emp_secure_del_test');
+
+    expect(newEmp).toBeDefined();
+
+    // Verify real password
+    expect(verifyEmployeePassword(newEmp, 'RealSecretPassword2026!')).toBe(true);
+    expect(verifyEmployeePassword(newEmp, 'WrongPassword123')).toBe(false);
+    expect(verifyEmployeePassword(newEmp, '')).toBe(false);
+    expect(verifyEmployeePassword(newEmp, null)).toBe(false);
   });
 });

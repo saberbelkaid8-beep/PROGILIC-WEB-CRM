@@ -1,4 +1,4 @@
-import { S, clients, currentUser, currentStaffUser, isGerant, scheduleRender } from '../state/store.js';
+import { S, clients, currentUser, currentStaffUser, isGerant, hasPermission, scheduleRender } from '../state/store.js';
 import { _isSyncing, _lastSyncedTime, _saveError } from '../business/storage.js';
 import { computeAlerts, autoDetectFeatureOpp } from '../business/intelligence.js';
 import { esc } from '../utils/index.js';
@@ -194,10 +194,10 @@ function performRender() { try {
     document.body.classList.remove('dark');
   }
 
-  // Floating Action Button Responsive State Sync
+  // Floating Action Button Responsive State Sync (Respects clients.create permission)
   const fab = document.querySelector(".fab");
   if (fab) {
-    fab.style.display = currentUser && S.view === "list" ? (!document.body.classList.contains('dark') ? 'flex' : 'flex') : 'none';
+    fab.style.display = currentUser && S.view === "list" && hasPermission('clients.create') ? 'flex' : 'none';
   }
 
   // Login View Router - Direct clean HTML render to avoid morph collision with desktop UI
@@ -213,8 +213,8 @@ function performRender() { try {
     return;
   }
 
-  // Staff Login & User Switching Portal Router
-  if (currentUser && S.showStaffPortal) {
+  // Users Login Portal Router (Shows users login page after Gmail login until a user logs in)
+  if (currentUser && (!currentStaffUser || S.showStaffPortal)) {
     let modalHTML = '';
     if (S.modal) {
       modalHTML = renderModal();
@@ -238,8 +238,6 @@ function performRender() { try {
       pageContent = renderList();
     } else if (S.view === 'dashboard') {
       pageContent = renderDashboard();
-    } else if (S.view === 'employees') {
-      pageContent = renderEmployeesView();
     } else {
       pageContent = renderDetail();
     }
@@ -328,8 +326,7 @@ function renderHdr(alertCount) {
     <!-- View Switcher Tabs -->
     <div style="display:inline-flex;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);padding:2px;border-radius:var(--r-md);margin-right:12px;gap:2px">
       <button class="btn btn-xs ${S.view === 'list' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('list')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👥 ${t('العملاء')}</button>
-      <button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>
-      ${isGerant() ? `<button class="btn btn-xs ${S.view === 'employees' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('employees')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👔 ${t('الموظفون والأقسام')}</button>` : ''}
+      ${hasPermission('dashboard.view') ? `<button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>` : ''}
     </div>
 
     <span class="hdr-pill">${ac} ${t('نشط')} / ${clients.length}</span>
@@ -341,25 +338,22 @@ function renderHdr(alertCount) {
         <button class="btn btn-xs ${S.lang === 'en' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('en')" title="English" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">EN</button>
       </div>
 
-      <!-- Management Controls in Main Interface for Gérant -->
-      ${isGerant() ? `
-        <button class="btn btn-xs btn-outline" onclick="openModal('editStaffMember', {})" style="margin-left:4px; border:1px solid rgba(56,189,248,0.5); color:#38bdf8; font-weight:700; font-size:11px;" title="إضافة موظف/مستخدم جديد">
-          ＋ ${t('إضافة مستخدم')}
-        </button>
-        <button class="btn btn-xs" onclick="toggleStaffManagerModal(true)" style="margin-left:4px; background:rgba(56,189,248,0.18); border:1px solid #38bdf8; color:#38bdf8; font-weight:700; font-size:11px;" title="إدارة الموظفين والأقسام وتعديل الصلاحيات">
-          ⚙️ ${t('إدارة الصلاحيات')}
+      <!-- Management Controls in Main Interface for President (Gérant) -->
+      ${isGerant() || hasPermission('permissions.assign') ? `
+        <button class="btn btn-xs" onclick="toggleStaffManagerModal(true)" style="margin-left:4px; background:linear-gradient(135deg, rgba(56,189,248,0.25) 0%, rgba(37,99,235,0.25) 100%); border:1px solid #38bdf8; color:#38bdf8; font-weight:800; font-size:11px; padding:3px 10px; border-radius:8px;" title="التحكم الكامل في الصلاحيات الـ 68 والمستخدمين من طرف الرئيس">
+          👑 ${t('إدارة الصلاحيات (الرئيس)')}
         </button>
       ` : ''}
 
       <span style="font-size:13px;font-weight:600;margin-left:8px;color:var(--t2)">
         👤 ${currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? currentUser.email : '')}
       </span>
-      <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="تغيير الموظف" style="margin-left:4px; color:#94a3b8;">🔄 تبديل</button>
+      <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="تبديل المستخدم" style="margin-left:4px; color:#94a3b8;">🔄 تبديل</button>
       <button class="btn btn-ghost btn-xs" onclick="logout()" title="${t('تسجيل الخروج')}" style="margin-left:10px;color:var(--r)">${t('تسجيل الخروج')}</button>
       <button class="dm-btn" title="${t('الوضع الليلي')}" onclick="toggleDark()" id="dmBtn">🌙</button>
-      <button class="bell-btn" title="${t('الذكاء الاصطناعي')}" onclick="S.gi=!S.gi;R()" style="font-size:14px">🧠</button>
+      ${hasPermission('analytics.view') ? `<button class="bell-btn" title="${t('الذكاء الاصطناعي')}" onclick="S.gi=!S.gi;R()" style="font-size:14px">🧠</button>` : ''}
       ${alertCount > 0 ? `<button class="bell-btn" title="${alertCount} ${t('تنبيه نشط')}" onclick="S.gi=!S.gi;R()">🔔<span class="bell-dot"></span></button>` : ''}
-      <button class="btn btn-primary" onclick="openModal('addClient')">+ ${t('إضافة عميل')}</button>
+      ${hasPermission('clients.create') ? `<button class="btn btn-primary" onclick="openModal('addClient')">+ ${t('إضافة عميل')}</button>` : ''}
     </div>
   </div>`;
 }
@@ -433,13 +427,15 @@ function renderStorageBar() {
         ${statusHTML}
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <button class="btn btn-ghost btn-xs" onclick="openModal('backupManager')" title="${t('إدارة النسخ الاحتياطية')}" style="color:var(--brand);font-weight:600">💾 ${t('النسخ الاحتياطية')}</button>
-        <button class="btn btn-ghost btn-xs" onclick="openDbPurgeModal()" title="${t('تصفية/محو البيانات')}" style="color:var(--r);font-weight:700">🗑️ ${t('تصفية/محو البيانات')}</button>
-        <button class="btn btn-ghost btn-xs" onclick="exportToCSV()" title="${t('تصدير CSV')}">📊 ${t('تصدير CSV')}</button>
-        <label class="btn btn-ghost btn-xs" title="${t('استيراد ملف JSON أو DUM')}" style="cursor:pointer;margin:0">
-          📥 ${t('استيراد (.json / .dum)')}
-          <input type="file" accept=".json,.dum,.dump,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
-        </label>
+        ${hasPermission('backup.view') ? `<button class="btn btn-ghost btn-xs" onclick="openModal('backupManager')" title="${t('إدارة النسخ الاحتياطية')}" style="color:var(--brand);font-weight:600">💾 ${t('النسخ الاحتياطية')}</button>` : ''}
+        ${isGerant() ? `<button class="btn btn-ghost btn-xs" onclick="openDbPurgeModal()" title="${t('تصفية/محو البيانات')}" style="color:var(--r);font-weight:700">🗑️ ${t('تصفية/محو البيانات')}</button>` : ''}
+        ${hasPermission('clients.export') ? `<button class="btn btn-ghost btn-xs" onclick="exportToCSV()" title="${t('تصدير CSV')}">📊 ${t('تصدير CSV')}</button>` : ''}
+        ${isGerant() || hasPermission('backup.restore') ? `
+          <label class="btn btn-ghost btn-xs" title="${t('استيراد ملف JSON أو DUM')}" style="cursor:pointer;margin:0">
+            📥 ${t('استيراد (.json / .dum)')}
+            <input type="file" accept=".json,.dum,.dump,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
+          </label>
+        ` : ''}
       </div>
     </div>
   </div>`;

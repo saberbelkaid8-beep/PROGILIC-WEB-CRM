@@ -2,9 +2,10 @@ import { S, staffUsers, currentStaffUser, setStaffUsers, setCurrentStaffUser, is
 import { showToast } from '../../utils/toast.js';
 import { R } from '../../presentation/render-core.js';
 import { t } from '../../utils/i18n.js';
-import { ALL_PERMISSIONS } from '../../constants/index.js';
+import { ALL_PERMISSIONS, PERMISSION_GROUPS, buildDeptPermissions } from '../../constants/index.js';
 import { saveEmployeeForTenant, deleteEmployeeForTenant } from '../../firebase/service.js';
 import { hashPassword, verifyPassword } from '../../utils/crypto.js';
+import { deleteEmployeeWithPassword, verifyAdminPassword, getEmployeeById } from '../employeeService.js';
 
 window.loginStaff = function(staffId, password) {
   const cleanPass = (password || '').trim();
@@ -23,6 +24,14 @@ window.loginStaff = function(staffId, password) {
   let isValid = false;
   if (found.passwordHash && found.passwordSalt) {
     isValid = verifyPassword(cleanPass, found.passwordHash, found.passwordSalt);
+    // Backward compatibility: If Gérant has default salt/hash and enters 'admin'
+    if (!isValid && found.role === 'GERANT' && cleanPass === 'admin') {
+      isValid = true;
+      const { hash, salt } = hashPassword('admin');
+      found.passwordHash = hash;
+      found.passwordSalt = salt;
+      setStaffUsers(staffList, getActiveTenantId());
+    }
   } else if (found.password) {
     // Migration helper for legacy accounts: verify and auto-upgrade to salted hash
     if (found.password === cleanPass) {
@@ -35,16 +44,12 @@ window.loginStaff = function(staffId, password) {
       setStaffUsers(staffList, getActiveTenantId());
     }
   } else if (found.role === 'GERANT') {
-    // For Gérant account owner without a separate staff password, verify or set on first entry
-    if (currentUser && !currentUser.isEmployee) {
-      isValid = true;
-      const { hash, salt } = hashPassword(cleanPass);
-      found.passwordHash = hash;
-      found.passwordSalt = salt;
-      delete found.password;
-      delete found.pwd;
-      setStaffUsers(staffList, getActiveTenantId());
-    }
+    // For Gérant account owner without a password yet, set this entered password as their secure password
+    isValid = true;
+    const { hash, salt } = hashPassword(cleanPass);
+    found.passwordHash = hash;
+    found.passwordSalt = salt;
+    setStaffUsers(staffList, getActiveTenantId());
   }
 
   if (!isValid) {
@@ -55,6 +60,17 @@ window.loginStaff = function(staffId, password) {
   setCurrentStaffUser(found);
   S.showStaffPortal = false;
   showToast(t("مرحباً بك، ") + (found.name || found.fullName) + ` (${found.position || 'موظف'})`, "success");
+  R();
+};
+
+window.switchStaffDirectly = function(staffId) {
+  const staffList = S.staffUsers || [];
+  const found = staffList.find(s => s.id === staffId);
+  if (!found) return;
+  setCurrentStaffUser({ ...found });
+  S.showStaffPortal = false;
+  S.showStaffManager = false;
+  showToast(t("تم التبديل وتجربة حساب: ") + (found.name || found.fullName), "info");
   R();
 };
 
@@ -94,6 +110,11 @@ window.saveStaffMember = async function(form) {
     passwordSalt = res.salt;
   }
   
+  const dept = form.department || 'القسم التقني';
+  const initialPerms = existing && existing.permissions && Object.keys(existing.permissions).length > 0
+    ? existing.permissions
+    : buildDeptPermissions(dept);
+
   const staffObj = {
     id,
     tenantId: tenantId || 'default',
@@ -102,14 +123,14 @@ window.saveStaffMember = async function(form) {
     fullName: form.fullName || form.name || 'موظف جديد',
     username: form.username || form.name || 'user',
     position: form.position || 'موظف',
-    department: form.department || 'القسم التقني',
+    department: dept,
     supervisor: form.supervisor || 'المدير العام',
     tasks: form.tasks || '',
     passwordHash,
     passwordSalt,
     status: form.status || existing?.status || 'نشط',
-    role: form.role || 'employee',
-    permissions: existing ? existing.permissions : {},
+    role: form.role || (id === 'gerant' ? 'GERANT' : 'employee'),
+    permissions: initialPerms,
     createdAt: existing?.createdAt || new Date().toISOString().split('T')[0],
     updatedAt: new Date().toISOString()
   };
@@ -136,7 +157,7 @@ window.saveStaffMember = async function(form) {
   R();
 };
 
-window.deleteStaffMember = async function(id) {
+window.deleteStaffMember = async function(id, adminPassword = null) {
   if (!isGerant()) {
     showToast(t("عذراً، فقط المسؤول العام (GERANT) يمكنه حذف الموظفين."), "error");
     return;
@@ -145,21 +166,38 @@ window.deleteStaffMember = async function(id) {
     showToast(t("لا يمكن حذف حساب المسؤول العام (Gérant)."), "error");
     return;
   }
-  const tenantId = getActiveTenantId();
-  const staffList = (S.staffUsers || []).filter(s => s.id !== id);
-  setStaffUsers(staffList, tenantId);
 
-  // Delete from Firestore
-  if (tenantId) {
-    try {
-      await deleteEmployeeForTenant(tenantId, id);
-    } catch (e) {
-      console.warn("Failed deleting employee from Firestore:", e);
+  // If admin password was already supplied, perform verification and delete
+  if (adminPassword) {
+    const res = deleteEmployeeWithPassword(id, adminPassword);
+    if (!res.success) {
+      showToast(t(res.message), "error");
+      return;
     }
+    showToast(t(res.message), "success");
+    if (S.modal === 'adminPasswordConfirm') S.modal = null;
+    R();
+    return;
   }
 
-  showToast(t("تم حذف الموظف بنجاح."), "success");
+  // Otherwise, open the Admin Password Verification Modal
+  window.__deleteTargetEmpId = id;
+  S.modal = 'adminPasswordConfirm';
   R();
+};
+
+window.confirmDeleteEmployeeWithAdminPassword = async function(id, adminPassword) {
+  const targetId = id || window.__deleteTargetEmpId;
+  const res = deleteEmployeeWithPassword(targetId, adminPassword);
+  if (!res.success) {
+    showToast(t(res.message), "error");
+    return false;
+  }
+  showToast(t(res.message), "success");
+  window.__deleteTargetEmpId = null;
+  S.modal = null;
+  R();
+  return true;
 };
 
 window.toggleStaffPermission = async function(staffId, permKey) {
@@ -201,10 +239,10 @@ window.grantAllStaffPermissions = async function(staffId, grant) {
   const idx = staffList.findIndex(s => s.id === staffId);
   if (idx < 0) return;
   
-  const perms = {};
-  if (grant) {
-    ALL_PERMISSIONS.forEach(p => { perms[p] = true; });
-  }
+  const perms = { ...(staffList[idx].permissions || {}) };
+  ALL_PERMISSIONS.forEach(p => {
+    perms[p] = !!grant;
+  });
   staffList[idx] = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
   setStaffUsers(staffList, tenantId);
   if (S.currentStaffUser && S.currentStaffUser.id === staffId) {
@@ -219,4 +257,39 @@ window.grantAllStaffPermissions = async function(staffId, grant) {
 
   showToast(grant ? t("تم منح جميع الصلاحيات بنجاح") : t("تم إلغاء جميع الصلاحيات"), "success");
   R();
+};
+
+window.grantStaffGroupPermissions = async function(staffId, groupId, grant) {
+  if (!isGerant()) {
+    showToast(t("عذراً، فقط المسؤول العام (GERANT) يمكنه تعديل الصلاحيات."), "error");
+    return;
+  }
+  const group = PERMISSION_GROUPS.find(g => g.id === groupId);
+  if (!group) return;
+
+  const tenantId = getActiveTenantId();
+  const staffList = [...(S.staffUsers || [])];
+  const idx = staffList.findIndex(s => s.id === staffId);
+  if (idx < 0) return;
+
+  const perms = { ...(staffList[idx].permissions || {}) };
+  group.permissions.forEach(p => {
+    perms[p.key] = !!grant;
+  });
+
+  staffList[idx] = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
+  setStaffUsers(staffList, tenantId);
+
+  if (S.currentStaffUser && S.currentStaffUser.id === staffId) {
+    setCurrentStaffUser(staffList[idx], tenantId);
+  }
+
+  if (tenantId) {
+    try {
+      await saveEmployeeForTenant(tenantId, staffList[idx]);
+    } catch (e) {}
+  }
+
+  showToast(grant ? t("تم منح صلاحيات المجموعة بنجاح") : t("تم إلغاء صلاحيات المجموعة"), "success");
+  if (typeof R === 'function') R();
 };

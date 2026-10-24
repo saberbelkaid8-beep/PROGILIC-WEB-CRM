@@ -33,17 +33,17 @@ export function handleFirestoreError(error, operationType, path) {
   const errInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
     },
     operationType,
     path
   };
   console.warn('Firestore Notice: ', JSON.stringify(errInfo));
   // If user signed out, don't crash with an unhandled exception
-  if (!auth.currentUser || error.code === 'permission-denied' || (error.message && error.message.includes('permissions'))) {
+  if (!auth?.currentUser || error?.code === 'permission-denied' || (error?.message && error.message.includes('permissions'))) {
     return null;
   }
   throw new Error(JSON.stringify(errInfo));
@@ -390,7 +390,7 @@ export function sanitizeEmployeeForFirestore(emp, tenantId) {
 }
 
 export async function getEmployeesForTenant(tenantId) {
-  if (!tenantId || !auth?.currentUser) return [];
+  if (!tenantId) return [];
   const path = `users/${tenantId}/employees`;
   try {
     const collRef = collection(db, path);
@@ -404,7 +404,7 @@ export async function getEmployeesForTenant(tenantId) {
 }
 
 export async function saveEmployeeForTenant(tenantId, employee) {
-  if (!tenantId || !employee || !employee.id || !auth?.currentUser) return null;
+  if (!tenantId || !employee || !employee.id) return null;
   const safeId = String(employee.id);
   const path = `users/${tenantId}/employees/${safeId}`;
   try {
@@ -421,7 +421,7 @@ export async function saveEmployeeForTenant(tenantId, employee) {
 }
 
 export async function deleteEmployeeForTenant(tenantId, employeeId) {
-  if (!tenantId || !employeeId || !auth?.currentUser) return false;
+  if (!tenantId || !employeeId) return false;
   const safeId = String(employeeId);
   const path = `users/${tenantId}/employees/${safeId}`;
   try {
@@ -435,7 +435,7 @@ export async function deleteEmployeeForTenant(tenantId, employeeId) {
 }
 
 export function subscribeEmployeesForTenant(tenantId, onUpdate, onError) {
-  if (!tenantId || !auth?.currentUser) return () => {};
+  if (!tenantId) return () => {};
   const path = `users/${tenantId}/employees`;
   try {
     const collRef = collection(db, path);

@@ -1,4 +1,4 @@
-import { S, clients, setClients, updateState, currentUser, setCurrentUser } from '../../state/store.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, hasPermission, isGerant } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
@@ -35,6 +35,10 @@ export async function loadBackupsList() {
 
 export async function triggerManualBackup() {
   if (!currentUser) return;
+  if (!hasPermission('backup.create')) {
+    showToast(t('⚠️ لا تملك صلاحية إنشاء نسخ احتياطية.'), 'error');
+    return;
+  }
   const promptMsg = S.lang === 'fr'
     ? 'Entrez une description pour cette sauvegarde (optionnel) :'
     : (S.lang === 'en'
@@ -60,6 +64,10 @@ export async function triggerManualBackup() {
 
 export async function triggerRestore(backupId) {
   if (!currentUser) return;
+  if (!hasPermission('backup.restore')) {
+    showToast(t('⚠️ لا تملك صلاحية استرجاع واستيراد البيانات.'), 'error');
+    return;
+  }
   const confirmMsg = S.lang === 'fr'
     ? 'Êtes-vous sûr de vouloir restaurer cette sauvegarde ? Les données actuelles seront remplacées (une sauvegarde automatique sera prise avant de commencer).'
     : (S.lang === 'en'
@@ -80,6 +88,10 @@ export async function triggerRestore(backupId) {
 
 export async function downloadBackup(backupId, format = 'json') {
   if (!S.backups) return;
+  if (!hasPermission('backup.download')) {
+    showToast(t('⚠️ لا تملك صلاحية تحميل ملفات النسخ الاحتياطي.'), 'error');
+    return;
+  }
   const backup = S.backups.find(b => b.id === backupId);
   if (backup) {
     downloadBackupJSON(backup, format);
@@ -88,6 +100,10 @@ export async function downloadBackup(backupId, format = 'json') {
 
 export async function triggerDeleteBackup(backupId) {
   if (!currentUser) return;
+  if (!hasPermission('backup.delete')) {
+    showToast(t('⚠️ لا تملك صلاحية حذف النسخ الاحتياطية.'), 'error');
+    return;
+  }
   const confirmMsg = S.lang === 'fr'
     ? 'Êtes-vous sûr de vouloir supprimer définitivement cette sauvegarde du navigateur ?'
     : (S.lang === 'en'

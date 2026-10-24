@@ -17,6 +17,7 @@ let internalState = {
   gi: false,
   showAdvFil: false,
   showStaffManager: false,
+  showStaffPortal: true,
   fWilaya: '',
   fActivity: '',
   fActType: '',
@@ -398,12 +399,20 @@ export function hasPermission(perm) {
     }
     return false;
   }
-  if (staff.role === 'GERANT') return true;
+  // The President / General Manager (Gérant) always possesses all permissions
+  if (staff.role?.toUpperCase() === 'GERANT' || staff.id === 'gerant' || staff.id === 'gerant-1') {
+    return true;
+  }
   
   const perms = staff.permissions || {};
-  if (perms[perm] === true) return true;
 
-  // Complete bidirectional mapping between legacy camelCase and 65 granular dot permissions
+  // 1. Exact canonical permission check (Boolean true or false)
+  // If explicitly set on the employee profile, this is the definitive, authoritative source of truth!
+  if (typeof perms[perm] === 'boolean') {
+    return perms[perm];
+  }
+
+  // 2. Legacy fallback ONLY if the granular permission is not defined on perms
   const dotToCamel = {
     'clients.view': 'canViewClients',
     'clients.create': 'canAddClients',
@@ -441,6 +450,11 @@ export function hasPermission(perm) {
     'users.create': 'canManageEmployees',
     'users.edit': 'canManageEmployees',
     'users.disable': 'canManageEmployees',
+    'users.delete': 'canDeleteEmployees',
+    'departments.view': 'canManageEmployees',
+    'departments.create': 'canManageEmployees',
+    'departments.edit': 'canManageEmployees',
+    'departments.delete': 'canDeleteEmployees',
     'permissions.view': 'canManageEmployees',
     'permissions.assign': 'canManageEmployees',
     'permissions.revoke': 'canManageEmployees',
@@ -464,19 +478,24 @@ export function hasPermission(perm) {
     'canManageContacts': 'contacts.view_history',
     'canViewDashboard': 'dashboard.view',
     'canManageEmployees': 'users.view',
+    'canDeleteEmployees': 'users.delete',
     'canAccessAi': 'analytics.view',
     'canManageBackups': 'backup.view'
   };
 
-  if (dotToCamel[perm] && perms[dotToCamel[perm]] === true) return true;
-  if (camelToDot[perm] && perms[camelToDot[perm]] === true) return true;
+  if (dotToCamel[perm] && typeof perms[dotToCamel[perm]] === 'boolean') {
+    return perms[dotToCamel[perm]];
+  }
+  if (camelToDot[perm] && typeof perms[camelToDot[perm]] === 'boolean') {
+    return perms[camelToDot[perm]];
+  }
 
   return false;
 }
 
 export function isGerant() {
   if (currentStaffUser) {
-    return currentStaffUser.role === 'GERANT';
+    return currentStaffUser.role?.toUpperCase() === 'GERANT' || currentStaffUser.id === 'gerant' || currentStaffUser.id === 'gerant-1';
   }
   if (currentUser && (currentUser.role === 'gerant' || currentUser.email === 'admin@progilic.dz' || !currentUser.isEmployee)) {
     return true;

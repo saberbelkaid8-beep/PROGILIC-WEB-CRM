@@ -1868,6 +1868,10 @@ window.loginWithGoogle = async function() {
   }
   try {
     stopRealtimeSync();
+    import('../state/store.js').then(m => {
+      m.setCurrentStaffUser(null);
+      m.S.showStaffPortal = true;
+    });
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
     console.error('Error during Google login:', error);

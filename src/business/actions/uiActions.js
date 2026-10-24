@@ -1,4 +1,4 @@
-import { S, clients, setClients, updateState, currentUser, setCurrentUser } from '../../state/store.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, hasPermission, isGerant } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
@@ -10,6 +10,7 @@ import { gv, gc2, gc, gn, td } from '../../utils/index.js';
 import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
+import { t } from '../../utils/i18n.js';
 import { 
   addClientTransaction, 
   updateClientTransaction, 
@@ -37,6 +38,51 @@ export function setFil(f) { S.filter = f; R(); }
 export function onQ(q) { S.q = q; R(); }
 
 export function openModal(m, formData) { 
+  if (m === 'addClient' && !hasPermission('clients.create') && !hasPermission('canAddClients')) {
+    showToast(t('⚠️ لا تملك صلاحية إضافة عميل جديد. الصلاحية مقتصرة ومحددة من طرف الرئيس (Gérant).'), 'error');
+    return;
+  }
+  if (m === 'editClient' && !hasPermission('clients.edit') && !hasPermission('canEditClients')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل بيانات العملاء.'), 'error');
+    return;
+  }
+  if (m === 'addProgram' && !hasPermission('programs.create')) {
+    showToast(t('⚠️ لا تملك صلاحية إضافة برامج وتراخيص جديدة.'), 'error');
+    return;
+  }
+  if (m === 'editProg' && !hasPermission('programs.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل البرامج والتراخيص.'), 'error');
+    return;
+  }
+  if (m === 'addIssue' && !hasPermission('issues.create')) {
+    showToast(t('⚠️ لا تملك صلاحية تسجيل مشاكل أو تذاكر جديدة.'), 'error');
+    return;
+  }
+  if (m === 'editIssue' && !hasPermission('issues.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل بيانات التذاكر.'), 'error');
+    return;
+  }
+  if (m === 'addRequirement' && !hasPermission('features.create')) {
+    showToast(t('⚠️ لا تملك صلاحية تسجيل متطلبات أو ميزات جديدة.'), 'error');
+    return;
+  }
+  if (m === 'editRequirement' && !hasPermission('features.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل متطلبات التطوير.'), 'error');
+    return;
+  }
+  if (m === 'addContact' && !hasPermission('contacts.create_entry')) {
+    showToast(t('⚠️ لا تملك صلاحية تسجيل تواصل أو مكالمة جديدة.'), 'error');
+    return;
+  }
+  if (m === 'backupManager' && !hasPermission('backup.view')) {
+    showToast(t('⚠️ لا تملك صلاحية استعراض النسخ الاحتياطية.'), 'error');
+    return;
+  }
+  if (m === 'editStaffMember' && !isGerant() && !hasPermission('users.edit') && !hasPermission('users.create')) {
+    showToast(t('⚠️ تعديل وإضافة المستخدمين محجوز حصرياً للرئيس (Gérant).'), 'error');
+    return;
+  }
+
   S.modal = m; 
   S.form = formData || {}; 
   if (m === 'backupManager') {

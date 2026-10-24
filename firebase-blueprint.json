@@ -214,6 +214,14 @@
         "permissions": { "type": "object" }
       },
       "required": ["id", "fullName", "username", "department", "position", "status"]
+    },
+    "TestConnection": {
+      "title": "Test Connection Document",
+      "description": "Ping document to test connection status to Firestore backend",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -244,6 +252,11 @@
     "users/{userId}/employees/{employeeId}": {
       "schema": "Employee",
       "description": "Staff members, departments, and access control settings managed by the Gérant"
+    },
+    "test/{docId}": {
+      "schema": "TestConnection",
+      "description": "Public health check endpoint for testing Firestore connectivity"
     }
   }
 }
+

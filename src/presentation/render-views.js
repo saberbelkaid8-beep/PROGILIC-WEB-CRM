@@ -6,8 +6,23 @@ import { getActivityVisuals } from '../business/timelineService.js';
 import { performSearch } from '../business/searchIndex.js';
 import { t } from '../utils/i18n.js';
 import { getWilayasList } from '../utils/algeria.js';
-import { hasPermission } from '../business/employeeService.js';
+import { hasPermission, isGerant } from '../state/store.js';
 export function renderList(){
+  if (!hasPermission('clients.view')) {
+    return `
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:16px; padding:3rem 2rem; text-align:center; max-width:600px; margin:2rem auto; direction:rtl">
+        <div style="font-size:48px; margin-bottom:1rem">🔒</div>
+        <h2 style="font-size:18px; font-weight:800; color:var(--t1); margin-bottom:8px">عذراً، ليس لديك صلاحية عرض قائمة العملاء</h2>
+        <p style="font-size:13px; color:var(--t2); line-height:1.6; margin-bottom:1.5rem">
+          صلاحية <code>clients.view</code> غير مفعلة لحسابك حالياً. يمكنك التواصل مع المسؤول العام (Gérant) لتفعيل الصلاحية من لوحة التحكم.
+        </p>
+        <button class="btn btn-primary btn-sm" onclick="logoutStaff()">
+          👥 تبديل حساب المستخدم
+        </button>
+      </div>
+    `;
+  }
+
   console.log("renderList: S.isLoading =", S.isLoading, "clients.length =", clients.length);
   const ac=clients.filter(c=>c.status==='نشط').length;
   const pr=clients.filter(c=>c.status==='محتمل').length;
@@ -58,10 +73,14 @@ export function renderList(){
       <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+(c.programs||[]).length,0)}</div><div class="stat-l">${t('برامج')} · ${clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0)} ${t('جهاز')}</div></div>
     </div>
     <div class="search-row">
-      <input class="search-input" placeholder="${t('ابحث: اسم، شركة، ولاية، نشاط، تخصص، هاتف...')}" value="${esc(S.q)}" oninput="onQ(this.value)">
-      <button class="adv-fil-toggle${cnt>0||S.showAdvFil?' active':''}" onclick="toggleAdvFil()">
-        ⚙ ${t('فلترة')} ${cnt>0?`<span class="adv-fil-badge">${cnt}</span>`:''}
-      </button>
+      ${hasPermission('search.global') || hasPermission('search.clients') ? `
+        <input class="search-input" placeholder="${t('ابحث: اسم، شركة، ولاية، نشاط، تخصص، هاتف...')}" value="${esc(S.q)}" oninput="onQ(this.value)">
+      ` : `<div style="flex:1;font-size:12px;color:var(--t3);padding:8px 12px;background:var(--surface);border-radius:var(--r-sm);border:1px dashed var(--border)">🔒 البحث محجوز للمصرح لهم</div>`}
+      ${hasPermission('filters.advanced') ? `
+        <button class="adv-fil-toggle${cnt>0||S.showAdvFil?' active':''}" onclick="toggleAdvFil()">
+          ⚙ ${t('فلترة')} ${cnt>0?`<span class="adv-fil-badge">${cnt}</span>`:''}
+        </button>
+      ` : ''}
     </div>
     ${S.q?`<div class="search-result-bar">
       🔍 <strong>${fil.length}</strong> ${t('نتيجة لـ')} "<em>${esc(S.q)}</em>"
@@ -94,11 +113,13 @@ export function renderList(){
       <div class="empty-text">${S.lang === 'fr' ? 'Aucun résultat ne correspond aux filtres appliqués.' : S.lang === 'en' ? 'No results match the current filters.' : 'لا توجد نتائج تطابق الفلاتر المحددة حالياً.'}</div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         ${cnt>0?`<button class="btn btn-outline btn-sm" onclick="clearAdvFil()">${t('مسح الفلاتر')}</button>`:''}
-        <button class="btn btn-primary btn-sm" onclick="openModal('addClient')">${t('إضافة عميل جديد')}</button>
-        <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:6px" title="${t('استيراد ملف .dum أو .json')}">
-          📥 ${t('استيراد (.dum / .json)')}
-          <input type="file" accept=".dum,.dump,.json,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
-        </label>
+        ${hasPermission('clients.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addClient')">${t('إضافة عميل جديد')}</button>` : ''}
+        ${isGerant() || hasPermission('backup.restore') ? `
+          <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:6px" title="${t('استيراد ملف .dum أو .json')}">
+            📥 ${t('استيراد (.dum / .json)')}
+            <input type="file" accept=".dum,.dump,.json,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
+          </label>
+        ` : ''}
       </div>
     </div>`:
     `<div class="cgrid">
@@ -109,6 +130,7 @@ export function renderList(){
         const sc=computeScore(c);
         const scColor=scoreColor(sc.total);
         const hit=S.q?searchMatch(c,S.q):null;
+        const phoneDisplay = hasPermission('clients.view_sensitive') ? (esc(c.phone)||"—") : (c.phone ? '0550•• •••• 🔒' : '—');
         return`<div class="cc" onclick="selClient(${c.id})" id="cc-card-${c.id}">
           <div class="cc-score-strip" style="background:${scColor}"></div>
           <div class="cc-top">
@@ -123,7 +145,7 @@ export function renderList(){
           ${c.businessType?`<div class="cc-activity">${activityIcon(c.businessType)} ${t(c.businessType)}${c.businessField?` · ${t(c.businessField)}`:''}</div>`:''}
           ${hit&&hit.fields.length>0?`<div class="cc-search-match">${hit.fields.map(f=>`<span class="sf-tag">✓ ${t(f)}</span>`).join('')}</div>`:''}
           <div class="cc-footer">
-            <div class="cc-phone" dir="ltr">${esc(c.phone)||"—"}</div>
+            <div class="cc-phone" dir="ltr">${phoneDisplay}</div>
             <div class="cc-wilaya">${esc(c.wilaya)||"—"}</div>
           </div>
           ${oi>0?`<div class="cc-alert" style="color:${urg>0?'var(--r)':'var(--w)'}">▸ ${oi} ${t('مشاكل مفتوحة')}${urg>0?` (${t('عاجل')})`:''}</div>`:''}
@@ -163,12 +185,12 @@ export function renderDetail(){
         </div>
         <div class="ch-acts">
           ${sBdg(c.status)}
-          <button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:#fff;border:none" onclick="openModal('editClient')">${t('تعديل')}</button>
+          ${hasPermission('clients.edit') ? `<button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:#fff;border:none" onclick="openModal('editClient')">${t('تعديل')}</button>` : ''}
         </div>
       </div>
       <div class="ch-meta">
         <span class="ch-mi">📍 ${esc(c.wilaya)||"—"}${c.location?'، '+esc(c.location):''}</span>
-        <span class="ch-mi" dir="ltr">📞 ${esc(c.phone)||"—"}</span>
+        <span class="ch-mi" dir="ltr">📞 ${hasPermission('clients.view_sensitive') ? (esc(c.phone)||"—") : (c.phone ? '0550•• •••• 🔒' : '—')}</span>
         ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return ps.total>0?`<span class="ch-mi">📦 ${esc(pp[0].programName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls} ${t('جهاز')}</span>`:`<span class="ch-mi" style="opacity:.5">📦 ${t('لا برامج')}</span>`})()}
         <span class="ch-mi">${activityIcon(c.businessType)} ${t(c.businessType)||"—"}${c.businessField?' · '+t(c.businessField):''}</span>
       </div>
@@ -182,23 +204,23 @@ export function renderDetail(){
     </div>
     <div class="tabs-wrap">
       <button class="tabBtn${S.tab==='overview'?' on':''}" onclick="setTab('overview')">${t('نظرة عامة')}</button>
-      <button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length}</span></button>
-      <button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">${t('المشاكل')} <span class="tab-count${c.issues.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${c.issues.length}</span></button>
-      <button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">${t('المتطلبات')} <span class="tab-count">${c.requirements.length}</span></button>
-      <button class="tabBtn${S.tab==='contacts'?' on':''}" onclick="setTab('contacts')">${t('📞 التواصل')} <span class="tab-count">${(c.contactHistory||[]).length}</span></button>
-      <button class="tabBtn${S.tab==='timeline'?' on':''}" onclick="setTab('timeline')">${t('⏱️ الخط الزمني')}</button>
-      <button class="tabBtn${S.tab==='report'?' on':''}" onclick="setTab('report')">${t('📊 التقرير')}</button>
-      <button class="tabBtn${S.tab==='intelligence'?' on':''}" onclick="setTab('intelligence')">${t('🧠 الذكاء')}</button>
+      ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length}</span></button>` : ''}
+      ${hasPermission('issues.view') ? `<button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">${t('المشاكل')} <span class="tab-count${c.issues.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${c.issues.length}</span></button>` : ''}
+      ${hasPermission('features.view') ? `<button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">${t('المتطلبات')} <span class="tab-count">${c.requirements.length}</span></button>` : ''}
+      ${hasPermission('contacts.view_history') ? `<button class="tabBtn${S.tab==='contacts'?' on':''}" onclick="setTab('contacts')">${t('📞 التواصل')} <span class="tab-count">${(c.contactHistory||[]).length}</span></button>` : ''}
+      ${hasPermission('clients.view_timeline') ? `<button class="tabBtn${S.tab==='timeline'?' on':''}" onclick="setTab('timeline')">${t('⏱️ الخط الزمني')}</button>` : ''}
+      ${hasPermission('reports.view') ? `<button class="tabBtn${S.tab==='report'?' on':''}" onclick="setTab('report')">${t('📊 التقرير')}</button>` : ''}
+      ${hasPermission('analytics.view') ? `<button class="tabBtn${S.tab==='intelligence'?' on':''}" onclick="setTab('intelligence')">${t('🧠 الذكاء')}</button>` : ''}
     </div>
     <div class="tab-pane">
       ${S.tab==='overview'?renderOverview(c):''}
-      ${S.tab==='programs'?renderPrograms(c):''}
-      ${S.tab==='issues'?renderIssues(c):''}
-      ${S.tab==='requirements'?renderReqs(c):''}
-      ${S.tab==='contacts'?renderContacts(c):''}
-      ${S.tab==='timeline'?renderTimeline(c):''}
-      ${S.tab==='report'?renderReport(c):''}
-      ${S.tab==='intelligence'?renderIntelligence(c):''}
+      ${S.tab==='programs' && hasPermission('programs.view') ? renderPrograms(c):''}
+      ${S.tab==='issues' && hasPermission('issues.view') ? renderIssues(c):''}
+      ${S.tab==='requirements' && hasPermission('features.view') ? renderReqs(c):''}
+      ${S.tab==='contacts' && hasPermission('contacts.view_history') ? renderContacts(c):''}
+      ${S.tab==='timeline' && hasPermission('clients.view_timeline') ? renderTimeline(c):''}
+      ${S.tab==='report' && hasPermission('reports.view') ? renderReport(c):''}
+      ${S.tab==='intelligence' && hasPermission('analytics.view') ? renderIntelligence(c):''}
     </div>`;
 }
 
@@ -236,7 +258,7 @@ function renderOverview(c){
     <div class="igrid">
       <div class="iitem"><div class="ilbl">${t('الاسم الكامل')}</div><div class="ival">${esc(c.fullName)}</div></div>
       <div class="iitem"><div class="ilbl">${t('الشركة / المؤسسة')}</div><div class="ival ${c.company?'':'muted'}">${esc(c.company)||"—"}</div></div>
-      <div class="iitem"><div class="ilbl">${t('الهاتف')}</div><div class="ival" dir="ltr" style="text-align:${S.lang === 'ar' ? 'right' : 'left'}">${esc(c.phone)||"—"}</div></div>
+      <div class="iitem"><div class="ilbl">${t('الهاتف')}</div><div class="ival" dir="ltr" style="text-align:${S.lang === 'ar' ? 'right' : 'left'}">${hasPermission('clients.view_sensitive') ? (esc(c.phone)||"—") : (c.phone ? '0550•• •••• 🔒' : '—')}</div></div>
       <div class="iitem"><div class="ilbl">${t('الولاية')}</div><div class="ival">${esc(c.wilaya)||"—"}</div></div>
       <div class="iitem"><div class="ilbl">${t('المنطقة / الحي')}</div><div class="ival ${c.location?'':'muted'}">${esc(c.location)||"—"}</div></div>
       <div class="iitem"><div class="ilbl">${t('الحالة')}</div><div class="ival">${sBdg(c.status)}</div></div>
@@ -251,14 +273,14 @@ function renderOverview(c){
     </div>
     ${gpsSection}
     ${c.notes?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">${t('ملاحظات')}</div><div class="notes-box">${esc(c.notes)}</div></div>`:''}
-    ${hasPermission('canDeleteClients') ? `
+    ${hasPermission('clients.delete') || hasPermission('canDeleteClients') ? `
     <div class="dzone">
       <div class="dz-t">${t('منطقة الخطر')}</div>
       <div class="dz-b">${t('حذف هذا العميل يحذف جميع مشاكله ومتطلباته نهائياً ولا يمكن التراجع')}</div>
       <button class="btn btn-danger-soft btn-sm" onclick="delClient(${c.id})">${t('حذف العميل نهائياً')}</button>
     </div>` : `
     <div style="margin-top:1.5rem; background:rgba(0,0,0,0.02); border:1px dashed var(--border); border-radius:10px; padding:12px; font-size:11.5px; color:var(--t3); text-align:center">
-      🔒 حذف العملاء محجوز حصرياً للمسؤول العام (Gérant).
+      🔒 حذف العملاء محجوز للمصرح لهم فقط من طرف الرئيس.
     </div>`}
   `;
 }
@@ -267,10 +289,10 @@ function renderIssues(c){
   return`
     <div class="pane-hdr">
       <span class="pane-title">${t('المشاكل والتذاكر')} (${c.issues.length})</span>
-      <button class="btn btn-primary btn-sm" onclick="openModal('addIssue')">${t('+ مشكلة جديدة')}</button>
+      ${hasPermission('issues.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addIssue')">${t('+ مشكلة جديدة')}</button>` : ''}
     </div>
     ${c.issues.length===0
-      ?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">${t('لا توجد مشاكل مسجلة لهذا العميل')}</div><button class="btn btn-outline btn-sm" onclick="openModal('addIssue')">${t('تسجيل أول مشكلة')}</button></div>`
+      ?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">${t('لا توجد مشاكل مسجلة لهذا العميل')}</div>${hasPermission('issues.create') ? `<button class="btn btn-outline btn-sm" onclick="openModal('addIssue')">${t('تسجيل أول مشكلة')}</button>` : ''}</div>`
       :c.issues.map(iss=>`
         <div class="icard ${pBorder(iss.priority)}">
           <div class="ic-top"><div class="ic-title">${esc(iss.title)}</div>${isBdg(iss.status)}</div>
@@ -286,9 +308,9 @@ function renderIssues(c){
           ${iss.notes?`<div class="ic-sol">📝 ${esc(iss.notes)}</div>`:''}
           ${iss.solution?`<div class="ic-sol"><strong style="color:var(--gt)">✓ ${t('الحل:')}</strong> ${esc(iss.solution)}</div>`:''}
           <div class="ic-acts">
-            ${iss.status!=='محلول'&&iss.status!=='مغلق'?`<button class="btn btn-success-soft btn-xs" onclick="markSolved(${c.id},${iss.id})">${t('✓ تم الحل')}</button>`:''}
-            <button class="btn btn-ghost btn-xs" onclick="editIssue(${c.id},${iss.id})">${t('تعديل')}</button>
-            <button class="btn btn-danger-soft btn-xs" onclick="delIssue(${c.id},${iss.id})">${t('حذف')}</button>
+            ${iss.status!=='محلول'&&iss.status!=='مغلق'&&hasPermission('issues.resolve')?`<button class="btn btn-success-soft btn-xs" onclick="markSolved(${c.id},${iss.id})">${t('✓ تم الحل')}</button>`:''}
+            ${hasPermission('issues.edit')?`<button class="btn btn-ghost btn-xs" onclick="editIssue(${c.id},${iss.id})">${t('تعديل')}</button>`:''}
+            ${hasPermission('issues.delete')?`<button class="btn btn-danger-soft btn-xs" onclick="delIssue(${c.id},${iss.id})">${t('حذف')}</button>`:''}
           </div>
         </div>`).join('')}`;
 }
@@ -297,10 +319,10 @@ function renderReqs(c){
   return`
     <div class="pane-hdr">
       <span class="pane-title">${t('المتطلبات والاقتراحات')} (${c.requirements.length})</span>
-      <button class="btn btn-primary btn-sm" onclick="openModal('addRequirement')">${t('+ طلب جديد')}</button>
+      ${hasPermission('features.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addRequirement')">${t('+ طلب جديد')}</button>` : ''}
     </div>
     ${c.requirements.length===0
-      ?`<div class="empty"><div class="empty-icon">💡</div><div class="empty-text">${t('لا توجد متطلبات مسجلة')}</div><button class="btn btn-outline btn-sm" onclick="openModal('addRequirement')">${t('تسجيل أول طلب')}</button></div>`
+      ?`<div class="empty"><div class="empty-icon">💡</div><div class="empty-text">${t('لا توجد متطلبات مسجلة')}</div>${hasPermission('features.create') ? `<button class="btn btn-outline btn-sm" onclick="openModal('addRequirement')">${t('تسجيل أول طلب')}</button>` : ''}</div>`
       :c.requirements.map(req=>`
         <div class="icard ${pBorder(req.priority)}">
           <div class="ic-top"><div class="ic-title">${esc(req.title)}</div>${rBdg(req.status)}</div>
@@ -312,18 +334,19 @@ function renderReqs(c){
           </div>
           ${req.notes?`<div class="ic-sol">📝 ${esc(req.notes)}</div>`:''}
           <div class="ic-acts">
-            <button class="btn btn-ghost btn-xs" onclick="editReq(${c.id},${req.id})">${t('تعديل')}</button>
-            <button class="btn btn-danger-soft btn-xs" onclick="delReq(${c.id},${req.id})">${t('حذف')}</button>
+            ${hasPermission('features.edit')?`<button class="btn btn-ghost btn-xs" onclick="editReq(${c.id},${req.id})">${t('تعديل')}</button>`:''}
+            ${hasPermission('features.delete')?`<button class="btn btn-danger-soft btn-xs" onclick="delReq(${c.id},${req.id})">${t('حذف')}</button>`:''}
           </div>
         </div>`).join('')}`;
 }
+
 function renderContacts(c){
   const hist=(c.contactHistory||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
   return`
     <div class="ch-tab">
       <div class="ch-summary">
         <span class="ch-count">📋 ${hist.length} ${t('تواصل مسجل')}</span>
-        <button class="btn btn-primary btn-sm" onclick="openModal('addContact')">${t('+ تسجيل تواصل')}</button>
+        ${hasPermission('contacts.create_entry') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addContact')">${t('+ تسجيل تواصل')}</button>` : ''}
       </div>
       ${hist.length===0
         ?`<div class="ch-empty">📭 ${t('لا توجد سجلات تواصل بعد')}<br><small>${t('سجّل أول تواصل مع هذا العميل')}</small></div>`
@@ -334,7 +357,7 @@ function renderContacts(c){
               <div class="tl-date">${fmtD(h.date)}</div>
               <div class="tl-note">${esc(h.note)}</div>
               <div class="tl-acts">
-                <button class="btn btn-danger-soft btn-xs" onclick="delContact(${c.id},${h.id})">${t('حذف')}</button>
+                ${hasPermission('contacts.delete_entry') ? `<button class="btn btn-danger-soft btn-xs" onclick="delContact(${c.id},${h.id})">${t('حذف')}</button>` : ''}
               </div>
             </div>`).join('')}
         </div>`}
@@ -353,13 +376,13 @@ function renderPrograms(c){
     </div>
     <div class="pane-hdr">
       <span class="pane-title">${t('قائمة البرامج')}</span>
-      <button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('+ برنامج جديد')}</button>
+      ${hasPermission('programs.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('+ برنامج جديد')}</button>` : ''}
     </div>
     ${progs.length===0
       ?`<div class="empty">
           <div class="empty-icon">📦</div>
           <div class="empty-text">${t('لا توجد برامج مرتبطة بهذا العميل')}</div>
-          <button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('إضافة أول برنامج')}</button>
+          ${hasPermission('programs.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('إضافة أول برنامج')}</button>` : ''}
         </div>`
       :progs.map(p=>`
         <div class="prog-card ${progStatusCls(p)}">
@@ -383,8 +406,8 @@ function renderPrograms(c){
             </div>
           </div>
           <div class="prog-acts">
-            <button class="btn btn-ghost btn-xs" onclick="editProg(${c.id},${p.id})">✏ ${t('تعديل')}</button>
-            <button class="btn btn-danger-soft btn-xs" onclick="delProgram(${c.id},${p.id})">${t('حذف')}</button>
+            ${hasPermission('programs.edit') ? `<button class="btn btn-ghost btn-xs" onclick="editProg(${c.id},${p.id})">✏ ${t('تعديل')}</button>` : ''}
+            ${hasPermission('programs.delete') ? `<button class="btn btn-danger-soft btn-xs" onclick="delProgram(${c.id},${p.id})">${t('حذف')}</button>` : ''}
           </div>
         </div>`).join('')}`;
 }
@@ -963,6 +986,20 @@ function generateNativeTrendChartSVG(clientsList = []) {
 }
 
 export function renderDashboard() {
+  if (!hasPermission('dashboard.view')) {
+    return `
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:16px; padding:3rem 2rem; text-align:center; max-width:600px; margin:2rem auto; direction:rtl">
+        <div style="font-size:48px; margin-bottom:1rem">🔒</div>
+        <h2 style="font-size:18px; font-weight:800; color:var(--t1); margin-bottom:8px">عذراً، ليس لديك صلاحية عرض لوحة المعلومات الإحصائية</h2>
+        <p style="font-size:13px; color:var(--t2); line-height:1.6; margin-bottom:1.5rem">
+          صلاحية <code>dashboard.view</code> غير مفعلة لحسابك. يمكنك طلب تفعيلها من المسؤول العام (Gérant) أو الانتقال إلى قسم آخر مصرح لك به.
+        </p>
+        <button class="btn btn-primary btn-sm" onclick="logoutStaff()">
+          👥 تبديل حساب المستخدم
+        </button>
+      </div>
+    `;
+  }
   try {
     // 0. Ensure safe clients array
     const safeClients = Array.isArray(clients) ? clients.filter(c => c && typeof c === 'object') : [];
@@ -1210,9 +1247,11 @@ export function renderDashboard() {
         </div>
         
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-          <button class="btn btn-outline" onclick="exportToCSV()" style="font-size:12px; padding:8px 14px; border-radius:10px; font-weight:700" title="تحميل ملف CSV لجميع العملاء">
-            <span>📥</span> ${t('تصدير البيانات')}
-          </button>
+          ${hasPermission('clients.export') ? `
+            <button class="btn btn-outline" onclick="exportToCSV()" style="font-size:12px; padding:8px 14px; border-radius:10px; font-weight:700" title="تحميل ملف CSV لجميع العملاء">
+              <span>📥</span> ${t('تصدير البيانات')}
+            </button>
+          ` : ''}
           <button class="btn btn-primary" onclick="mergeWithSessionAndUser().then(() => { showToast('تم تحديث ومزامنة قاعدة البيانات السحابية بنجاح!', 'success'); R(); })" style="font-size:12px; padding:8px 14px; border-radius:10px; font-weight:700" title="مزامنة فورية مع الحساب والسحابة">
             <span>⚡</span> مزامنة السحابة
           </button>
@@ -1727,11 +1766,11 @@ export function renderDashboard() {
 
                       <!-- Phone click-to-call -->
                       <td style="padding:12px 8px" onclick="event.stopPropagation()">
-                        ${c.phone ? `
+                        ${c.phone ? (hasPermission('clients.view_sensitive') ? `
                           <a href="tel:${c.phone}" style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; color:#1e60f2; text-decoration:none; background:rgba(30,96,242,0.06); padding:4px 8px; border-radius:6px" title="اتصال مباشر">
                             <span>📞</span> ${esc(c.phone)}
                           </a>
-                        ` : `<span style="color:var(--t3); font-size:11px">—</span>`}
+                        ` : `<span style="font-size:12px; font-weight:700; color:var(--t3); background:rgba(0,0,0,0.05); padding:4px 8px; border-radius:6px">0550•• •••• 🔒</span>`) : `<span style="color:var(--t3); font-size:11px">—</span>`}
                       </td>
 
                       <!-- Profile inspect button -->

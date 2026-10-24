@@ -10,6 +10,8 @@ import {
   setClients, 
   updateState, 
   currentUser,
+  hasPermission,
+  isGerant,
   setStaffUsers,
   setSyncing,
   setLastSyncedTime,
@@ -649,6 +651,10 @@ export async function persist() {
 }
 
 export function exportData(format = 'json'){
+  if (!hasPermission('clients.export')) {
+    showToast(t('⚠️ لا تملك صلاحية تصدير البيانات. يتم ضبط الصلاحيات من طرف الرئيس (Gérant).'), 'error');
+    return;
+  }
   try{
     const isDum = format === 'dum' || format === 'dump';
     const payload=JSON.stringify({
@@ -676,6 +682,10 @@ export function exportToDump(){
 }
 
 export function exportToCSV(){
+  if (!hasPermission('clients.export')) {
+    showToast(t('⚠️ لا تملك صلاحية تصدير البيانات. يتم ضبط الصلاحيات من طرف الرئيس (Gérant).'), 'error');
+    return;
+  }
   try{
     const ac=clients.filter(c=>c.status==='نشط').length;
     const pr=clients.filter(c=>c.status==='محتمل').length;
@@ -737,7 +747,7 @@ export function exportToCSV(){
         c.id,
         c.fullName||"",
         c.company||"",
-        c.phone||"",
+        hasPermission('clients.view_sensitive') ? (c.phone || "") : (c.phone ? "0550•• •••• 🔒" : ""),
         c.wilaya||"",
         c.location||"",
         t(c.businessType||""),
@@ -1016,6 +1026,10 @@ export function parseDumpOrJson(rawText) {
 
 export function importData(file){
   if(!file)return;
+  if (!hasPermission('backup.restore') && !isGerant()) {
+    showToast(t('⚠️ لا تملك صلاحية استيراد واسترجاع البيانات. يتم ضبط الصلاحيات من طرف الرئيس (Gérant).'), 'error');
+    return;
+  }
   const fileName = file.name || 'ملف النسخة الاحتياطية';
   const isDum = fileName.toLowerCase().endsWith('.dum') || fileName.toLowerCase().endsWith('.dump');
   const reader=new FileReader();

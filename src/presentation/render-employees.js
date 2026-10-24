@@ -237,7 +237,7 @@ export function renderEmployeesView() {
                   const initials = empName && typeof empName.slice === 'function' && empName.length > 0 ? empName.slice(0, 2) : 'م';
                   const dept = getDepartment(empSafe.department) || DEPARTMENTS[0];
                   const perms = empSafe.permissions || {};
-                  const activePermsCount = empSafe.role === 'GERANT' ? 12 : Object.values(perms).filter(Boolean).length;
+                  const activePermsCount = empSafe.role === 'GERANT' ? PERMISSION_DEFINITIONS.length : Object.values(perms).filter(Boolean).length;
                   const activeStaffId = S?.currentStaffUser?.id || (typeof currentStaffUser !== 'undefined' && currentStaffUser ? currentStaffUser.id : null);
                   const isCurrentSession = Boolean((currentUser?.isEmployee && currentUser?.employeeId === empSafe.id) || (activeStaffId && activeStaffId === empSafe.id));
 
@@ -300,7 +300,7 @@ export function renderEmployeesView() {
                       <td style="padding:12px 14px">
                         <div style="display:flex; align-items:center; gap:6px">
                           <span style="background:${activePermsCount >= 8 ? 'rgba(16,185,129,0.12)' : 'rgba(37,99,235,0.1)'}; color:${activePermsCount >= 8 ? '#10b981' : '#2563eb'}; border:1px solid ${activePermsCount >= 8 ? 'rgba(16,185,129,0.25)' : 'rgba(37,99,235,0.25)'}; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11.5px">
-                            ${activePermsCount} / 12 صلاحية
+                            ${activePermsCount} / ${PERMISSION_DEFINITIONS.length} صلاحية
                           </span>
                           ${isGerant ? `
                             <button class="btn btn-ghost btn-xs" onclick="window.openEditPermissionsModal('${empSafe.id || ''}')" title="تعديل الصلاحيات الممنوحة" style="color:#2563eb; font-weight:700; padding:2px 6px">
@@ -428,16 +428,16 @@ window.viewEmployeeTasks = function(empId) {
   R();
 };
 
-window.confirmDeleteEmployee = async function(empId) {
+window.confirmDeleteEmployee = function(empId) {
   const emp = getEmployeeById(empId);
   if (!emp) return;
-  const empName = emp.fullName || emp.name || 'الموظف';
-  const ok = await showConfirm(`هل أنت متأكد من حذف حساب الموظف "${empName}" (${emp.position || ''})؟ لن يتمكن من تسجيل الدخول بعد الآن.`, "حذف حساب الموظف");
-  if (ok) {
-    deleteEmployee(empId);
-    showToast(`تم حذف حساب الموظف "${empName}" بنجاح.`, "success");
-    R();
+  if (emp.id === 'gerant' || emp.role === 'GERANT') {
+    showToast(t("لا يمكن حذف حساب المسؤول العام الرئيسي (Gérant)."), "error");
+    return;
   }
+  window.__deleteTargetEmpId = empId;
+  S.modal = 'adminPasswordConfirm';
+  R();
 };
 
 window.openEmployeeLoginPortal = function() {
@@ -861,3 +861,88 @@ export function renderViewEmployeeTasksModal() {
     </div>
   `;
 }
+
+/**
+ * Renders the Admin Password Verification Modal for safe user deletion
+ */
+export function renderAdminPasswordModal() {
+  const empId = window.__deleteTargetEmpId;
+  const emp = getEmployeeById(empId) || {};
+  const empName = emp.fullName || emp.name || 'الموظف';
+  const dept = getDepartment(emp.department);
+
+  return `
+    <div class="mhdr" style="border-bottom:1.5px solid var(--border); padding-bottom:14px; margin-bottom:14px">
+      <div style="display:flex; align-items:center; gap:10px">
+        <span style="font-size:24px; background:rgba(239,68,68,0.12); width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(239,68,68,0.3)">🔒</span>
+        <div>
+          <div class="mtitle" style="color:var(--r, #ef4444); font-size:16px">التحقق من كلمة مرور المسؤول العام (Admin Verification)</div>
+          <div style="font-size:12px; color:var(--t3); margin-top:2px">تأكيد حذف حساب الموظف نهائياً وحظر وصوله للنظام</div>
+        </div>
+      </div>
+      <button class="mclose" onclick="closeModal()">×</button>
+    </div>
+
+    <form onsubmit="window.handleAdminPasswordConfirmSubmit(event)">
+      <!-- Target User Badge -->
+      <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:12px; padding:12px 16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+          <strong style="color:var(--t1); font-size:14px">${esc(empName)}</strong>
+          <span style="font-size:11px; background:${dept.bgSoft || 'rgba(0,0,0,0.05)'}; color:${dept.color || '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700">${esc(dept.titleAr || '')}</span>
+        </div>
+        <div style="font-size:12px; color:var(--t2); display:flex; gap:12px; flex-wrap:wrap">
+          <span><strong>اسم المستخدم:</strong> @${esc(emp.username || emp.id || '')}</span>
+          <span><strong>المنصب:</strong> ${esc(emp.position || 'موظف')}</span>
+        </div>
+        <div style="margin-top:8px; font-size:11.5px; color:#ef4444; font-weight:600">
+          ⚠️ تنبيه أمني: هذا الإجراء لا رجعة فيه وسيؤدي لمسح حساب الموظف وجميع صلاحياته وسجلاته من قاعدة البيانات نهائياً.
+        </div>
+      </div>
+
+      <div class="fgroup" style="margin-bottom:16px">
+        <label class="flbl" style="font-size:13px; font-weight:700">كلمة مرور المسؤول العام (Gérant) للتأكيد *</label>
+        <div style="position:relative">
+          <input 
+            type="password" 
+            id="admin_verification_pwd" 
+            class="fctl" 
+            required 
+            autofocus 
+            dir="ltr"
+            placeholder="أدخل كلمة المرور الخاصة بالمسؤول العام..." 
+            style="padding-left:40px; font-size:13px"
+          />
+          <button 
+            type="button" 
+            onclick="const inp=document.getElementById('admin_verification_pwd'); inp.type = inp.type==='password'?'text':'password'; this.innerText = inp.type==='password'?'👁️':'🔒'" 
+            style="position:absolute; left:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:14px"
+            title="إظهار / إخفاء كلمة المرور"
+          >
+            👁️
+          </button>
+        </div>
+        <span style="font-size:11px; color:var(--t3); margin-top:4px; display:block">
+          يتطلب النظام إدخال كلمة مرور المسؤول العام للتأكد من هوية صاحب القرار قبل تنفيذ حذف المستخدمين.
+        </span>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--border); padding-top:12px">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+        <button type="submit" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer">
+          🗑️ تأكيد وحذف الموظف نهائياً
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+window.handleAdminPasswordConfirmSubmit = function(e) {
+  e.preventDefault();
+  const pwd = document.getElementById('admin_verification_pwd')?.value || '';
+  if (!pwd.trim()) {
+    showToast("يرجى إدخال كلمة مرور المسؤول العام.", "error");
+    return;
+  }
+  const empId = window.__deleteTargetEmpId;
+  window.confirmDeleteEmployeeWithAdminPassword(empId, pwd);
+};

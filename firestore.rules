@@ -166,5 +166,12 @@ service cloud.firestore {
     match /users/{userId}/employees/{employeeId} {
       allow read, write: if isOwner(userId);
     }
+
+    // 5. Connectivity verification test doc (Ping endpoint)
+    match /test/{docId} {
+      allow get: if isSignedIn();
+    }
   }
 }
+
+

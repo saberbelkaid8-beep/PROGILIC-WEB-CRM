@@ -68,6 +68,8 @@ export function loginUser(username, password, fullname = '') {
   
   // Clean up any active listeners before authenticating a new session to prevent permissions race conditions
   stopRealtimeSync();
+  setCurrentStaffUser(null);
+  S.showStaffPortal = true;
 
   const btn = document.querySelector('.auth-btn');
   const originalText = btn ? btn.innerText : '';
@@ -110,6 +112,8 @@ export function loginUser(username, password, fullname = '') {
           isEmployee: false,
         };
         setCurrentUser(activeUser);
+        setCurrentStaffUser(null);
+        S.showStaffPortal = true;
         try {
           localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
           localStorage.removeItem('crm_active_employee_session');
@@ -135,6 +139,8 @@ export function loginUser(username, password, fullname = '') {
                 isEmployee: false,
               };
               setCurrentUser(activeUser);
+              setCurrentStaffUser(null);
+              S.showStaffPortal = true;
               try {
                 localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
                 localStorage.removeItem('crm_active_employee_session');
@@ -181,6 +187,8 @@ export function loginUser(username, password, fullname = '') {
           isEmployee: false,
         };
         setCurrentUser(activeUser);
+        setCurrentStaffUser(null);
+        S.showStaffPortal = true;
         try {
           localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
           localStorage.removeItem('crm_active_employee_session');
@@ -409,6 +417,8 @@ export async function loginWithGoogle() {
   }
   try {
     stopRealtimeSync();
+    setCurrentStaffUser(null);
+    S.showStaffPortal = true;
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
     console.error('Error during Google login:', error);
@@ -450,6 +460,8 @@ export async function verifyEmail() {
 export async function loginWithFacebook() {
   try {
     stopRealtimeSync();
+    setCurrentStaffUser(null);
+    S.showStaffPortal = true;
     await signInWithPopup(auth, facebookProvider);
   } catch (error) {
     if (error.code === 'auth/popup-closed-by-user') {
@@ -464,6 +476,8 @@ export async function loginWithFacebook() {
 export async function loginWithApple() {
   try {
     stopRealtimeSync();
+    setCurrentStaffUser(null);
+    S.showStaffPortal = true;
     await signInWithPopup(auth, appleProvider);
   } catch (error) {
     if (error.code === 'auth/popup-closed-by-user') {

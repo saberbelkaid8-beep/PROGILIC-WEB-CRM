@@ -13,6 +13,14 @@ const RSTATUSES = REQ_STATUSES;
 const RTYPES = ['ميزة جديدة', 'تحسين', 'تعديل', 'أخرى'];
 const PROGRAM_PLATFORMS = PLATFORMS;
 const ACTIVITIES = BUSINESS_TYPES;
+import { 
+  renderEmployeeFormModal, 
+  renderEditPermissionsModal, 
+  renderChangePasswordModal, 
+  renderViewEmployeeTasksModal, 
+  renderAdminPasswordModal 
+} from './render-employees.js';
+
 export function renderModal(){
   const m=S.modal;
   let html='';
@@ -24,6 +32,11 @@ export function renderModal(){
   if(m==='backupManager')html=renderBackupManagerModal();
   if(m==='dbPurge')html=renderDbPurgeModal();
   if(m==='editStaffMember')html=renderStaffMemberModal();
+  if(m==='addEmployee'||m==='editEmployee')html=renderEmployeeFormModal();
+  if(m==='editEmployeePermissions')html=renderEditPermissionsModal();
+  if(m==='changeEmployeePassword')html=renderChangePasswordModal();
+  if(m==='viewEmployeeTasks')html=renderViewEmployeeTasksModal();
+  if(m==='adminPasswordConfirm')html=renderAdminPasswordModal();
   return`<div class="mbk" onclick="bkClose(event)"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'};">${html}</div></div>`;
 }
 

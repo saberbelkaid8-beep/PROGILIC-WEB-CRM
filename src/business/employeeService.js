@@ -7,6 +7,7 @@ import { showToast } from '../utils/toast.js';
 import { hashPassword, verifyPassword } from '../utils/crypto.js';
 import { saveEmployeeForTenant, deleteEmployeeForTenant } from '../firebase/service.js';
 import { auth } from '../firebase/config.js';
+import { buildDeptPermissions, ALL_PERMISSIONS } from '../constants/index.js';
 
 /**
  * The 4 Official PROGILIC Departments from organizational specifications:
@@ -36,20 +37,7 @@ export const DEPARTMENTS = [
     ],
     defaultPosition: 'مسؤول ما قبل البيع وعلاقات العملاء',
     defaultSupervisor: 'المدير العام (Gérant)',
-    defaultPermissions: {
-      canViewClients: true,
-      canAddClients: true,
-      canEditClients: true,
-      canDeleteClients: false,
-      canManagePrograms: false,
-      canManageIssues: false,
-      canManageRequirements: true,
-      canManageContacts: true,
-      canViewDashboard: true,
-      canExportData: false,
-      canManageEmployees: false,
-      canAccessAi: true
-    }
+    defaultPermissions: buildDeptPermissions('pre_vente')
   },
   {
     id: 'commercial',
@@ -70,20 +58,7 @@ export const DEPARTMENTS = [
     ],
     defaultPosition: 'مسؤول المبيعات والعقود التجارية',
     defaultSupervisor: 'المدير العام (Gérant)',
-    defaultPermissions: {
-      canViewClients: true,
-      canAddClients: true,
-      canEditClients: true,
-      canDeleteClients: false,
-      canManagePrograms: true,
-      canManageIssues: false,
-      canManageRequirements: false,
-      canManageContacts: true,
-      canViewDashboard: true,
-      canExportData: true,
-      canManageEmployees: false,
-      canAccessAi: true
-    }
+    defaultPermissions: buildDeptPermissions('commercial')
   },
   {
     id: 'suivi',
@@ -104,20 +79,7 @@ export const DEPARTMENTS = [
     ],
     defaultPosition: 'منسق جودة المتابعة وسير العمل',
     defaultSupervisor: 'المدير العام (Gérant)',
-    defaultPermissions: {
-      canViewClients: true,
-      canAddClients: true,
-      canEditClients: true,
-      canDeleteClients: false,
-      canManagePrograms: false,
-      canManageIssues: true,
-      canManageRequirements: true,
-      canManageContacts: true,
-      canViewDashboard: true,
-      canExportData: false,
-      canManageEmployees: false,
-      canAccessAi: true
-    }
+    defaultPermissions: buildDeptPermissions('suivi')
   },
   {
     id: 'technique',
@@ -138,36 +100,106 @@ export const DEPARTMENTS = [
     ],
     defaultPosition: 'مهندس برمجيات ودعم تقني',
     defaultSupervisor: 'المدير العام (Gérant)',
-    defaultPermissions: {
-      canViewClients: true,
-      canAddClients: false,
-      canEditClients: true,
-      canDeleteClients: false,
-      canManagePrograms: true,
-      canManageIssues: true,
-      canManageRequirements: true,
-      canManageContacts: false,
-      canViewDashboard: true,
-      canExportData: false,
-      canManageEmployees: false,
-      canAccessAi: true
-    }
+    defaultPermissions: buildDeptPermissions('technique')
   }
 ];
 
 export const PERMISSION_DEFINITIONS = [
-  { key: 'canViewClients', label: 'عرض دليل العملاء', group: 'العملاء', desc: 'الاطلاع على قائمة العملاء والبحث فيها' },
-  { key: 'canAddClients', label: 'إضافة عملاء جدد', group: 'العملاء', desc: 'تسجيل عملاء جدد في قاعدة البيانات' },
-  { key: 'canEditClients', label: 'تعديل بيانات العملاء', group: 'العملاء', desc: 'تحديث بيانات التواصل، الحالة والعنوان' },
-  { key: 'canDeleteClients', label: 'حذف العملاء (حساسة)', group: 'العملاء', desc: 'إمكانية مسح سجلات العملاء نهائياً' },
-  { key: 'canManagePrograms', label: 'إدارة البرامج والتراخيص', group: 'البرامج والمبيعات', desc: 'إضافة البرامج والأجهزة ورخص POS' },
-  { key: 'canManageContacts', label: 'تسجيل الاتصالات والزيارات', group: 'البرامج والمبيعات', desc: 'إضافة وتعديل سجل التواصل مع العملاء' },
-  { key: 'canManageIssues', label: 'إدارة المشكلات التقنية والبلاغات', group: 'الدعم التقني', desc: 'تسجيل المشاكل، تحديد الأولويات والحلول' },
-  { key: 'canManageRequirements', label: 'إدارة طلبات الميزات والمتطلبات', group: 'الدعم التقني', desc: 'تسجيل وتتبع اقتراحات تطوير البرنامج' },
-  { key: 'canViewDashboard', label: 'عرض لوحة القيادة والمؤشرات', group: 'التقارير والإدارة', desc: 'الاطلاع على الرسوم البيانية وإحصائيات الولايات' },
-  { key: 'canExportData', label: 'تصدير البيانات (JSON/CSV)', group: 'التقارير والإدارة', desc: 'تحميل نسخ من بيانات النظام' },
-  { key: 'canManageEmployees', label: 'إدارة الموظفين وتعديل الصلاحيات', group: 'التقارير والإدارة', desc: 'مقتصرة على المسؤول العام (Gérant)' },
-  { key: 'canAccessAi', label: 'المساعد الذكي (AI Copilot)', group: 'التقارير والإدارة', desc: 'استخدام المساعد الذكي الصوتي والكتابي' }
+  // 1. العملاء (Clients Management - 9)
+  { key: 'clients.view', label: 'عرض دليل العملاء', group: 'العملاء (Clients)', desc: 'الاطلاع على قائمة العملاء والبحث فيها', legacyKey: 'canViewClients' },
+  { key: 'clients.create', label: 'إضافة عملاء جدد', group: 'العملاء (Clients)', desc: 'تسجيل عملاء جدد في قاعدة البيانات', legacyKey: 'canAddClients' },
+  { key: 'clients.edit', label: 'تعديل بيانات العملاء', group: 'العملاء (Clients)', desc: 'تحديث بيانات التواصل، الحالة والعنوان', legacyKey: 'canEditClients' },
+  { key: 'clients.delete', label: 'حذف سجلات العملاء (حساسة)', group: 'العملاء (Clients)', desc: 'إمكانية مسح سجلات العملاء نهائياً', legacyKey: 'canDeleteClients' },
+  { key: 'clients.export', label: 'تصدير بيانات العملاء (CSV/JSON)', group: 'العملاء (Clients)', desc: 'تحميل وتصدير نسخ من بيانات العملاء', legacyKey: 'canExportData' },
+  { key: 'clients.view_sensitive', label: 'عرض البيانات الحساسة وأرقام الهاتف', group: 'العملاء (Clients)', desc: 'الاطلاع على تفاصيل الاتصال الحساسة للعملاء' },
+  { key: 'clients.manage_status', label: 'إدارة وتغيير حالة العميل', group: 'العملاء (Clients)', desc: 'تغيير حالة العميل بين نشط، محتمل، ومتوقف' },
+  { key: 'clients.view_timeline', label: 'عرض الخط الزمني للأنشطة', group: 'العملاء (Clients)', desc: 'استعراض تاريخ الأنشطة والتفاعلات اليومية' },
+  { key: 'clients.view_contact_history', label: 'عرض سجل التواصل والمكالمات', group: 'العملاء (Clients)', desc: 'الاطلاع على المكالمات والزيارات المسجلة' },
+
+  // 2. البرامج والتراخيص (Programs & Licenses - 7)
+  { key: 'programs.view', label: 'عرض البرامج والتراخيص', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'الاطلاع على البرامج المرخصة والأجهزة', legacyKey: 'canManagePrograms' },
+  { key: 'programs.create', label: 'إضافة برامج ورخص جديدة', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'تسجيل رخص برامج جديدة للعملاء' },
+  { key: 'programs.edit', label: 'تعديل بيانات التراخيص', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'تحديث المنصة، عدد الأجهزة وتواريخ العقد' },
+  { key: 'programs.delete', label: 'حذف البرامج والتراخيص', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'إلغاء وحذف ترخيص البرنامج من حساب العميل' },
+  { key: 'programs.view_licenses', label: 'عرض تفاصيل مفاتيح التراخيص', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'الاطلاع على مفاتيح التفعيل ورخص POS', legacyKey: 'canManageLicenses' },
+  { key: 'programs.manage_licenses', label: 'إدارة التراخيص والتجديد', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'تجديد فترات التراخيص وتعديل صلاحيتها' },
+  { key: 'programs.view_installations', label: 'عرض الأجهزة والمحطات المرخصة', group: 'البرامج والتراخيص (Programs & Licenses)', desc: 'متابعة عدد المحطات والأجهزة المنصبة' },
+
+  // 3. الدعم الفني والأعطال (Technical Issues - 11)
+  { key: 'issues.view', label: 'عرض البلاغات والمشاكل التقنية', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'الاطلاع على قائمة المشاكل والتذاكر', legacyKey: 'canManageIssues' },
+  { key: 'issues.create', label: 'تسجيل بلاغ/مشكلة جديدة', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'إنشاء تذكرة دعم فني أو بلاغ عطل' },
+  { key: 'issues.edit', label: 'تعديل بيانات التذكرة', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'تحديث وصف وتفاصيل المشكلة' },
+  { key: 'issues.delete', label: 'حذف التذاكر التقنية', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'مسح سجل التذكرة أو البلاغ نهائياً' },
+  { key: 'issues.change_status', label: 'تغيير حالة التذكرة', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'تحديث حالة المشكلة (مفتوح، قيد المعالجة، محلول، مغلق)' },
+  { key: 'issues.change_priority', label: 'تعديل أولوية المشكلة', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'تحديد درجة الإلحاح (عاجل، عالية، متوسطة، منخفضة)' },
+  { key: 'issues.change_type', label: 'تصنيف نوع العطل', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'تحديد نوع المشكلة (تقني، أداء، خطأ مستخدم...)' },
+  { key: 'issues.add_notes', label: 'إضافة ملاحظات وحلول تقنية', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'تدوين الحلول التقنية والملاحظات التشخيصية' },
+  { key: 'issues.resolve', label: 'حل وإصلاح المشكلة', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'تأكيد إصلاح العطل البرمجي' },
+  { key: 'issues.reopen', label: 'إعادة فتح المشكلة', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'إعادة تنشيط تذكرة في حال تكرار العطل' },
+  { key: 'issues.close', label: 'الإغلاق النهائي للتذكرة', group: 'الدعم الفني والأعطال (Technical Issues)', desc: 'إغلاق وأرشفة البلاغ بعد التحقق' },
+
+  // 4. الميزات والمتطلبات (Features & Requirements - 6)
+  { key: 'features.view', label: 'عرض طلبات الميزات والمتطلبات', group: 'الميزات والمتطلبات (Features & Requirements)', desc: 'استعراض مقترحات تطوير النظام', legacyKey: 'canManageRequirements' },
+  { key: 'features.create', label: 'تسجيل ميزة/متطلب جديد', group: 'الميزات والمتطلبات (Features & Requirements)', desc: 'إضافة طلب تطوير ميزة جديدة من العميل' },
+  { key: 'features.edit', label: 'تعديل المتطلب والمواصفات', group: 'الميزات والمتطلبات (Features & Requirements)', desc: 'تحديث مواصفات الميزة المطلوبة' },
+  { key: 'features.delete', label: 'حذف متطلبات التطوير', group: 'الميزات والمتطلبات (Features & Requirements)', desc: 'إلغاء وحذف طلب الميزة نهائياً' },
+  { key: 'features.change_status', label: 'تحديث مسار تنفيذ الميزة', group: 'الميزات والمتطلبات (Features & Requirements)', desc: 'تغيير مسار التنفيذ (مقترح، قيد الدراسة، مخطط، منفذ)' },
+  { key: 'features.add_notes', label: 'إضافة ملاحظات تحليلية للميزة', group: 'الميزات والمتطلبات (Features & Requirements)', desc: 'تدوين ملاحظات تحليل الجدوى والتنفيذ' },
+
+  // 5. سجلات التواصل (Contacts - 4)
+  { key: 'contacts.view_history', label: 'عرض سجل الاتصالات والمواعيد', group: 'سجلات التواصل (Contacts)', desc: 'مراجعة المواعيد والاتصالات السابقة', legacyKey: 'canManageContacts' },
+  { key: 'contacts.create_entry', label: 'تسجيل مكالمة أو زيارة', group: 'سجلات التواصل (Contacts)', desc: 'إضافة مدخل تواصل جديد مع التاريخ' },
+  { key: 'contacts.edit_entry', label: 'تعديل مدخل التواصل', group: 'سجلات التواصل (Contacts)', desc: 'تعديل تفاصيل المكالمة أو الملاحظة' },
+  { key: 'contacts.delete_entry', label: 'حذف سجل تواصل', group: 'سجلات التواصل (Contacts)', desc: 'مسح سجل مكالمة أو موعد' },
+
+  // 6. لوحة القيادة والتقارير (Dashboard & Reports - 3)
+  { key: 'dashboard.view', label: 'عرض لوحة القيادة والمؤشرات', group: 'لوحة القيادة والتقارير (Dashboard & Reports)', desc: 'الاطلاع على الإحصائيات والمؤشرات العامة', legacyKey: 'canViewDashboard' },
+  { key: 'reports.view', label: 'استعراض التقارير الإحصائية', group: 'لوحة القيادة والتقارير (Dashboard & Reports)', desc: 'عرض تقارير التوزيع الجغرافي والولايات' },
+  { key: 'reports.export', label: 'تصدير التقارير الإحصائية', group: 'لوحة القيادة والتقارير (Dashboard & Reports)', desc: 'تصدير التقارير والرسوم البيانية' },
+
+  // 7. التحليلات والذكاء الاصطناعي (Analytics & AI - 3)
+  { key: 'analytics.view', label: 'استعراض التحليلات الذكية', group: 'التحليلات والذكاء الاصطناعي (Analytics & AI)', desc: 'عرض المؤشرات التحليلية المتقدمة', legacyKey: 'canAccessAi' },
+  { key: 'analytics.view_risks', label: 'تحليل مخاطر انقطاع العملاء', group: 'التحليلات والذكاء الاصطناعي (Analytics & AI)', desc: 'مراقبة تقييمات الصحة ومخاطر فقدان العملاء' },
+  { key: 'analytics.view_insights', label: 'رؤى المساعد الذكي (AI Copilot)', group: 'التحليلات والذكاء الاصطناعي (Analytics & AI)', desc: 'استخدام المساعد الصوتي والتحليلي الذكي' },
+
+  // 8. البحث والفلاتر المتقدمة (Search & Filters - 5)
+  { key: 'search.global', label: 'البحث الشامل في النظام', group: 'البحث والفلاتر (Search & Filters)', desc: 'البحث السريع في كافة البيانات' },
+  { key: 'search.clients', label: 'البحث في سجلات العملاء', group: 'البحث والفلاتر (Search & Filters)', desc: 'البحث المتخصص حسب النشاط والاسم' },
+  { key: 'filters.advanced', label: 'استخدام الفلاتر المتقدمة', group: 'البحث والفلاتر (Search & Filters)', desc: 'تطبيق معايير التصفية المتعددة والمركبة' },
+  { key: 'filters.by_wilaya', label: 'التصفية الجغرافية بالولايات', group: 'البحث والفلاتر (Search & Filters)', desc: 'فرز العملاء جغرافياً حسب الولاية والبلدية' },
+  { key: 'filters.by_program', label: 'التصفية حسب البرامج', group: 'البحث والفلاتر (Search & Filters)', desc: 'فرز العملاء حسب نوع البرنامج المرخص' },
+
+  // 9. النسخ الاحتياطي والأرشيف (Backups - 5)
+  { key: 'backup.view', label: 'عرض النسخ الاحتياطية وسجلات الأمان', group: 'النسخ الاحتياطي والأرشيف (Backups)', desc: 'الاطلاع على قائمة النسخ وسجلات التدقيق', legacyKey: 'canManageBackups' },
+  { key: 'backup.create', label: 'إنشاء نسخ احتياطية يدوية', group: 'النسخ الاحتياطي والأرشيف (Backups)', desc: 'أخذ لقطة فورية لقاعدة البيانات' },
+  { key: 'backup.download', label: 'تحميل ملفات النسخ الاحتياطي', group: 'النسخ الاحتياطي والأرشيف (Backups)', desc: 'تنزيل ملف .dum أو .json محلياً' },
+  { key: 'backup.restore', label: 'استرجاع واستيراد البيانات', group: 'النسخ الاحتياطي والأرشيف (Backups)', desc: 'استعادة بيانات من نسخة سابقة' },
+  { key: 'backup.delete', label: 'حذف النسخ الاحتياطية', group: 'النسخ الاحتياطي والأرشيف (Backups)', desc: 'تنظيف ومسح النسخ القديمة' },
+
+  // 10. إدارة المستخدمين والموظفين (Users & Staff - 5)
+  { key: 'users.view', label: 'عرض دليل الموظفين والمستخدمين', group: 'المستخدمون والموظفون (Users & Staff)', desc: 'الاطلاع على فريق العمل والمناصب', legacyKey: 'canManageEmployees' },
+  { key: 'users.create', label: 'إضافة موظف/مستخدم جديد', group: 'المستخدمون والموظفون (Users & Staff)', desc: 'تسجيل حساب مستخدم جديد' },
+  { key: 'users.edit', label: 'تعديل بيانات الموظفين والمناصب', group: 'المستخدمون والموظفون (Users & Staff)', desc: 'تحديث المنصب والمسمى والمسؤول المباشر' },
+  { key: 'users.disable', label: 'تعطيل وتنشيط الحسابات', group: 'المستخدمون والموظفون (Users & Staff)', desc: 'إيقاف حساب موظف مؤقتاً أو إعادة تنشيطه' },
+  { key: 'users.delete', label: 'حذف حساب مستخدم (يتطلب كلمة سر المسؤول)', group: 'المستخدمون والموظفون (Users & Staff)', desc: 'مسح حساب موظف نهائياً مع التحقق الإلزامي من كلمة مرور المسؤول العام (Gérant)', legacyKey: 'canDeleteEmployees' },
+
+  // 11. الأقسام والهيكلة (Departments - 4)
+  { key: 'departments.view', label: 'استعراض هيكل الأقسام الأربعة', group: 'الأقسام والهيكلة (Departments)', desc: 'الاطلاع على اختصاصات ومهام الأقسام' },
+  { key: 'departments.create', label: 'إضافة قسم جديد', group: 'الأقسام والهيكلة (Departments)', desc: 'استحداث قسم إداري جديد' },
+  { key: 'departments.edit', label: 'تعديل مهام واختصاصات القسم', group: 'الأقسام والهيكلة (Departments)', desc: 'تحديث المسؤوليات وتفاصيل القسم' },
+  { key: 'departments.delete', label: 'حذف الأقسام', group: 'الأقسام والهيكلة (Departments)', desc: 'حذف قسم إداري' },
+
+  // 12. الصلاحيات والنظام (Permissions & Settings - 5)
+  { key: 'permissions.view', label: 'عرض مصفوفة الصلاحيات (60+)', group: 'الصلاحيات والنظام (Permissions & Settings)', desc: 'الاطلاع على تفاصيل مصفوفة الصلاحيات الممنوحة' },
+  { key: 'permissions.assign', label: 'منح الصلاحيات للموظفين', group: 'الصلاحيات والنظام (Permissions & Settings)', desc: 'تفعيل صلاحيات إضافية للموظف' },
+  { key: 'permissions.revoke', label: 'سحب الصلاحيات من الموظفين', group: 'الصلاحيات والنظام (Permissions & Settings)', desc: 'تعطيل صلاحيات معينة لموظف' },
+  { key: 'settings.view', label: 'عرض إعدادات النظام', group: 'الصلاحيات والنظام (Permissions & Settings)', desc: 'استعراض تفضيلات النظام واللغات' },
+  { key: 'settings.edit', label: 'تعديل وضبط النظام', group: 'الصلاحيات والنظام (Permissions & Settings)', desc: 'تعديل الإعدادات العامة للنظام' },
+
+  // 13. الحساب الشخصي والجلسات (Account & Sessions - 3)
+  { key: 'account.view', label: 'عرض الملف الشخصي', group: 'الحساب والجلسات (Account & Sessions)', desc: 'الاطلاع على بيانات الجلسة النشطة' },
+  { key: 'account.change_password', label: 'تغيير كلمة المرور الشخصية', group: 'الحساب والجلسات (Account & Sessions)', desc: 'تحديث كلمة المرور الشخصية للمستخدم' },
+  { key: 'account.manage_sessions', label: 'إدارة الجلسات وتبديل المستخدمين', group: 'الحساب والجلسات (Account & Sessions)', desc: 'التحكم في تسجيلات الدخول وبوابة التبديل' }
 ];
 
 export const INITIAL_EMPLOYEES = [];
@@ -258,7 +290,7 @@ export function getDepartment(deptId) {
       ],
       defaultPosition: 'المدير العام (Gérant)',
       defaultSupervisor: '-',
-      defaultPermissions: {}
+      defaultPermissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {})
     };
   }
   return DEPARTMENTS[0];
@@ -281,8 +313,8 @@ export function upsertEmployee(employeeData) {
   const uid = getCurrentUserUid() || 'default';
   
   // Hash password if supplied and remove any plaintext password
-  let passwordHash = undefined;
-  let passwordSalt = undefined;
+  let passwordHash = employeeData.passwordHash || undefined;
+  let passwordSalt = employeeData.passwordSalt || undefined;
   if (employeeData.password && typeof employeeData.password === 'string' && employeeData.password.trim()) {
     const res = hashPassword(employeeData.password.trim());
     passwordHash = res.hash;
@@ -323,8 +355,8 @@ export function upsertEmployee(employeeData) {
       name: fullName,
       fullName: fullName,
       username: (employeeData.username || `emp_${Date.now()}`).trim().toLowerCase(),
-      passwordHash: passwordHash || null,
-      passwordSalt: passwordSalt || null,
+      passwordHash: passwordHash || employeeData.passwordHash || null,
+      passwordSalt: passwordSalt || employeeData.passwordSalt || null,
       department: employeeData.department || 'pre_vente',
       position: employeeData.position || getDepartment(employeeData.department).defaultPosition,
       supervisor: employeeData.supervisor || 'المدير العام (Gérant)',
@@ -336,7 +368,10 @@ export function upsertEmployee(employeeData) {
       createdAt: employeeData.createdAt || new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString(),
       lastLogin: null,
-      permissions: employeeData.permissions || { ...getDepartment(employeeData.department).defaultPermissions }
+      permissions: employeeData.permissions ? {
+        ...buildDeptPermissions(employeeData.department || 'pre_vente'),
+        ...employeeData.permissions
+      } : buildDeptPermissions(employeeData.department || 'pre_vente')
     };
     list.push(newEmp);
     finalEmp = newEmp;
@@ -352,6 +387,104 @@ export function upsertEmployee(employeeData) {
   }
 
   return list;
+}
+
+/**
+ * Retrieves the primary Gérant account object from staff list
+ */
+export function getGerantAccount() {
+  const list = getEmployees();
+  return list.find(e => e.role === 'GERANT' || e.id === 'gerant' || e.id === 'gerant-1') || null;
+}
+
+/**
+ * Verifies the Admin (Gérant) password against salted cryptographic hash or active credentials
+ */
+export function verifyAdminPassword(password) {
+  const cleanPass = (password || '').trim();
+  if (!cleanPass) {
+    return { success: false, message: 'يرجى إدخال كلمة مرور المسؤول العام (Gérant).' };
+  }
+
+  // 1. Verify caller has Gérant authority
+  if (!isUserGerant()) {
+    return { success: false, message: 'عذراً، فقط المسؤول العام (GERANT) يملك صلاحية التحقق وحذف المستخدمين.' };
+  }
+
+  const gerant = getGerantAccount();
+
+  // 2. Check Gérant staff member salted cryptographic hash
+  if (gerant && gerant.passwordHash && gerant.passwordSalt) {
+    const isValid = verifyPassword(cleanPass, gerant.passwordHash, gerant.passwordSalt);
+    if (isValid) {
+      return { success: true };
+    }
+  }
+
+  // 3. Check legacy unhashed password and auto-upgrade
+  if (gerant && gerant.password) {
+    if (gerant.password === cleanPass) {
+      const { hash, salt } = hashPassword(cleanPass);
+      gerant.passwordHash = hash;
+      gerant.passwordSalt = salt;
+      delete gerant.password;
+      delete gerant.pwd;
+      saveEmployees(getEmployees());
+      return { success: true };
+    }
+  }
+
+  // 4. Check cached admin password hash in localStorage
+  try {
+    const adminHash = localStorage.getItem('crm_admin_pwd_hash');
+    const adminSalt = localStorage.getItem('crm_admin_pwd_salt');
+    if (adminHash && adminSalt) {
+      if (verifyPassword(cleanPass, adminHash, adminSalt)) {
+        return { success: true };
+      }
+    }
+  } catch (e) {}
+
+  // 5. If Gérant has no set password yet (e.g. freshly initialized session or default admin),
+  // initialize and securely bind this password as the Gérant master password
+  if (gerant && !gerant.passwordHash && !gerant.password) {
+    const { hash, salt } = hashPassword(cleanPass);
+    gerant.passwordHash = hash;
+    gerant.passwordSalt = salt;
+    delete gerant.password;
+    delete gerant.pwd;
+    saveEmployees(getEmployees());
+    try {
+      localStorage.setItem('crm_admin_pwd_hash', hash);
+      localStorage.setItem('crm_admin_pwd_salt', salt);
+    } catch(e) {}
+    return { success: true };
+  }
+
+  return { success: false, message: 'كلمة المرور غير صحيحة. يرجى إدخال كلمة مرور المسؤول العام الصحيحة للمتابعة.' };
+}
+
+/**
+ * Securely deletes an employee after verifying the Admin (Gérant) password
+ */
+export function deleteEmployeeWithPassword(id, adminPassword) {
+  if (!id) {
+    return { success: false, message: 'معرف المستخدم غير محدد.' };
+  }
+  if (id === 'gerant' || id === 'gerant-1') {
+    return { success: false, message: 'لا يمكن حذف حساب المسؤول العام الرئيسي (Gérant).' };
+  }
+  if (!isUserGerant() && !hasPermission('users.delete')) {
+    return { success: false, message: 'عذراً، فقط المسؤول العام (GERANT) يملك صلاحية حذف المستخدمين.' };
+  }
+
+  const ver = verifyAdminPassword(adminPassword);
+  if (!ver.success) {
+    return ver;
+  }
+
+  deleteEmployee(id);
+  return { success: true, message: 'تم التحقق من كلمة مرور المسؤول وحذف حساب المستخدم بنجاح.' };
 }
 
 /**
@@ -381,6 +514,10 @@ export function updateEmployeePermissions(id, permissions) {
   emp.permissions = { ...permissions };
   emp.updatedAt = new Date().toISOString();
   saveEmployees(list);
+
+  if (currentStaffUser && currentStaffUser.id === id) {
+    setCurrentStaffUser({ ...emp });
+  }
 
   const uid = getCurrentUserUid() || 'default';
   if (uid && uid !== 'default') {
@@ -471,6 +608,23 @@ export function authenticateEmployee(loginInput, password) {
   saveEmployees(list);
 
   return emp;
+}
+
+/**
+ * Verifies an employee's password against stored cryptographic hash or credentials
+ */
+export function verifyEmployeePassword(employee, password) {
+  if (!employee || !password || typeof password !== 'string' || !password.trim()) {
+    return false;
+  }
+  const cleanPass = password.trim();
+  if (employee.passwordHash && employee.passwordSalt) {
+    return verifyPassword(cleanPass, employee.passwordHash, employee.passwordSalt);
+  }
+  if (employee.password) {
+    return employee.password === cleanPass;
+  }
+  return false;
 }
 
 /**
