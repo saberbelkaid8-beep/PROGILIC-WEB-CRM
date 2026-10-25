@@ -138,9 +138,6 @@ export default defineConfig({
           if (id.includes('node_modules/firebase')) {
             return 'firebase-core';
           }
-          if (id.includes('node_modules/algeria-locations')) {
-            return 'algeria-data';
-          }
           if (id.includes('node_modules/minisearch')) {
             return 'search-engine';
           }
