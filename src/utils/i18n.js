@@ -1952,6 +1952,7 @@ export function localizeRenderedDom(root) {
   for (const node of textNodes) {
     const element = node.parentElement;
     if (!element) continue;
+    if (element.closest('style, script')) continue;
     const statusBadge = element.closest('.bdg, .badge');
     const clientValue = element.closest('.ival');
     if (

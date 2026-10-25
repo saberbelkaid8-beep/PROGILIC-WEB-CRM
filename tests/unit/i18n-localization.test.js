@@ -97,6 +97,22 @@ describe('interface localization', () => {
     expect(untranslated).toEqual([]);
   });
 
+  it('preserves CSS and script source while localizing visible digits', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <style>.layout { width: 100%; padding: 12px; }</style>
+      <script>const pageSize = 12;</script>
+      <p>12</p>
+    `;
+
+    setLanguage('ar');
+    localizeRenderedDom(root);
+
+    expect(root.querySelector('style').textContent).toContain('padding: 12px');
+    expect(root.querySelector('script').textContent).toContain('pageSize = 12');
+    expect(root.querySelector('p').textContent).toBe('١٢');
+  });
+
   it('localizes confirmation prompts and keeps typed input intact', async () => {
     setLanguage('fr');
     const promptPromise = showPrompt(

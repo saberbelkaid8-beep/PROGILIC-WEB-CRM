@@ -572,7 +572,7 @@ export function renderLogin() {
         justify-content: flex-start;
       }
 
-      .prog-card {
+      .prog-login-card {
         width: 470px;
         max-width: 100%;
         background: var(--prog-surface);
@@ -914,7 +914,7 @@ export function renderLogin() {
           justify-content: center;
         }
 
-        .prog-card {
+        .prog-login-card {
           width: 100%;
           max-width: 440px;
           padding: 2.25rem 1.75rem 1.75rem;
@@ -942,7 +942,7 @@ export function renderLogin() {
         .progilic-login-page {
           padding: 0.75rem 0.75rem 1.5rem;
         }
-        .prog-card {
+        .prog-login-card {
           padding: 1.75rem 1.15rem 1.5rem;
           border-radius: 24px;
         }
@@ -1610,7 +1610,7 @@ export function renderLogin() {
         ${leftHeroHTML}
 
         <div class="prog-right-wrapper">
-          <div class="prog-card">
+          <div class="prog-login-card">
             ${cardContentHTML}
           </div>
         </div>
