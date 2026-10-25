@@ -359,7 +359,29 @@ export function startRealtimeSync(userId) {
     console.warn("Employees collection snapshot listener notice:", error);
   });
 
-  activeUnsubscribers.push(unsubUser, unsubClients, unsubEmployees);
+  // 4. Listen to activities subcollection (real-time cross-device and multi-user audit timeline sync)
+  const activitiesCollRef = collection(db, 'users', userId, 'activities');
+  const unsubActivities = onSnapshot(activitiesCollRef, (snapshot) => {
+    const remoteActivities = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id
+    }));
+    remoteActivities.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+    batch(() => {
+      S.globalActivities = remoteActivities;
+      if (S.selId) {
+        S.clientActivities = remoteActivities.filter(a => Number(a.clientId) === Number(S.selId));
+      }
+      setLastSyncedTime(new Date());
+    });
+    if (typeof window !== 'undefined' && window.R) {
+      window.R();
+    }
+  }, (error) => {
+    console.warn("Activities collection snapshot listener notice:", error);
+  });
+
+  activeUnsubscribers.push(unsubUser, unsubClients, unsubEmployees, unsubActivities);
 }
 
 export function stopRealtimeSync() {
@@ -456,10 +478,8 @@ async function doLoadDataFromFirestore(user) {
       setSaveError(false);
     });
 
-    // Load local IndexedDB cache first so the UI is responsive immediately!
-    await loadUserCache(user.uid);
-    // Release loading immediately after local cache restore to ensure zero UI delay
-    setLoading(false);
+    // Strict Online Mode: Direct Cloud Firestore loading without local disk cache
+    setLoading(true);
 
     try {
       if (user && (user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com'))) {
@@ -528,6 +548,7 @@ async function doLoadDataFromFirestore(user) {
       saveClients(user.uid, mergedClients).catch(console.warn);
       setMeta(user.uid, 'stats', computedStats).catch(console.warn);
       setMeta(user.uid, 'nid', computedNid).catch(console.warn);
+      import('./timelineService.js').then(m => m.syncCrmServicesToTimeline(user.uid)).catch(console.warn);
 
       // If user doc didn't exist or had older schema or fewer clients, commit to Cloud Firestore
       if (!data || data.v === undefined || Number(data.v) < 3 || (data.clients && data.clients.length < mergedClients.length)) {
@@ -1347,33 +1368,8 @@ export function enqueueSyncAction(type, payload) {
   }
 }
 
-// Setup throttled user-isolated IndexedDB persistence observer
-let saveCacheTimeout = null;
-subscribe(() => {
-  if (!currentUser || !currentUser.uid) return; // Only persist when logged in
-  if (saveCacheTimeout) return;
-  saveCacheTimeout = setTimeout(async () => {
-    saveCacheTimeout = null;
-    try {
-      if (!currentUser || !currentUser.uid) return;
-      const uid = currentUser.uid;
-      // Copy current snapshots synchronously to prevent race conditions during async write
-      const clientsSnapshot = [...clients];
-      const statsSnapshot = { ...(S.stats || {}) };
-      const nidSnapshot = S.nid;
-      const queueSnapshot = [...(S.syncQueue || [])];
+// Strict Online Mode: Local IndexedDB disk caching is disabled. All state is maintained online via Cloud Firestore.
 
-      await saveClients(uid, clientsSnapshot);
-      await setMeta(uid, 'stats', statsSnapshot);
-      await setMeta(uid, 'nid', nidSnapshot);
-      await saveSyncQueue(uid, queueSnapshot);
-      
-      console.log(`[Offline Cache] Saved state to user ${uid} IndexedDB successfully.`);
-    } catch (e) {
-      console.error("[Offline Cache] Failed to save state to IndexedDB:", e);
-    }
-  }, 1000);
-});
 
 // Setup global network event listeners
 if (typeof window !== 'undefined') {

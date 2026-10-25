@@ -6,8 +6,8 @@ vi.mock('../../src/firebase/service.js', () => ({
 }));
 import { buildTimelineReport, getFilteredTimelineList } from '../../src/business/actions/timelineActions.js';
 import { ActivityType } from '../../src/business/timelineService.js';
-import { loadGlobalActivities, logActivity } from '../../src/business/timelineService.js';
-import { S, setCurrentStaffUser, setCurrentUser, updateState } from '../../src/state/store.js';
+import { loadGlobalActivities, logActivity, syncCrmServicesToTimeline } from '../../src/business/timelineService.js';
+import { S, setCurrentStaffUser, setCurrentUser, updateState, setClients } from '../../src/state/store.js';
 
 const activities = [
   { id: 1, timestamp: '2026-10-22T09:00:00.000Z', type: ActivityType.CLIENT_CREATED, userId: 'u1', userName: 'سارة', clientName: 'حمزة بلقايد', category: 'clients' },
@@ -135,5 +135,47 @@ describe('Global timeline filters and report', () => {
     expect(S.globalActivities.map(activity => activity.id)).toContain('remote-1');
     expect(S.timelineCloudStatus).toBe('synced');
     expect(localStorage.getItem('progilic_crm_activity_migration_timeline-tenant')).toBe('complete');
+  });
+
+  it('filters day_before_yesterday preset correctly', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 25, 12));
+    const localTimestamp = (year, month, day, hour = 12) => new Date(year, month, day, hour).toISOString();
+    updateState({
+      globalActivities: [
+        { id: 'today', timestamp: localTimestamp(2026, 9, 25) },
+        { id: 'yesterday', timestamp: localTimestamp(2026, 9, 24) },
+        { id: 'dayBefore', timestamp: localTimestamp(2026, 9, 23) },
+        { id: 'older', timestamp: localTimestamp(2026, 9, 20) }
+      ]
+    });
+
+    updateState({ timelineDatePreset: 'day_before_yesterday' });
+    expect(getFilteredTimelineList().map(activity => activity.id)).toEqual(['dayBefore']);
+  });
+
+  it('extracts and populates existing CRM services and programs into timeline and cloud', async () => {
+    setCurrentUser({ uid: 'timeline-tenant', role: 'gerant', email: 'owner@example.test' });
+    setClients([
+      {
+        id: 991,
+        fullName: 'متجر الوفاء',
+        startDate: '2026-10-25',
+        programs: [
+          { id: 101, programName: 'PROGILIC POS', platform: 'Desktop', installationsCount: 2, startDate: '2026-10-25' }
+        ],
+        issues: [
+          { id: 201, title: 'عطل طابعة الفواتير', status: 'محلول', date: '2026-10-24' }
+        ]
+      }
+    ]);
+
+    const generated = await syncCrmServicesToTimeline('timeline-tenant');
+    expect(generated.length).toBeGreaterThanOrEqual(3);
+    expect(cloudMocks.save).toHaveBeenCalled();
+    const progAct = S.globalActivities.find(a => a.id === 'act_prog_991_101');
+    expect(progAct).toBeDefined();
+    expect(progAct.title).toContain('PROGILIC POS');
+    expect(progAct.category).toBe('programs');
   });
 });

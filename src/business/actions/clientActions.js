@@ -249,13 +249,25 @@ export async function saveClient(editId) {
         lastContact: 'آخر تواصل', notes: 'ملاحظات'
       };
       const changedFields = Object.keys(fieldLabels).filter(key => oldC[key] !== d[key]);
+      const statusChanged = oldC.status !== d.status;
+      let changeDesc = '';
+      if (statusChanged) {
+        changeDesc += `تغيير حالة العميل من (${oldC.status}) إلى (${d.status}). `;
+      }
+      const otherChanges = changedFields.filter(f => f !== 'status');
+      if (otherChanges.length > 0) {
+        changeDesc += `تم تعديل: ${otherChanges.map(key => `${fieldLabels[key]} (الجديد: "${d[key] || 'فارغ'}")`).join('، ')}.`;
+      } else if (!statusChanged) {
+        changeDesc = 'تم حفظ ومزامنة بيانات العميل بنجاح.';
+      }
+
       logActivity(
         clientEditId,
         ActivityType.CLIENT_EDITED,
-        "تعديل بيانات العميل",
-        changedFields.length
-          ? `تم تعديل الحقول: ${changedFields.map(key => fieldLabels[key]).join('، ')}.`
-          : 'تم حفظ ملف العميل دون تغيير بيانات.'
+        statusChanged ? `تحديث حالة العميل (${d.status})` : "تعديل بيانات العميل",
+        changeDesc,
+        'online-crm',
+        { clientName: d.fullName, changedFields }
       )
         .catch(err => console.error(err));
       showToast(t('تم تحديث بيانات العميل'));

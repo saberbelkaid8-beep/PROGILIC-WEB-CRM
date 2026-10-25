@@ -19,11 +19,11 @@ export function renderGlobalTimeline() {
   const report = buildTimelineReport(filtered);
   const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
   const cloudStatus = {
-    synced: { label: 'السجل السحابي متزامن مع أجهزة الموظفين', color: '#059669' },
-    pending: { label: 'أنشطة جديدة تنتظر المزامنة السحابية', color: '#D97706' },
-    partial: { label: 'تعذر تأكيد اكتمال السجل السحابي؛ قد يكون التقرير غير مكتمل', color: '#DC2626' },
-    'local-only': { label: 'يعرض السجل المحلي فقط لعدم وجود حساب سحابي', color: '#64748B' }
-  }[S.timelineCloudStatus] || { label: 'حالة مزامنة السجل غير معروفة', color: '#D97706' };
+    synced: { label: 'سجل السحابة أونلاين متزامن فورياً مع كافة المستخدمين', color: '#059669' },
+    pending: { label: 'أنشطة جديدة قيد الرفع والمزامنة أونلاين', color: '#D97706' },
+    partial: { label: 'مطلوب اتصال بالإنترنت للمزامنة السحابية', color: '#DC2626' },
+    'local-only': { label: 'مطلوب تسجيل الدخول بالإنترنت للمزامنة السحابية', color: '#DC2626' }
+  }[S.timelineCloudStatus] || { label: 'مزامنة سحابية حية نشطة أونلاين', color: '#059669' };
 
   // Calculate High-Level KPIs
   const totalCount = allActivities.length;
@@ -118,6 +118,9 @@ export function renderGlobalTimeline() {
 
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
           <span role="status" style="font-size:11px; color:${cloudStatus.color}; font-weight:700">${t(cloudStatus.label)}</span>
+          <button class="btn btn-outline btn-sm" onclick="syncAllCrmServicesAction()" title="${t('مزامنة ورفع كافة خدمات وتراخيص الـ CRM الحالية إلى المخطط الزمني السحابي')}" style="font-size:11.5px; padding:6px 12px; color:#059669; border-color:#059669; font-weight:700">
+            ⚡ ${t('مزامنة كل خدمات الـ CRM')}
+          </button>
           <button class="btn btn-outline btn-sm" onclick="refreshGlobalTimeline()" title="${t('تحديث السجل')}" style="font-size:11.5px; padding:6px 12px">
             🔄 ${t('تحديث')}
           </button>
@@ -238,7 +241,8 @@ export function renderGlobalTimeline() {
               ${[
                 { id: 'all', label: 'كل الأوقات' },
                 { id: 'today', label: 'اليوم' },
-                { id: 'yesterday', label: 'أمس' },
+                { id: 'yesterday', label: 'أمس (البارح)' },
+                { id: 'day_before_yesterday', label: 'أول أمس (أول البارح)' },
                 { id: 'week', label: 'آخر 7 أيام' },
                 { id: 'month', label: 'هذا الشهر' },
                 { id: 'custom', label: 'مخصص 📅' }

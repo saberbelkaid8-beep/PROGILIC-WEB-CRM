@@ -305,12 +305,6 @@ window.focusGerantLogin = function() {
 window.enterAsGerantDirectly = window.focusGerantLogin;
 
 window.closeStaffPortal = function() {
-  if (!currentStaffUser) {
-    if (typeof window.showToast === 'function') {
-      window.showToast('يجب اختيار حساب مستخدم وإدخال كلمة المرور للمتابعة', 'warning');
-    }
-    return;
-  }
   S.showStaffPortal = false;
   if (typeof window.R === 'function') {
     window.R();

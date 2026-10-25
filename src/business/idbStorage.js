@@ -7,7 +7,7 @@
 
 let dbInstance = null;
 let currentUid = null;
-let useFallback = false;
+let useFallback = true; // Strict Online Mode: Native disk IndexedDB disabled; Cloud Firestore is the sole database.
 
 // Safe in-memory store fallback
 const inMemoryStore = {
@@ -17,22 +17,6 @@ const inMemoryStore = {
   backups: {},
   activities: {}
 };
-
-// Auto-detect IndexedDB availability safely
-try {
-  if (typeof window === 'undefined') {
-    useFallback = true;
-  } else {
-    const idb = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
-    if (!idb) {
-      console.warn("[IDB] IndexedDB not found on this browser. Using in-memory fallback.");
-      useFallback = true;
-    }
-  }
-} catch (e) {
-  console.warn("[IDB] IndexedDB access threw security exception. Using in-memory fallback.", e);
-  useFallback = true;
-}
 
 /**
  * Opens (and initializes if needed) the user's specific IndexedDB database.

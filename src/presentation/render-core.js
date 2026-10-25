@@ -262,7 +262,15 @@ function performRender() { try {
     `;
   }
 
+  const offlineWarningBanner = (!S.isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) ? `
+    <div style="background:#dc2626; color:#ffffff; padding:10px 16px; font-weight:700; font-size:12.5px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 2px 8px rgba(220,38,38,0.3); position:sticky; top:0; z-index:9999;">
+      <span>⚠️</span>
+      <span>${S.lang === 'fr' ? 'PROGILIC CRM fonctionne exclusivement en ligne. Connexion Internet requise pour synchroniser vos opérations en temps réel.' : S.lang === 'en' ? 'PROGILIC CRM operates strictly online. Internet connection is required to sync operations in real time.' : 'تنبيه هام: نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين. يلزم توفر اتصال بالإنترنت لمزامنة كافة العمليات مباشرة وحفظها لحظياً.'}</span>
+    </div>
+  ` : '';
+
   const nextHTML = 
+    offlineWarningBanner +
     renderHdr(alerts.length) +
     (S.view === 'list' || S.view === 'dashboard' || S.view === 'global-timeline' ? renderAlertBanner(alerts) : '') +
     `<div class="page ${S.view === 'dashboard' || S.view === 'global-timeline' ? 'dashboard-page' : ''}" style="${S.view === 'dashboard' || S.view === 'global-timeline' ? 'max-width:1300px; padding:1.25rem;' : ''}">` + pageContent + '</div>' +
@@ -395,37 +403,37 @@ function renderStorageBar() {
   let statusHTML = '';
   if (!isOnline) {
     statusHTML = `
-      <span style="color:#e0a800; font-weight:600; display:flex; align-items:center; gap:6px;">
-        <span class="pulse-offline" style="width:10px; height:10px; border-radius:50%; background:#e0a800; display:inline-block; animation: pulse 1.5s infinite;"></span>
-        ${t('وضع الأوفلاين')} ${queueCount > 0 ? `— (${queueCount}) ${t('عمليات محلياً')}` : ''}
+      <span style="color:#ef4444; font-weight:700; display:flex; align-items:center; gap:6px;">
+        <span class="pulse-offline" style="width:10px; height:10px; border-radius:50%; background:#ef4444; display:inline-block; animation: pulse 1s infinite;"></span>
+        ⚠️ ${t('غير متصل - مطلوب اتصال بالإنترنت (نظام سحابي أونلاين فقط)')}
       </span>
     `;
   } else if (queueCount > 0) {
     statusHTML = `
       <span style="color:#1A73E8; font-weight:600; display:flex; align-items:center; gap:6px;">
         <span class="spin-online" style="width:10px; height:10px; border:2px solid transparent; border-top-color:#1A73E8; border-radius:50%; display:inline-block; animation: spin 1s linear infinite;"></span>
-        ${t('جاري رفع المزامنة')} (${queueCount} ${t('عمليات معلقة')})...
+        ☁️ ${t('جاري المزامنة السحابية الفورية')} (${queueCount} ${t('عمليات معلقة')})...
       </span>
     `;
   } else if (_saveError) {
     statusHTML = `
       <span style="color:#ff4d4f; font-weight:600; display:flex; align-items:center; gap:6px;">
         <span style="width:10px; height:10px; border-radius:50%; background:#ff4d4f; display:inline-block;"></span>
-        ⚠️ ${t('خطأ في المزامنة، سيتم إعادة المحاولة...')}
+        ⚠️ ${t('جاري إعادة الاتصال بالسحابة...')}
       </span>
     `;
   } else if (_lastSyncedTime) {
     statusHTML = `
-      <span style="color:var(--g); font-weight:500; display:flex; align-items:center; gap:6px;">
-        <span style="width:8px; height:8px; border-radius:50%; background:var(--g); display:inline-block;"></span>
-        ☁️ ${t('تم المزامنة تلقائياً')} (${_lastSyncedTime.toLocaleTimeString(locale)})
+      <span style="color:var(--g); font-weight:600; display:flex; align-items:center; gap:6px;">
+        <span style="width:9px; height:9px; border-radius:50%; background:var(--g); display:inline-block; box-shadow:0 0 6px rgba(16,185,129,0.5);"></span>
+        ☁️ 🟢 ${t('متصل بالسحابة أونلاين')} (${t('مزامنة حية لحظية لكافة المستخدمين')}) ${_lastSyncedTime ? `— ${_lastSyncedTime.toLocaleTimeString(locale)}` : ''}
       </span>
     `;
   } else {
     statusHTML = `
-      <span style="color:var(--t3); display:flex; align-items:center; gap:6px;">
-        <span style="width:8px; height:8px; border-radius:50%; background:var(--t3); display:inline-block;"></span>
-        ☁️ ${t('متصل بالسحابة')}
+      <span style="color:var(--g); font-weight:600; display:flex; align-items:center; gap:6px;">
+        <span style="width:9px; height:9px; border-radius:50%; background:var(--g); display:inline-block;"></span>
+        ☁️ 🟢 ${t('متصل بالسحابة أونلاين (مزامنة حية لحظية)')}
       </span>
     `;
   }

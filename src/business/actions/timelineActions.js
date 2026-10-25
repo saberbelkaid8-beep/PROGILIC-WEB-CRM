@@ -1,10 +1,23 @@
 import { S, updateState, hasPermission } from '../../state/store.js';
 import { R } from '../../presentation/render-core.js';
-import { loadGlobalActivities, ActivityType, getActivityVisuals, logActivity } from '../timelineService.js';
+import { loadGlobalActivities, ActivityType, getActivityVisuals, logActivity, syncCrmServicesToTimeline } from '../timelineService.js';
 import { showToast } from '../../utils/toast.js';
 import { t } from '../../utils/i18n.js';
 
-export { loadGlobalActivities };
+export { loadGlobalActivities, syncCrmServicesToTimeline };
+
+export async function syncAllCrmServicesAction() {
+  if (!hasPermission('timeline.view')) return;
+  const uid = S.currentUser?.uid;
+  if (!uid) {
+    showToast(t("يرجى تسجيل الدخول أولاً"), "warning");
+    return;
+  }
+  showToast(t("جاري استخراج ورفع خدمات الـ CRM إلى المخطط الزمني والسحابة..."), "info");
+  const list = await syncCrmServicesToTimeline(uid);
+  showToast(t(`تمت مزامنة ${list.length} خدمة وعملية في المخطط الزمني بنجاح!`), "success");
+  R();
+}
 
 export function setTimelineUserFilter(userName) {
   S.timelineUserFilter = userName;
@@ -194,11 +207,14 @@ export function getFilteredTimelineList() {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const startOfDayBeforeYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
 
   if (S.timelineDatePreset === 'today') {
     list = list.filter(a => isInRange(a.timestamp, startOfToday, startOfTomorrow));
   } else if (S.timelineDatePreset === 'yesterday') {
     list = list.filter(a => isInRange(a.timestamp, startOfYesterday, startOfToday));
+  } else if (S.timelineDatePreset === 'day_before_yesterday' || S.timelineDatePreset === 'dayBeforeYesterday') {
+    list = list.filter(a => isInRange(a.timestamp, startOfDayBeforeYesterday, startOfYesterday));
   } else if (S.timelineDatePreset === 'week') {
     const weekAgo = new Date(now.getTime() - 7 * 86400000);
     list = list.filter(a => isInRange(a.timestamp, weekAgo, new Date(now.getTime() + 1)));

@@ -71,7 +71,7 @@ import { createDefaultGerant } from './constants/index.js';
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
 import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, setClients, subscribe, updateState } from './state/store.js';
-import { loadDataFromFirestore, stopRealtimeSync, loadCache } from './business/storage.js';
+import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
@@ -112,7 +112,6 @@ window.resolveConflict = resolveConflict;
     } catch(e) {}
     if (!isLoggedOut && saved && auth && auth.currentUser) {
       setCurrentUser(saved);
-      loadCache();
     } else {
       stopRealtimeSync();
       window.loginMode = 'login';
@@ -285,3 +284,24 @@ subscribe(() => {
     }
   }
 });
+
+// Strict Online Cloud Sync Network Listeners
+window.addEventListener('online', () => {
+  console.log('[Online Sync] Internet connection detected. Resuming live cloud sync...');
+  updateState({ isOnline: true });
+  if (currentUser && currentUser.uid) {
+    startRealtimeSync(currentUser.uid);
+    flushSyncQueue();
+    actions.loadGlobalActivities().catch(console.warn);
+  }
+  actions.showToast('🟢 تم الاتصال بالسحابة أونلاين - جاري المزامنة الحية لكافة العمليات.', 'success');
+  R();
+});
+
+window.addEventListener('offline', () => {
+  console.warn('[Online Sync] Internet connection lost.');
+  updateState({ isOnline: false });
+  actions.showToast('🔴 انقطع الاتصال بالإنترنت - نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين.', 'error');
+  R();
+});
+

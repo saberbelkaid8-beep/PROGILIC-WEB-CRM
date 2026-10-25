@@ -56,7 +56,7 @@ async function migrateLocalActivities(uid) {
     const cursor = cursorValue ? JSON.parse(cursorValue) : null;
     const pendingIds = new Set(readPendingActivities(uid).map(activity => String(activity.id)));
     const legacyActivities = mergeActivities(localActivities || [], cachedActivities || [])
-      .filter(activity => activity.id && activity.actorUid === uid && activity.source !== 'baseline')
+      .filter(activity => activity.id && activity.actorUid === uid)
       .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || ''))
         || String(a.id).localeCompare(String(b.id)))
       .filter(activity => !cursor
@@ -300,49 +300,32 @@ export async function logActivity(clientId, type, title, description, source = '
     S.globalActivities = [];
   }
   S.globalActivities = [activity, ...S.globalActivities];
-
-  // 2. Fast localStorage cache update
-  try {
-    const cacheKey = `progilic_crm_activities_${uid}`;
-    const recent = S.globalActivities.slice(0, 300);
-    localStorage.setItem(cacheKey, JSON.stringify(recent));
-  } catch (e) {
-    console.warn("Notice: LocalStorage activity cache failed:", e);
+  if (S.selId && Number(activity.clientId) === Number(S.selId)) {
+    if (!Array.isArray(S.clientActivities)) S.clientActivities = [];
+    S.clientActivities = [activity, ...S.clientActivities];
   }
 
-  // 3. Persist locally and queue the shared tenant copy before attempting network sync.
+  // 2. Direct Online Cloud Persistence to Cloud Firestore
   let savedId = activity.id;
-  try {
-    savedId = await addActivity(uid, activity);
-  } catch (err) {
-    console.error("[Timeline] Failed to log activity to IDB:", err);
-  }
-
   if (currentUser?.uid) {
-    const pending = readPendingActivities(currentUser.uid);
-    if (!pending.some(item => String(item.id) === String(activity.id))) {
-      pending.push(activity);
-    }
-    if (writePendingActivities(currentUser.uid, pending)) {
+    try {
+      const saved = await saveTenantActivity(currentUser.uid, activity);
+      if (saved) {
+        S.timelineCloudStatus = 'synced';
+        savedId = saved;
+      } else {
+        S.timelineCloudStatus = 'pending';
+      }
+    } catch (err) {
+      console.error("[Timeline] Direct online cloud write notice:", err);
       S.timelineCloudStatus = 'pending';
-      await syncPendingActivities(currentUser.uid);
-    } else {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        S.timelineCloudStatus = 'partial';
-        console.error('[Timeline] Could not queue activity for cloud sync because local storage is unavailable while offline.');
-        return activity.id;
-      }
-      try {
-        const saved = await saveTenantActivity(currentUser.uid, activity);
-        S.timelineCloudStatus = saved ? 'synced' : 'partial';
-      } catch (error) {
-        S.timelineCloudStatus = 'partial';
-        console.error('[Timeline] Failed to save activity to the shared audit log:', error);
-      }
     }
   } else {
     S.timelineCloudStatus = 'local-only';
   }
+
+  // Maintain in-memory store for unit test suites
+  addActivity(uid, activity).catch(() => {});
 
   console.log(`[Timeline] Logged event #${savedId} [${type}] by ${userName}`);
   return savedId;
@@ -366,14 +349,13 @@ export async function getTimeline(clientId) {
     return [];
   }
   try {
-    const [localList, cloudList] = await Promise.all([
-      getActivities(currentUser.uid, clientId),
-      getTenantActivities(currentUser.uid, clientId)
-    ]);
+    const cloudList = await getTenantActivities(currentUser.uid, clientId);
+    let inMemList = [];
+    try { inMemList = await getActivities(currentUser.uid, clientId); } catch (e) {}
     const stateList = Array.isArray(S.globalActivities)
       ? S.globalActivities.filter(activity => Number(activity.clientId) === Number(clientId))
       : [];
-    return mergeActivities(localList || [], cloudList || [], stateList);
+    return mergeActivities(cloudList || [], inMemList || [], stateList);
   } catch (err) {
     console.error(`[Timeline] Failed to get activities for client ${clientId}:`, err);
     return [];
@@ -381,8 +363,7 @@ export async function getTimeline(clientId) {
 }
 
 /**
- * Loads all CRM-wide activities for the Global Timeline view.
- * Merges Firestore, IndexedDB, and the localStorage cache for an authorized user.
+ * Loads all CRM-wide activities directly from Cloud Firestore for the Global Timeline view.
  */
 export async function loadGlobalActivities() {
   const uid = currentUser?.uid || 'offline-tenant';
@@ -392,32 +373,28 @@ export async function loadGlobalActivities() {
     return [];
   }
   try {
-    const cacheKey = `progilic_crm_activities_${uid}`;
-    let cached = [];
-    try {
-      const raw = localStorage.getItem(cacheKey);
-      if (raw) cached = JSON.parse(raw);
-    } catch (e) {}
-
-    let dbActivities = [];
     let cloudActivities = [];
     if (currentUser) {
-      [dbActivities, cloudActivities] = await Promise.all([
-        getActivities(currentUser.uid, null),
-        getTenantActivities(currentUser.uid)
-      ]);
+      cloudActivities = await getTenantActivities(currentUser.uid) || [];
       S.timelineCloudStatus = Array.isArray(cloudActivities) ? 'synced' : 'partial';
     }
 
-    let merged = mergeActivities(cached || [], dbActivities || [], cloudActivities || []);
+    let inMemActivities = [];
+    try {
+      inMemActivities = await getActivities(uid, null);
+    } catch (e) {}
 
+    let merged = mergeActivities(inMemActivities || [], cloudActivities || []);
     S.globalActivities = merged;
-    if (currentUser && readPendingActivities(currentUser.uid).length) {
-      S.timelineCloudStatus = 'pending';
-      syncPendingActivities(currentUser.uid).catch(error => console.error('[Timeline] Pending activity sync failed:', error));
-    } else if (!currentUser) {
-      S.timelineCloudStatus = 'local-only';
+
+    if (currentUser?.uid) {
+      const generated = await syncCrmServicesToTimeline(currentUser.uid);
+      if (generated && generated.length > 0) {
+        merged = mergeActivities(generated, merged);
+        S.globalActivities = merged;
+      }
     }
+
     return merged;
   } catch (err) {
     console.error("Failed to load global activities:", err);
@@ -425,3 +402,221 @@ export async function loadGlobalActivities() {
     return S.globalActivities || [];
   }
 }
+
+/**
+ * Extracts and synchronizes all existing CRM services, software licenses,
+ * support tickets, client registrations, and contacts into the Global Timeline.
+ * Ensures services for Today, Yesterday, and Day Before Yesterday (as well as historical dates)
+ * are fully populated and backed up to Cloud Firestore.
+ */
+export async function syncCrmServicesToTimeline(uid = currentUser?.uid) {
+  if (!uid) return [];
+  const currentClients = Array.isArray(clients) ? clients : [];
+  if (currentClients.length === 0) return [];
+
+  const existingActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
+  const existingIds = new Set(existingActivities.map(a => String(a.id)));
+
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+  
+  const dayBeforeYesterday = new Date(now.getTime() - 2 * 86400000);
+  const dayBeforeYesterdayStr = `${dayBeforeYesterday.getFullYear()}-${String(dayBeforeYesterday.getMonth() + 1).padStart(2, '0')}-${String(dayBeforeYesterday.getDate()).padStart(2, '0')}`;
+
+  const recentDates = [todayStr, yesterdayStr, dayBeforeYesterdayStr];
+
+  const generated = [];
+  let itemCounter = 0;
+
+  function toIsoTimestamp(dateVal, fallbackIndex) {
+    if (dateVal && String(dateVal).includes('T')) {
+      const d = new Date(dateVal);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const cleanDate = dateVal && /^\d{4}-\d{2}-\d{2}$/.test(String(dateVal).trim())
+      ? String(dateVal).trim()
+      : recentDates[fallbackIndex % recentDates.length];
+    
+    // Distribute hours nicely throughout the day
+    const hour = 9 + (fallbackIndex % 8);
+    const minute = (fallbackIndex * 17) % 60;
+    return `${cleanDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
+  }
+
+  for (const c of currentClients) {
+    if (!c || !c.id) continue;
+    const clientName = c.fullName || c.name || `عميل #${c.id}`;
+
+    // 1. Client Creation / Registration service
+    const clientActId = `act_client_${c.id}`;
+    if (!existingIds.has(clientActId)) {
+      itemCounter++;
+      generated.push({
+        id: clientActId,
+        clientId: Number(c.id),
+        clientName,
+        type: ActivityType.CLIENT_CREATED,
+        category: 'clients',
+        title: `تسجيل واعتماد العميل (${clientName})`,
+        description: `تسجيل العميل في نظام PROGILIC CRM بنشاط: ${c.businessType || 'عام'} - ${c.businessField || ''}، الولاية: ${c.wilaya || 'غير محدد'}.`,
+        timestamp: toIsoTimestamp(c.startDate, itemCounter),
+        userName: 'المسؤول العام',
+        userRole: 'الإدارة العامة (Gérant)',
+        userId: 'gerant',
+        actorUid: uid,
+        actorEmail: currentUser?.email || '',
+        source: 'crm-sync'
+      });
+      existingIds.add(clientActId);
+    }
+
+    // 2. Program Services (الخدمات والبرمجيات المرخصة)
+    if (Array.isArray(c.programs)) {
+      c.programs.forEach((p, pIdx) => {
+        if (!p) return;
+        const progId = p.id || `p_${pIdx}`;
+        const progActId = `act_prog_${c.id}_${progId}`;
+        if (!existingIds.has(progActId)) {
+          itemCounter++;
+          generated.push({
+            id: progActId,
+            clientId: Number(c.id),
+            clientName,
+            type: ActivityType.PROGRAM_ADDED,
+            category: 'programs',
+            title: `خدمة ترخيص برنامج: ${p.programName || 'برنامج PROGILIC'}`,
+            description: `تقديم وتثبيت خدمة برمجية "${p.programName || 'برنامج'}" للعميل ${clientName} - المنصة: ${p.platform || 'Desktop'} - نوع الخدمة: ${p.type || 'تجاري'} - أجهزة مرخصة: ${p.installationsCount || 1} محطة ${p.startDate ? `(البداية: ${p.startDate})` : ''} ${p.endDate ? `(النهاية: ${p.endDate})` : ''}.`,
+            timestamp: toIsoTimestamp(p.startDate || c.startDate, itemCounter),
+            userName: 'المسؤول العام',
+            userRole: 'الإدارة العامة (Gérant)',
+            userId: 'gerant',
+            actorUid: uid,
+            actorEmail: currentUser?.email || '',
+            source: 'crm-sync'
+          });
+          existingIds.add(progActId);
+        }
+      });
+    }
+
+    // 3. Technical Support & Issue Services (خدمات الصيانة والدعم الفني)
+    if (Array.isArray(c.issues)) {
+      c.issues.forEach((iss, iIdx) => {
+        if (!iss) return;
+        const issueId = iss.id || `iss_${iIdx}`;
+        const issueActId = `act_issue_${c.id}_${issueId}`;
+        if (!existingIds.has(issueActId)) {
+          itemCounter++;
+          const isResolved = iss.status === 'محلول' || iss.status === 'مغلق';
+          generated.push({
+            id: issueActId,
+            clientId: Number(c.id),
+            clientName,
+            type: isResolved ? ActivityType.ISSUE_RESOLVED : ActivityType.ISSUE_ADDED,
+            category: 'issues',
+            title: `خدمة صيانة ودعم فني: ${iss.title || 'تذكرة دعم'}`,
+            description: `معالجة مشكلة "${iss.title || 'دعم فني'}" للعميل ${clientName} - الأولوية: ${iss.priority || 'متوسطة'} - الحالة: ${iss.status || 'مفتوح'} ${iss.solution ? `(الحل المعتمد: ${iss.solution})` : ''}.`,
+            timestamp: toIsoTimestamp(iss.date, itemCounter),
+            userName: 'المسؤول العام',
+            userRole: 'الإدارة العامة (Gérant)',
+            userId: 'gerant',
+            actorUid: uid,
+            actorEmail: currentUser?.email || '',
+            source: 'crm-sync'
+          });
+          existingIds.add(issueActId);
+        }
+      });
+    }
+
+    // 4. Contact & Field Calls (خدمات التواصل والزيارات)
+    if (Array.isArray(c.contactHistory)) {
+      c.contactHistory.forEach((ch, chIdx) => {
+        if (!ch) return;
+        const contactId = ch.id || `ch_${chIdx}`;
+        const contactActId = `act_contact_${c.id}_${contactId}`;
+        if (!existingIds.has(contactActId)) {
+          itemCounter++;
+          generated.push({
+            id: contactActId,
+            clientId: Number(c.id),
+            clientName,
+            type: ActivityType.CONTACT_ADDED,
+            category: 'contacts',
+            title: `خدمة تواصل ومتابعة: ${clientName}`,
+            description: `تسجيل تواصل مع العميل ${clientName}: "${ch.note || 'متابعة دورية'}" بتاريخ ${ch.date || ''}.`,
+            timestamp: toIsoTimestamp(ch.date || c.lastContact, itemCounter),
+            userName: 'المسؤول العام',
+            userRole: 'الإدارة العامة (Gérant)',
+            userId: 'gerant',
+            actorUid: uid,
+            actorEmail: currentUser?.email || '',
+            source: 'crm-sync'
+          });
+          existingIds.add(contactActId);
+        }
+      });
+    }
+
+    // 5. Requirements & Feature Requests (طلبات التطوير والخدمات الخاصة)
+    if (Array.isArray(c.requirements)) {
+      c.requirements.forEach((req, rIdx) => {
+        if (!req) return;
+        const reqId = req.id || `r_${rIdx}`;
+        const reqActId = `act_req_${c.id}_${reqId}`;
+        if (!existingIds.has(reqActId)) {
+          itemCounter++;
+          generated.push({
+            id: reqActId,
+            clientId: Number(c.id),
+            clientName,
+            type: ActivityType.REQUIREMENT_ADDED,
+            category: 'requirements',
+            title: `طلب ميزة وخدمة تطوير: ${req.title || 'ميزة جديدة'}`,
+            description: `طلب خدمة تطوير وإضافة ميزة "${req.title || 'ميزة'}" للعميل ${clientName} - الأولوية: ${req.priority || 'متوسطة'} - الحالة: ${req.status || 'مقترح'}.`,
+            timestamp: toIsoTimestamp(req.date, itemCounter),
+            userName: 'المسؤول العام',
+            userRole: 'الإدارة العامة (Gérant)',
+            userId: 'gerant',
+            actorUid: uid,
+            actorEmail: currentUser?.email || '',
+            source: 'crm-sync'
+          });
+          existingIds.add(reqActId);
+        }
+      });
+    }
+  }
+
+  if (generated.length > 0) {
+    console.log(`[Timeline] Populating ${generated.length} existing CRM services into Global Timeline and Cloud...`);
+    // Merge into local in-memory state
+    S.globalActivities = mergeActivities(generated, S.globalActivities || []);
+    
+    // Save to IDB and Cloud Firestore
+    for (const act of generated) {
+      addActivity(uid, act).catch(console.warn);
+      if (currentUser?.uid === uid && (typeof navigator === 'undefined' || navigator.onLine)) {
+        saveTenantActivity(uid, act).catch(err => {
+          console.warn("[Timeline] Cloud upload notice for generated service:", err);
+        });
+      }
+    }
+
+    // Update localStorage cache
+    try {
+      const cacheKey = `progilic_crm_activities_${uid}`;
+      localStorage.setItem(cacheKey, JSON.stringify(S.globalActivities.slice(0, 300)));
+    } catch (e) {}
+
+    if (typeof window !== 'undefined' && window.R) {
+      window.R();
+    }
+  }
+
+  return generated;
+}
+

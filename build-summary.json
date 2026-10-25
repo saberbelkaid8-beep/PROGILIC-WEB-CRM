@@ -1,50 +1,45 @@
 {
   "appName": "crm",
-  "timestamp": "2026-10-20T11:33:57.146Z",
+  "timestamp": "2026-10-25T17:50:01.137Z",
   "nodeVersion": "v22.23.3",
   "platform": "linux",
   "build": {
-    "durationMs": 8493,
-    "durationSeconds": 8.49,
-    "totalFiles": 21,
-    "totalSizeBytes": 4516760,
-    "totalSizeFormatted": "4.31 MB"
+    "durationMs": 6958,
+    "durationSeconds": 6.96,
+    "totalFiles": 20,
+    "totalSizeBytes": 4723961,
+    "totalSizeFormatted": "4.51 MB"
   },
   "dependencies": {
-    "productionCount": 4,
+    "productionCount": 3,
     "developmentCount": 9,
-    "totalCount": 13
+    "totalCount": 12
   },
   "artifacts": [
-    {
-      "file": "assets/algeria-data-qJMNCcW8.js",
-      "sizeBytes": 160782,
-      "sizeFormatted": "157.01 KB"
-    },
     {
       "file": "assets/database-clients-l0sNRNKZ.js",
       "sizeBytes": 1,
       "sizeFormatted": "1 B"
     },
     {
-      "file": "assets/firebase-auth-KgVDwxIR.js",
+      "file": "assets/firebase-auth-CiyuFwGU.js",
       "sizeBytes": 130106,
       "sizeFormatted": "127.06 KB"
     },
     {
-      "file": "assets/firebase-core-DdMfYscr.js",
-      "sizeBytes": 42992,
-      "sizeFormatted": "41.98 KB"
+      "file": "assets/firebase-core-y5ioVDZu.js",
+      "sizeBytes": 44461,
+      "sizeFormatted": "43.42 KB"
     },
     {
-      "file": "assets/firebase-firestore-BcH1VNWh.js",
-      "sizeBytes": 632859,
-      "sizeFormatted": "618.03 KB"
+      "file": "assets/firebase-firestore-Dv6bMwUu.js",
+      "sizeBytes": 674519,
+      "sizeFormatted": "658.71 KB"
     },
     {
-      "file": "assets/index-B7UTjBLG.js",
-      "sizeBytes": 531409,
-      "sizeFormatted": "518.95 KB"
+      "file": "assets/index-C0mjxowJ.js",
+      "sizeBytes": 856344,
+      "sizeFormatted": "836.27 KB"
     },
     {
       "file": "assets/search-engine-D7oNtqOG.js",
@@ -83,8 +78,8 @@
     },
     {
       "file": "index.html",
-      "sizeBytes": 2181,
-      "sizeFormatted": "2.13 KB"
+      "sizeBytes": 2100,
+      "sizeFormatted": "2.05 KB"
     },
     {
       "file": "pixel_perfect_1920.png",
