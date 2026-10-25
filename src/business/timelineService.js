@@ -4,32 +4,19 @@
  * with authenticated user attribution, timestamps, and multi-criteria querying.
  */
 
-import { addActivity, getActivities } from './idbStorage.js';
+// Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { currentUser, currentStaffUser, clients, S, hasPermission } from '../state/store.js';
 import { getTenantActivities, saveTenantActivity } from '../firebase/service.js';
 
-const pendingActivitiesKey = uid => `progilic_crm_pending_activities_${uid}`;
-const activityMigrationKey = uid => `progilic_crm_activity_migration_${uid}`;
-let activitySyncPromise = null;
+const inMemoryPendingActivities = new Map();
 
 function readPendingActivities(uid) {
-  try {
-    const pending = JSON.parse(localStorage.getItem(pendingActivitiesKey(uid)) || '[]');
-    return Array.isArray(pending) ? pending : [];
-  } catch (error) {
-    console.warn('[Timeline] Failed to read pending cloud activities:', error);
-    return [];
-  }
+  return inMemoryPendingActivities.get(uid) || [];
 }
 
 function writePendingActivities(uid, pending) {
-  try {
-    localStorage.setItem(pendingActivitiesKey(uid), JSON.stringify(pending));
-    return true;
-  } catch (error) {
-    console.error('[Timeline] Failed to persist pending cloud activities:', error);
-    return false;
-  }
+  inMemoryPendingActivities.set(uid, pending);
+  return true;
 }
 
 function mergeActivities(...lists) {
@@ -43,17 +30,12 @@ function mergeActivities(...lists) {
 
 async function migrateLocalActivities(uid) {
   try {
-    if (localStorage.getItem(activityMigrationKey(uid)) === 'complete') return;
-    const localActivities = await getActivities(uid, null);
-    let cachedActivities = [];
-    try {
-      cachedActivities = JSON.parse(localStorage.getItem(`progilic_crm_activities_${uid}`) || '[]');
-    } catch (error) {
-      console.warn('[Timeline] Failed to read cached history during migration:', error);
-    }
+    // Strictly online: we don't migrate from local storage anymore as we want zero local footprint.
+    // However, if there are in-memory activities from this session, we might want to ensure they are synced.
+    const localActivities = []; 
+    const cachedActivities = [];
 
-    const cursorValue = localStorage.getItem(activityMigrationKey(uid));
-    const cursor = cursorValue ? JSON.parse(cursorValue) : null;
+    const cursor = null;
     const pendingIds = new Set(readPendingActivities(uid).map(activity => String(activity.id)));
     const legacyActivities = mergeActivities(localActivities || [], cachedActivities || [])
       .filter(activity => activity.id && activity.actorUid === uid)
@@ -76,12 +58,7 @@ async function migrateLocalActivities(uid) {
       }
 
       const lastActivity = batch[batch.length - 1];
-      localStorage.setItem(activityMigrationKey(uid), JSON.stringify({
-        timestamp: String(lastActivity.timestamp || ''),
-        id: String(lastActivity.id)
-      }));
     }
-    localStorage.setItem(activityMigrationKey(uid), 'complete');
   } catch (error) {
     S.timelineCloudStatus = 'partial';
     console.error('[Timeline] Failed to migrate local history to the shared audit log:', error);
@@ -325,7 +302,7 @@ export async function logActivity(clientId, type, title, description, source = '
   }
 
   // Maintain in-memory store for unit test suites
-  addActivity(uid, activity).catch(() => {});
+  // Strictly Online: No local activity caching.
 
   console.log(`[Timeline] Logged event #${savedId} [${type}] by ${userName}`);
   return savedId;
@@ -351,7 +328,6 @@ export async function getTimeline(clientId) {
   try {
     const cloudList = await getTenantActivities(currentUser.uid, clientId);
     let inMemList = [];
-    try { inMemList = await getActivities(currentUser.uid, clientId); } catch (e) {}
     const stateList = Array.isArray(S.globalActivities)
       ? S.globalActivities.filter(activity => Number(activity.clientId) === Number(clientId))
       : [];
@@ -380,9 +356,6 @@ export async function loadGlobalActivities() {
     }
 
     let inMemActivities = [];
-    try {
-      inMemActivities = await getActivities(uid, null);
-    } catch (e) {}
 
     let merged = mergeActivities(inMemActivities || [], cloudActivities || []);
     S.globalActivities = merged;
@@ -597,8 +570,8 @@ export async function syncCrmServicesToTimeline(uid = currentUser?.uid) {
     S.globalActivities = mergeActivities(generated, S.globalActivities || []);
     
     // Save to IDB and Cloud Firestore
+    // Strictly Online: No local activity caching.
     for (const act of generated) {
-      addActivity(uid, act).catch(console.warn);
       if (currentUser?.uid === uid && (typeof navigator === 'undefined' || navigator.onLine)) {
         saveTenantActivity(uid, act).catch(err => {
           console.warn("[Timeline] Cloud upload notice for generated service:", err);
@@ -606,11 +579,7 @@ export async function syncCrmServicesToTimeline(uid = currentUser?.uid) {
       }
     }
 
-    // Update localStorage cache
-    try {
-      const cacheKey = `progilic_crm_activities_${uid}`;
-      localStorage.setItem(cacheKey, JSON.stringify(S.globalActivities.slice(0, 300)));
-    } catch (e) {}
+    // Strictly Online: No caching of activities to localStorage
 
     if (typeof window !== 'undefined' && window.R) {
       window.R();

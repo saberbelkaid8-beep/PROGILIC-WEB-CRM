@@ -988,6 +988,25 @@ function generateNativeTrendChartSVG(clientsList = []) {
   `;
 }
 
+const clientPrograms = client => (Array.isArray(client.programs) ? client.programs : []).filter(program => program?.programName);
+const clientProgramNames = client => [...new Set([
+  ...(Array.isArray(client.programNames) ? client.programNames : []),
+  ...clientPrograms(client).map(program => program.programName)
+].filter(Boolean))];
+const clientInstallations = client => {
+  const programs = clientPrograms(client);
+  return programs.length
+    ? programs.reduce((total, program) => total + (Number(program.installationsCount) || 1), 0)
+    : Number(client.installationsCount) || 0;
+};
+const hasLegacyProgram = client => clientProgramNames(client).some(name => /v15|v16/i.test(name));
+
+// Expose to window to avoid ReferenceError in dynamic chart rendering
+window.clientInstallations = clientInstallations;
+window.clientProgramNames = clientProgramNames;
+window.clientPrograms = clientPrograms;
+window.hasLegacyProgram = hasLegacyProgram;
+
 export function renderDashboard() {
   if (!hasPermission('dashboard.view')) {
     return `
@@ -1006,18 +1025,6 @@ export function renderDashboard() {
   try {
     // 0. Ensure safe clients array
     const safeClients = Array.isArray(clients) ? clients.filter(c => c && typeof c === 'object') : [];
-    const clientPrograms = client => (Array.isArray(client.programs) ? client.programs : []).filter(program => program?.programName);
-    const clientProgramNames = client => [...new Set([
-      ...(Array.isArray(client.programNames) ? client.programNames : []),
-      ...clientPrograms(client).map(program => program.programName)
-    ].filter(Boolean))];
-    const clientInstallations = client => {
-      const programs = clientPrograms(client);
-      return programs.length
-        ? programs.reduce((total, program) => total + (Number(program.installationsCount) || 1), 0)
-        : Number(client.installationsCount) || 0;
-    };
-    const hasLegacyProgram = client => clientProgramNames(client).some(name => /v15|v16/i.test(name));
 
     // 1. Dynamic list of Wilayas and Licensed Programs
     const uniqueWilayas = [...new Set(safeClients.map(c => c.wilaya).filter(Boolean))].sort();
@@ -1933,7 +1940,7 @@ window.renderRechartsChart = function() {
         if (c.status === 'نشط') {
           monthBucket.activeClients += 1;
         }
-        const installs = clientInstallations(c);
+        const installs = window.clientInstallations(c);
         monthBucket.licenses += installs;
 
         const issuesCount = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;

@@ -472,7 +472,8 @@ export async function saveTenantActivity(tenantId, activity) {
     userId: String(activity.userId || '').slice(0, 128),
     actorUid: String(activity.actorUid || ''),
     actorEmail: String(activity.actorEmail || '').slice(0, 254),
-    source: String(activity.source || 'local').slice(0, 20)
+    source: String(activity.source || 'local').slice(0, 20),
+    meta: activity.meta || {}
   };
   try {
     await setDoc(doc(db, path), payload);

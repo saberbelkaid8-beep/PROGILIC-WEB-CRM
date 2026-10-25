@@ -78,6 +78,7 @@ export async function delContact(cid, hid) {
   if (!confirmed) return;
   const c = clients.find(x => x.id === cid); if (!c) return;
   
+  const chToDelete = (c.contactHistory || []).find(h => h.id === hid);
   const nextHistory = (c.contactHistory || []).filter(h => h.id !== hid);
   const latest = nextHistory.reduce((m, h) => h.date > m ? h.date : m, '');
   
@@ -96,7 +97,8 @@ export async function delContact(cid, hid) {
   });
 
   // Log timeline activity
-  logActivity(cid, ActivityType.CONTACT_DELETED, "حذف سجل تواصل", "تم مسح سجل المكالمة/التواصل من الأرشيف.")
+  const dateStr = chToDelete ? chToDelete.date : '';
+  logActivity(cid, ActivityType.CONTACT_DELETED, "حذف سجل تواصل", `تم إزالة سجل تواصل بتاريخ ${dateStr} من أرشيف العميل.`)
     .catch(err => console.error(err));
   
   R();
@@ -400,6 +402,7 @@ export async function delReq(cid, rid) {
   if (!confirmed) return;
   const c = clients.find(x => x.id === cid); if (!c) return;
 
+  const reqToDelete = (c.requirements || []).find(r => r.id === rid);
   const nextReqs = (c.requirements || []).filter(r => r.id !== rid);
 
   // Optimistic Local Update
@@ -416,7 +419,7 @@ export async function delReq(cid, rid) {
   });
 
   // Log timeline activity
-  logActivity(cid, ActivityType.REQUIREMENT_DELETED, "حذف طلب متطلب", "تم إزالة متطلب ميزة من حساب العميل.")
+  logActivity(cid, ActivityType.REQUIREMENT_DELETED, "حذف طلب متطلب", `تم إزالة طلب المتطلب "${reqToDelete.title}" من حساب العميل.`)
     .catch(err => console.error(err));
 
   R();

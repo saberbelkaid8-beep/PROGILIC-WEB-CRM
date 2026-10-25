@@ -43,18 +43,8 @@ import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
 
-// IndexedDB, Backups, and Migration Utilities imports
-import { 
-  getClients, 
-  saveClients, 
-  getMeta, 
-  setMeta, 
-  getSyncQueue, 
-  saveSyncQueue, 
-  clearAllUserData 
-} from './idbStorage.js';
+// Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
-import { migrateLocalStorageToIDB } from './migrations.js';
 
 const SCHEMA_VERSION = 3;
 
@@ -348,9 +338,6 @@ export function startRealtimeSync(userId) {
     if (remoteStaff.length > 0) {
       console.log(`[Realtime Sync] Received ${remoteStaff.length} employees from Firestore for user ${userId}`);
       setStaffUsers(remoteStaff, userId);
-      try {
-        localStorage.setItem(`crm_staff_users_${userId}`, JSON.stringify(remoteStaff));
-      } catch (e) {}
       if (typeof window !== 'undefined' && window.R) {
         window.R();
       }
@@ -399,56 +386,13 @@ export function stopRealtimeSync() {
 }
 
 /**
- * Loads the user's specific local IndexedDB cache into in-memory state.
- * Runs legacy migration if this is the first startup on this browser.
+ * Strictly Online: user cache loading is disabled.
+ * The system relies entirely on Cloud Firestore.
  */
 export async function loadUserCache(uid) {
   if (!uid) return;
-  try {
-    console.log("[Storage] Loading user-isolated cache for:", uid);
-    
-    // First, run migration from localStorage if needed
-    await migrateLocalStorageToIDB(uid);
-
-    // Retrieve from IndexedDB
-    const cachedClients = await getClients(uid);
-    const cachedStats = await getMeta(uid, 'stats');
-    const cachedNid = await getMeta(uid, 'nid');
-    const cachedQueue = await getSyncQueue(uid);
-
-    batch(() => {
-      const baseClients = (cachedClients && cachedClients.length > 0) ? cachedClients : [];
-      const mergedClients = mergeClientLists(baseClients);
-      const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
-
-      setClients(mergedClients);
-      console.log(`[IndexedDB Cache] Loaded ${mergedClients.length} clients into active session (including merged database).`);
-      
-      updateState({
-        stats: cachedStats && cachedStats.totalClients >= mergedClients.length ? cachedStats : computedStats,
-        nid: Math.max(Number(cachedNid) || 100, computedNid)
-      });
-      
-      if (mergedClients.length > baseClients.length) {
-        saveClients(uid, mergedClients).catch(console.warn);
-      }
-      
-      if (cachedQueue) {
-        updateState({ syncQueue: cachedQueue });
-        console.log(`[IndexedDB Cache] Restored ${cachedQueue.length} pending operations from queue.`);
-      }
-
-      updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
-    });
-    
-    // Trigger check for periodic backups in the background (non-blocking)
-    checkAndTriggerPeriodicBackup(uid, clients, S.stats, S.nid).catch(err => {
-      console.warn("[Backup] Background periodic check notice:", err);
-    });
-
-  } catch (err) {
-    console.error("[IndexedDB Cache] Error loading user cache:", err);
-  }
+  console.log("[Storage] Strict Online Mode: Skipping local cache load.");
+  updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
 }
 
 // In-flight guard to deduplicate concurrent loadDataFromFirestore triggers across devices/listeners
@@ -535,7 +479,7 @@ async function doLoadDataFromFirestore(user) {
       const mergedClients = mergeClientLists(baseClients);
       const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
 
-      console.log(`[Storage] Hydrated ${mergedClients.length} clients (merged with database) for user ${user.uid}`);
+      console.log(`[Storage] User profile metadata loaded (Clients will be populated via real-time subcollection listener).`);
       batch(() => {
         setClients(mergedClients);
         updateState({
@@ -544,10 +488,7 @@ async function doLoadDataFromFirestore(user) {
         });
       });
 
-      // Save to user IndexedDB
-      saveClients(user.uid, mergedClients).catch(console.warn);
-      setMeta(user.uid, 'stats', computedStats).catch(console.warn);
-      setMeta(user.uid, 'nid', computedNid).catch(console.warn);
+      // Strictly Online: No local persistence.
       import('./timelineService.js').then(m => m.syncCrmServicesToTimeline(user.uid)).catch(console.warn);
 
       // If user doc didn't exist or had older schema or fewer clients, commit to Cloud Firestore
@@ -588,9 +529,6 @@ async function doLoadDataFromFirestore(user) {
       const remoteStaff = await getEmployeesForTenant(user.uid);
       if (Array.isArray(remoteStaff) && remoteStaff.length > 0) {
         setStaffUsers(remoteStaff, user.uid);
-        try {
-          localStorage.setItem(`crm_staff_users_${user.uid}`, JSON.stringify(remoteStaff));
-        } catch (e) {}
 
         // Upload any locally created offline employees that are missing in remote
         const { getEmployees } = await import('./employeeService.js');

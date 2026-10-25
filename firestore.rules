@@ -152,7 +152,7 @@ service cloud.firestore {
           ])
           && data.keys().hasOnly([
             'id', 'clientId', 'clientName', 'type', 'category', 'title', 'description',
-            'timestamp', 'userName', 'userRole', 'userId', 'actorUid', 'actorEmail', 'source'
+            'timestamp', 'userName', 'userRole', 'userId', 'actorUid', 'actorEmail', 'source', 'meta'
           ])
           && data.id is string && data.id.size() <= 128
           && (data.clientId == null || data.clientId is number)
@@ -167,7 +167,8 @@ service cloud.firestore {
           && data.userId is string && data.userId.size() <= 128
           && data.actorUid == userId
           && data.actorEmail is string && data.actorEmail.size() <= 254
-          && data.source is string && data.source.size() <= 20;
+          && data.source is string && data.source.size() <= 20
+          && (!data.keys().contains('meta') || data.meta is map);
     }
 
     // --- COLLECTION ROUTES ---
@@ -196,7 +197,7 @@ service cloud.firestore {
 
     // 5. Shared tenant activity audit log; only the authenticated owner can write, and records are immutable.
     match /users/{userId}/activities/{activityId} {
-      allow get, list: if isOwner(userId);
+      allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidActivity(incoming(), userId);
       allow update: if isOwner(userId)
                     && isValidActivity(incoming(), userId)

@@ -5,10 +5,7 @@ import { auth } from '../firebase/config.js';
 
 
 let internalState = {
-  lang: (() => {
-    const savedLanguage = typeof localStorage !== 'undefined' && localStorage.getItem('crm_lang');
-    return ['ar', 'fr', 'en'].includes(savedLanguage) ? savedLanguage : 'ar';
-  })(),
+  lang: 'ar',
   view: 'list',
   selId: null,
   tab: 'overview',
@@ -66,17 +63,7 @@ let internalState = {
 
 
 let initialUser = null;
-try {
-  const isLoggedOut = typeof localStorage !== 'undefined' && localStorage.getItem('crm_logged_out') === '1';
-  if (!isLoggedOut) {
-    const rawUser = localStorage.getItem('crm_active_gerant_user');
-    if (rawUser) {
-      initialUser = JSON.parse(rawUser);
-    }
-  }
-} catch (e) {
-  initialUser = null;
-}
+// Strictly Online: No local session hydration. Wait for onAuthStateChanged.
 
 // ESM Live Bindings to keep other modules up-to-date automatically
 export let clients = [];
@@ -326,42 +313,18 @@ export function loadStaffUsersForTenant(tenantId, userObj = currentUser, silent 
     return [];
   }
 
-  const key = getTenantStaffStorageKey(tid);
   let localStaff = null;
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        localStaff = parsed;
-      }
-    }
-  } catch (e) {}
-
+  // Strictly Online: No local staff list caching
   if (!localStaff) {
     const defaultGerant = createDefaultGerant(tid, userObj?.displayName || userObj?.email?.split('@')[0] || 'المدير العام (GERANT)');
     defaultGerant.adminEmail = userObj?.email || '';
     localStaff = [ defaultGerant ];
-    try {
-      localStorage.setItem(key, JSON.stringify(localStaff));
-    } catch(e) {}
   }
 
   staffUsers = localStaff;
 
-  const staffKey = getTenantCurrentStaffKey(tid);
-  try {
-    const rawStaff = localStorage.getItem(staffKey);
-    if (rawStaff) {
-      const parsed = JSON.parse(rawStaff);
-      const matched = staffUsers.find(s => s.id === parsed.id);
-      currentStaffUser = matched || null;
-    } else {
-      currentStaffUser = null;
-    }
-  } catch (e) {
-    currentStaffUser = null;
-  }
+  const matched = staffUsers.find(s => s.id === (currentStaffUser?.id));
+  currentStaffUser = matched || null;
 
   if (silent) {
     internalState = Object.freeze({ ...internalState, staffUsers, currentStaffUser });
@@ -380,26 +343,14 @@ export function setStaffUsers(users, tenantId) {
   const tid = tenantId || getActiveTenantId();
   const safeUsers = Array.isArray(users) ? users : [];
   staffUsers = safeUsers;
-  if (tid) {
-    try {
-      localStorage.setItem(getTenantStaffStorageKey(tid), JSON.stringify(safeUsers));
-    } catch (e) {}
-  }
+  // Strictly Online: No local staff list updates
   updateState({ staffUsers });
 }
 
 export function setCurrentStaffUser(staff, tenantId) {
   const tid = tenantId || getActiveTenantId();
   currentStaffUser = staff ? { ...staff } : null;
-  if (tid) {
-    try {
-      if (currentStaffUser) {
-        localStorage.setItem(getTenantCurrentStaffKey(tid), JSON.stringify(currentStaffUser));
-      } else {
-        localStorage.removeItem(getTenantCurrentStaffKey(tid));
-      }
-    } catch (e) {}
-  }
+  // Strictly Online: No local current user persistence
   updateState({ currentStaffUser });
 }
 
@@ -608,7 +559,7 @@ export function setLoading(val) {
         internalState = Object.freeze({ ...internalState, isLoading: false });
         scheduleRender();
       }
-    }, 1500);
+    }, 12000);
   }
 }
 

@@ -225,20 +225,6 @@ function getCurrentUserUid() {
  * Returns all registered employees for the current user/company account
  */
 export function getEmployees() {
-  if (S && Array.isArray(S.staffUsers) && S.staffUsers.length > 0) {
-    return S.staffUsers;
-  }
-  try {
-    const uid = getCurrentUserUid() || 'default';
-    const key = `crm_staff_users_${uid}`;
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {}
   return S && Array.isArray(S.staffUsers) ? S.staffUsers : [];
 }
 
@@ -250,11 +236,8 @@ export function saveEmployees(employeesList) {
     const uid = getCurrentUserUid() || 'default';
     const safeList = Array.isArray(employeesList) ? employeesList : [];
     
-    // 1. Update reactive state store
+    // Update reactive state store
     setStaffUsers(safeList, uid);
-    
-    // 2. Persist to local cache for offline/instant hydration
-    localStorage.setItem(`crm_staff_users_${uid}`, JSON.stringify(safeList));
   } catch (e) {
     console.error("Failed saving employees:", e);
   }
@@ -437,16 +420,7 @@ export function verifyAdminPassword(password) {
     }
   }
 
-  // 4. Check cached admin password hash in localStorage
-  try {
-    const adminHash = localStorage.getItem('crm_admin_pwd_hash');
-    const adminSalt = localStorage.getItem('crm_admin_pwd_salt');
-    if (adminHash && adminSalt) {
-      if (verifyPassword(cleanPass, adminHash, adminSalt)) {
-        return { success: true };
-      }
-    }
-  } catch (e) {}
+  // Strictly Online: No local caching of admin password hash
 
   // 5. If Gérant has no set password yet (e.g. freshly initialized session or default admin),
   // initialize and securely bind this password as the Gérant master password
@@ -457,10 +431,7 @@ export function verifyAdminPassword(password) {
     delete gerant.password;
     delete gerant.pwd;
     saveEmployees(getEmployees());
-    try {
-      localStorage.setItem('crm_admin_pwd_hash', hash);
-      localStorage.setItem('crm_admin_pwd_salt', salt);
-    } catch(e) {}
+    // Strictly Online: No local password binding
     return { success: true };
   }
 
@@ -669,10 +640,7 @@ export function loginAsEmployeeSession(emp) {
     emailVerified: true
   };
 
-  try {
-    localStorage.setItem(ACTIVE_EMPLOYEE_KEY, JSON.stringify(userObj));
-    localStorage.removeItem('crm_logged_out');
-  } catch (e) {}
+  // Strictly Online: No local session persistence
 
   setCurrentStaffUser(emp);
   setCurrentUser(userObj);
@@ -683,12 +651,6 @@ export function loginAsEmployeeSession(emp) {
  * Checks for stored active employee session on application start
  */
 export function getStoredEmployeeSession() {
-  try {
-    const raw = localStorage.getItem(ACTIVE_EMPLOYEE_KEY);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (e) {}
   return null;
 }
 
@@ -696,7 +658,5 @@ export function getStoredEmployeeSession() {
  * Clears employee session and returns to Gérant mode
  */
 export function exitEmployeeSession() {
-  try {
-    localStorage.removeItem(ACTIVE_EMPLOYEE_KEY);
-  } catch (e) {}
+  // Strictly Online: No local storage cleanup needed
 }

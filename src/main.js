@@ -103,15 +103,9 @@ window.resolveConflict = resolveConflict;
     applyLanguageToDocument(curLang);
     actions.initDark();
 
-    let isLoggedOut = false;
-    try { isLoggedOut = localStorage.getItem('crm_logged_out') === '1'; } catch(e) {}
-    let saved = null;
-    try {
-      const raw = localStorage.getItem('crm_active_gerant_user');
-      if (raw) saved = JSON.parse(raw);
-    } catch(e) {}
-    if (!isLoggedOut && saved && auth && auth.currentUser) {
-      setCurrentUser(saved);
+    const isLoggedOut = false;
+    if (!isLoggedOut && auth && auth.currentUser) {
+      // currentUser state will be set by onAuthStateChanged
     } else {
       stopRealtimeSync();
       window.loginMode = 'login';
@@ -210,11 +204,7 @@ window.resolveConflict = resolveConflict;
         isEmployee: false,
       };
       setCurrentUser(activeGerant);
-      try {
-        localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeGerant));
-        localStorage.removeItem('crm_active_employee_session');
-        localStorage.removeItem('crm_logged_out');
-      } catch (e) {}
+      // Strictly Online: No local session caching
       
       // If no user profile has logged in yet, show the Users Login Page so user can select their account
       if (!currentStaffUser) {
