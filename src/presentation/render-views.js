@@ -4,6 +4,7 @@ import { gc, applyFilters, pBdg, sBdg, srcCls, platformIcon, updateActTypeOpts, 
 import { computeScore, computeGlobalStats, generateAutoNote, computeRiskProfile, scoreColor, computeAlerts, scoreLabel, riskColor, riskBdg, riskLabel, analyzeRootCause } from '../business/intelligence.js';
 import { getActivityVisuals } from '../business/timelineService.js';
 import { performSearch } from '../business/searchIndex.js';
+import { renderActivityHeatmap } from './components/activityHeatmap.js';
 import { t } from '../utils/i18n.js';
 import { hasPermission, isGerant } from '../state/store.js';
 export function renderList(){
@@ -1524,6 +1525,9 @@ export function renderDashboard() {
           </div>
 
         </div>
+
+        <!-- 30-DAY TEAM PRODUCTIVITY ACTIVITY HEATMAP COMPONENT -->
+        ${renderActivityHeatmap()}
 
         <!-- AI SENTINEL PROACTIVE ADVISOR PANEL -->
         <div class="dash-v-card" style="padding:1.5rem" data-testid="ai-sentinel-advisor">

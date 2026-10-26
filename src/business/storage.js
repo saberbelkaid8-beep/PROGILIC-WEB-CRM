@@ -23,7 +23,8 @@ import {
   _saveError,
   notify,
   subscribe,
-  batch
+  batch,
+  getActiveTenantId
 } from '../state/store.js';
 import { createDefaultGerant } from '../constants/index.js';
 import { 
@@ -32,15 +33,15 @@ import {
   getClientsPage, 
   getClientSubcollections, 
   
-  addClientTransaction,
-  updateClientTransaction,
-  deleteClientTransaction,
-  saveClientSubItemTransaction,
-  deleteClientSubItemTransaction
+  addClientTransaction, 
+  updateClientTransaction, 
+  deleteClientTransaction, 
+  saveClientSubItemTransaction, 
+  deleteClientSubItemTransaction 
 } from '../firebase/service.js';
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
-import { db } from '../firebase/config.js';
+import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
 
 // Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
@@ -1183,7 +1184,7 @@ export async function flushSyncQueue() {
     try {
       console.log(`[Offline Sync] Processing action: ${item.type}`, item.payload);
       
-      const uid = currentUser.uid;
+      const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || (currentUser && !currentUser.isEmployee ? currentUser.uid : null) || getActiveTenantId() || currentUser?.uid;
       switch (item.type) {
         case 'ADD_CLIENT':
           await addClientTransaction(uid, item.payload.clientData, item.payload.stats);
@@ -1271,8 +1272,9 @@ export async function flushSyncQueue() {
     console.log("[Offline Sync] All pending operations successfully flushed.");
     
     // Create an automatic rolling snapshot backup after successful sync completion!
-    if (currentUser && currentUser.uid) {
-      createSnapshotBackup(currentUser.uid, "تلقائي بعد المزامنة", clients, S.stats, S.nid)
+    const backupUid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
+    if (backupUid) {
+      createSnapshotBackup(backupUid, "تلقائي بعد المزامنة", clients, S.stats, S.nid)
         .catch(err => console.error("[Backup] Snapshot after sync failed:", err));
     }
   }

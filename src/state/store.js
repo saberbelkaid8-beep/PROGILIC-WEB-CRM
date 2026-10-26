@@ -285,9 +285,10 @@ export function updateState(newState) {
 }
 
 export function getActiveTenantId() {
-  if (currentUser && currentUser.uid) return currentUser.uid;
   if (auth && auth.currentUser && auth.currentUser.uid) return auth.currentUser.uid;
-  return null;
+  if (currentUser && currentUser.tenantId) return currentUser.tenantId;
+  if (currentUser && currentUser.uid && !currentUser.isEmployee) return currentUser.uid;
+  return currentUser?.uid || null;
 }
 
 export function getTenantStaffStorageKey(tenantId) {
@@ -501,7 +502,9 @@ export function setCurrentUser(newUser) {
   handleRecursiveCheck('currentUser');
   currentUser = newUser ? Object.freeze({ ...newUser }) : null;
   if (currentUser && currentUser.uid) {
-    loadStaffUsersForTenant(currentUser.uid, currentUser);
+    if (!currentUser.isEmployee || staffUsers.length === 0) {
+      loadStaffUsersForTenant(currentUser.uid, currentUser);
+    }
   } else {
     staffUsers = [];
     currentStaffUser = null;

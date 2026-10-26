@@ -1,22 +1,23 @@
-# Implementation Plan: PROGILIC CRM Artifact Bundle
+# Implementation Plan: Automatic Multi-User Real-time Sync & General Timeline Architecture
 
-## Objective
-Provide a comprehensive "ALL OF IT" artifact bundle representing the PROGILIC CRM project, acting as a central project portal.
+## Problem Diagnosis
+Employees without `timeline.view` permission could perform CRM actions (e.g., adding/editing clients, licenses, tickets, contacts), but their actions were not showing up in real-time in the General Timeline (`المخطط الزمني العام`) for the President/Gérant.
+- **Root Cause 1 (Session UID Collision):** `loginAsEmployeeSession` set `currentUser.uid` to the employee's ID (`emp_...`). All subsequent database and activity operations attempted to write to `users/${emp.id}/activities`, which failed Firestore security rule `match /users/{userId}/activities` (`request.auth.uid == userId`) with `permission-denied`.
+- **Root Cause 2 (Actor UID Invariant):** `isValidActivity` in `firestore.rules` enforces `data.actorUid == userId`.
+- **Root Cause 3 (Permission Wiping):** `loadGlobalActivities` cleared `S.globalActivities = []` if the active user lacked `timeline.view`.
 
-## Plan Overview
-We will create a multi-part artifact bundle accessible via a central portal.
-
-### Phase 1: Documentation Generation
-1. **`project_summary.md`**: High-level overview, features, and deployment info.
-2. **`security_report.md`**: Detailed summary of recent security remediation, hardening, and data integrity fixes.
-3. **`architecture_map.md`**: Structural mapping of core logic, UI modules, and persistence layers.
-
-### Phase 2: Central Hub Creation
-1. **`project_portal.md`**: Central landing artifact that links all documentation generated in Phase 1 for easy navigation.
-
-### Phase 3: Final Review
-1. Ensure all artifacts are properly linked and contain up-to-date information based on the recent project state.
-2. Confirm the bundle meets the user's request for "ALL OF IT" CRM documentation.
-
----
-*Status: Ready to implement upon user approval.*
+## Completed Remediation
+1. **Tenant ID Preservation (`src/business/employeeService.js`):**
+   - In `loginAsEmployeeSession(emp)`: Preserves tenant UID as `uid` / `tenantId`, while recording the employee ID in `employeeId` and `currentStaffUser`.
+   - In `exitEmployeeSession()`: Restores Gérant profile cleanly.
+2. **Tenant ID Priority (`src/state/store.js`):**
+   - In `getActiveTenantId()`: Prioritizes `auth.currentUser.uid` first.
+   - In `setCurrentUser(newUser)`: Prevents clearing `staffUsers` during employee login switches.
+3. **Database Security & Path Sanitization (`src/firebase/service.js`):**
+   - In `sanitizeUserId(userId)`: Resolves to `auth.currentUser.uid` when authenticated.
+   - In `saveTenantActivity(tenantId, activity)`: Sets `actorUid: safeTenantId`, ensuring strict pass of `isValidActivity(incoming(), userId)`.
+4. **Unconditional Background Activity Synchronization (`src/business/timelineService.js`):**
+   - In `logActivity`: Captures the employee's actual name and department in `userName`, `userRole`, and `userId`, while routing persistence to `saveTenantActivity(tenantId, activity)`.
+   - In `loadGlobalActivities`: Removed `S.globalActivities = []` wipe. View restriction is strictly isolated to `renderGlobalTimeline()`.
+5. **Real-time Pipeline Validation:**
+   - Real-time listener `onSnapshot(activitiesCollRef)` automatically streams new employee operations directly to the Gérant's dashboard without manual page refreshes or permission workarounds.

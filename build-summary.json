@@ -1,13 +1,13 @@
 {
   "appName": "crm",
-  "timestamp": "2026-10-25T17:50:01.137Z",
+  "timestamp": "2026-10-25T21:53:41.233Z",
   "nodeVersion": "v22.23.3",
   "platform": "linux",
   "build": {
-    "durationMs": 6958,
-    "durationSeconds": 6.96,
-    "totalFiles": 20,
-    "totalSizeBytes": 4723961,
+    "durationMs": 10470,
+    "durationSeconds": 10.47,
+    "totalFiles": 19,
+    "totalSizeBytes": 4724120,
     "totalSizeFormatted": "4.51 MB"
   },
   "dependencies": {
@@ -16,11 +16,6 @@
     "totalCount": 12
   },
   "artifacts": [
-    {
-      "file": "assets/database-clients-l0sNRNKZ.js",
-      "sizeBytes": 1,
-      "sizeFormatted": "1 B"
-    },
     {
       "file": "assets/firebase-auth-CiyuFwGU.js",
       "sizeBytes": 130106,
@@ -37,9 +32,9 @@
       "sizeFormatted": "658.71 KB"
     },
     {
-      "file": "assets/index-C0mjxowJ.js",
-      "sizeBytes": 856344,
-      "sizeFormatted": "836.27 KB"
+      "file": "assets/index-CoEI78Gy.js",
+      "sizeBytes": 856504,
+      "sizeFormatted": "836.43 KB"
     },
     {
       "file": "assets/search-engine-D7oNtqOG.js",

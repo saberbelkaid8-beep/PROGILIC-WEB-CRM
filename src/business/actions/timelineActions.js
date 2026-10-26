@@ -1,4 +1,4 @@
-import { S, updateState, hasPermission } from '../../state/store.js';
+import { S, updateState, hasPermission, getActiveTenantId } from '../../state/store.js';
 import { R } from '../../presentation/render-core.js';
 import { loadGlobalActivities, ActivityType, getActivityVisuals, logActivity, syncCrmServicesToTimeline } from '../timelineService.js';
 import { showToast } from '../../utils/toast.js';
@@ -8,7 +8,7 @@ export { loadGlobalActivities, syncCrmServicesToTimeline };
 
 export async function syncAllCrmServicesAction() {
   if (!hasPermission('timeline.view')) return;
-  const uid = S.currentUser?.uid;
+  const uid = getActiveTenantId() || S.currentUser?.tenantId || S.currentUser?.uid;
   if (!uid) {
     showToast(t("يرجى تسجيل الدخول أولاً"), "warning");
     return;

@@ -624,14 +624,17 @@ export function hasPermission(permissionKey) {
  * Logs in as an employee
  */
 export function loginAsEmployeeSession(emp) {
+  const tenantUid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || (currentUser && !currentUser.isEmployee ? currentUser.uid : null) || getActiveTenantId();
   const userObj = {
-    uid: emp.id,
+    uid: tenantUid || (currentUser && currentUser.uid) || emp.id,
+    tenantId: tenantUid || (currentUser && currentUser.uid) || null,
     email: emp.email || `${emp.username}@progilic.dz`,
     displayName: emp.fullName,
     username: emp.username,
     isEmployee: true,
     role: 'employee',
     employeeId: emp.id,
+    id: emp.id,
     department: emp.department,
     position: emp.position,
     supervisor: emp.supervisor,
@@ -658,5 +661,25 @@ export function getStoredEmployeeSession() {
  * Clears employee session and returns to Gérant mode
  */
 export function exitEmployeeSession() {
-  // Strictly Online: No local storage cleanup needed
+  const tenantUid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid;
+  setCurrentStaffUser(null);
+  if (auth && auth.currentUser) {
+    setCurrentUser({
+      uid: auth.currentUser.uid,
+      tenantId: auth.currentUser.uid,
+      email: auth.currentUser.email,
+      displayName: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'المسؤول العام (Gérant)',
+      emailVerified: true,
+      role: 'gerant',
+      isEmployee: false
+    });
+  } else if (tenantUid) {
+    setCurrentUser({
+      uid: tenantUid,
+      tenantId: tenantUid,
+      displayName: 'المسؤول العام (Gérant)',
+      role: 'gerant',
+      isEmployee: false
+    });
+  }
 }

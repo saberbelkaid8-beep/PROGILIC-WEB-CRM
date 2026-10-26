@@ -4,9 +4,9 @@
  * with authenticated user attribution, timestamps, and multi-criteria querying.
  */
 
-// Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
-import { currentUser, currentStaffUser, clients, S, hasPermission } from '../state/store.js';
+import { currentUser, currentStaffUser, clients, S, hasPermission, getActiveTenantId } from '../state/store.js';
 import { getTenantActivities, saveTenantActivity } from '../firebase/service.js';
+import { auth } from '../firebase/config.js';
 
 const inMemoryPendingActivities = new Map();
 
@@ -65,8 +65,8 @@ async function migrateLocalActivities(uid) {
   }
 }
 
-export async function syncPendingActivities(uid = currentUser?.uid) {
-  if (!uid || !currentUser || uid !== currentUser.uid) return false;
+export async function syncPendingActivities(uid = (auth && auth.currentUser && auth.currentUser.uid) || currentUser?.tenantId || currentUser?.uid || getActiveTenantId()) {
+  if (!uid) return false;
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     S.timelineCloudStatus = 'pending';
     return false;
@@ -77,7 +77,6 @@ export async function syncPendingActivities(uid = currentUser?.uid) {
     const pending = readPendingActivities(uid);
     let remaining = pending;
     for (const activity of pending) {
-      if (!currentUser || uid !== currentUser.uid) break;
       try {
         const savedId = await saveTenantActivity(uid, activity);
         if (savedId) remaining = remaining.filter(item => String(item.id) !== String(activity.id));
@@ -225,7 +224,7 @@ export function getActivityVisuals(type) {
  * @param {object} meta Optional extra metadata object (e.g. clientName, changes)
  */
 export async function logActivity(clientId, type, title, description, source = 'local', meta = {}) {
-  const uid = currentUser?.uid || 'offline-tenant';
+  const tenantId = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || (currentUser && !currentUser.isEmployee ? currentUser.uid : null) || getActiveTenantId() || 'offline-tenant';
 
   // Determine user identity
   const activeStaff = currentStaffUser;
@@ -239,8 +238,8 @@ export async function logActivity(clientId, type, title, description, source = '
     userId = activeStaff.id || 'staff';
   } else if (currentUser) {
     userName = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'المسؤول العام');
-    userRole = 'المسؤول العام (Gérant)';
-    userId = currentUser.uid;
+    userRole = currentUser.isEmployee ? (currentUser.department || currentUser.position || 'فريق العمل') : 'المسؤول العام (Gérant)';
+    userId = currentUser.employeeId || currentUser.id || (currentUser.isEmployee ? 'staff' : 'gerant');
   }
 
   // Determine target client name if linked
@@ -265,9 +264,9 @@ export async function logActivity(clientId, type, title, description, source = '
     timestamp: new Date().toISOString(),
     userName,
     userRole,
-    userId,
-    actorUid: uid,
-    actorEmail: currentUser?.email || '',
+    userId: String(userId),
+    actorUid: tenantId,
+    actorEmail: (auth && auth.currentUser && auth.currentUser.email) || currentUser?.email || '',
     source,
     meta: meta || {}
   };
@@ -284,9 +283,9 @@ export async function logActivity(clientId, type, title, description, source = '
 
   // 2. Direct Online Cloud Persistence to Cloud Firestore
   let savedId = activity.id;
-  if (currentUser?.uid) {
+  if (tenantId && tenantId !== 'offline-tenant') {
     try {
-      const saved = await saveTenantActivity(currentUser.uid, activity);
+      const saved = await saveTenantActivity(tenantId, activity);
       if (saved) {
         S.timelineCloudStatus = 'synced';
         savedId = saved;
@@ -304,7 +303,7 @@ export async function logActivity(clientId, type, title, description, source = '
   // Maintain in-memory store for unit test suites
   // Strictly Online: No local activity caching.
 
-  console.log(`[Timeline] Logged event #${savedId} [${type}] by ${userName}`);
+  console.log(`[Timeline] Logged event #${savedId} [${type}] by ${userName} (${userId}) under tenant ${tenantId}`);
   return savedId;
 }
 
@@ -342,16 +341,12 @@ export async function getTimeline(clientId) {
  * Loads all CRM-wide activities directly from Cloud Firestore for the Global Timeline view.
  */
 export async function loadGlobalActivities() {
-  const uid = currentUser?.uid || 'offline-tenant';
-  if (currentUser) await migrateLocalActivities(uid);
-  if (!hasPermission('timeline.view')) {
-    S.globalActivities = [];
-    return [];
-  }
+  const tenantId = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId() || 'offline-tenant';
+  if (tenantId && tenantId !== 'offline-tenant') await migrateLocalActivities(tenantId);
   try {
     let cloudActivities = [];
-    if (currentUser) {
-      cloudActivities = await getTenantActivities(currentUser.uid) || [];
+    if (tenantId && tenantId !== 'offline-tenant') {
+      cloudActivities = await getTenantActivities(tenantId) || [];
       S.timelineCloudStatus = Array.isArray(cloudActivities) ? 'synced' : 'partial';
     }
 
@@ -360,8 +355,8 @@ export async function loadGlobalActivities() {
     let merged = mergeActivities(inMemActivities || [], cloudActivities || []);
     S.globalActivities = merged;
 
-    if (currentUser?.uid) {
-      const generated = await syncCrmServicesToTimeline(currentUser.uid);
+    if (tenantId && tenantId !== 'offline-tenant') {
+      const generated = await syncCrmServicesToTimeline(tenantId);
       if (generated && generated.length > 0) {
         merged = mergeActivities(generated, merged);
         S.globalActivities = merged;
@@ -371,7 +366,7 @@ export async function loadGlobalActivities() {
     return merged;
   } catch (err) {
     console.error("Failed to load global activities:", err);
-    S.timelineCloudStatus = currentUser ? 'partial' : 'local-only';
+    S.timelineCloudStatus = 'partial';
     return S.globalActivities || [];
   }
 }
@@ -382,7 +377,7 @@ export async function loadGlobalActivities() {
  * Ensures services for Today, Yesterday, and Day Before Yesterday (as well as historical dates)
  * are fully populated and backed up to Cloud Firestore.
  */
-export async function syncCrmServicesToTimeline(uid = currentUser?.uid) {
+export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser && auth.currentUser.uid) || currentUser?.tenantId || currentUser?.uid || getActiveTenantId()) {
   if (!uid) return [];
   const currentClients = Array.isArray(clients) ? clients : [];
   if (currentClients.length === 0) return [];
@@ -572,7 +567,7 @@ export async function syncCrmServicesToTimeline(uid = currentUser?.uid) {
     // Save to IDB and Cloud Firestore
     // Strictly Online: No local activity caching.
     for (const act of generated) {
-      if (currentUser?.uid === uid && (typeof navigator === 'undefined' || navigator.onLine)) {
+      if (typeof navigator === 'undefined' || navigator.onLine) {
         saveTenantActivity(uid, act).catch(err => {
           console.warn("[Timeline] Cloud upload notice for generated service:", err);
         });
