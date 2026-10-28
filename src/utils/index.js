@@ -96,6 +96,29 @@ export function updateActTypeOpts() {
   sel.innerHTML = actTypeOpts(act, '');
 }
 
+import { PLATFORM_PROGRAM_TYPES } from '../constants/index.js';
+
+export function getProgramTypesForPlatform(platform) {
+  return PLATFORM_PROGRAM_TYPES[platform] || [];
+}
+
+export function programTypeOpts(platform, cur) {
+  const types = getProgramTypesForPlatform(platform || 'Desktop');
+  if (!types || types.length === 0) {
+    return `<option value="">(${t('لا توجد برامج ويب حالياً — قيد التطوير')})</option>`;
+  }
+  return types.map(ty => {
+    const isSelected = cur === ty || (cur && ty.startsWith(cur)) || (cur && cur.startsWith(ty.split(' ')[0]));
+    return `<option value="${ty}"${isSelected ? ' selected' : ''}>${t(ty)}</option>`;
+  }).join('');
+}
+
+export function updateProgramTypeSelect(platform, targetId = 'fp_ty') {
+  const sel = document.getElementById(targetId);
+  if (!sel) return;
+  sel.innerHTML = programTypeOpts(platform, '');
+}
+
 export function onClientStatusChange() {
   const st = document.getElementById('f_st')?.value;
   const sdInput = document.getElementById('f_sd');
@@ -185,9 +208,56 @@ export function searchMatch(c, rawQ) {
 
 import { performSearch } from '../business/searchIndex.js';
 
+export function isClientAtRisk(c) {
+  if (!c || typeof c !== 'object') return false;
+  const sc = c.score !== undefined ? Number(c.score) : 100;
+  if (sc < 50 || c.status === 'متوقف') return true;
+
+  // No contact for 30+ days
+  if (c.lastContact) {
+    try {
+      const days = Math.floor((Date.now() - new Date(c.lastContact + 'T00:00').getTime()) / 86400000);
+      if (days >= 30) return true;
+    } catch (e) {}
+  }
+
+  // Open urgent or high priority issues
+  const hasUrgent = (c.issues || []).some(i => 
+    i && (i.priority === 'عاجل' || i.priority === 'عالية') && 
+    (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')
+  );
+  if (hasUrgent) return true;
+
+  // Ending or expired contract (within 30 days or past)
+  if (c.endDate) {
+    try {
+      const dl = Math.floor((new Date(c.endDate + 'T00:00').getTime() - Date.now()) / 86400000);
+      if (dl <= 30) return true;
+    } catch (e) {}
+  }
+  const progExpiring = (c.programs || []).some(p => {
+    if (!p || !p.endDate) return false;
+    try {
+      const dl = Math.floor((new Date(p.endDate + 'T00:00').getTime() - Date.now()) / 86400000);
+      return dl <= 30;
+    } catch (e) {
+      return false;
+    }
+  });
+  if (progExpiring) return true;
+
+  return false;
+}
+
 export function applyFilters(list) {
   let fil = [...list];
-  if (S.filter !== 'الكل') fil = fil.filter(c => c.status === S.filter);
+  if (S.filter !== 'الكل') {
+    if (S.filter === 'خطر') {
+      fil = fil.filter(c => isClientAtRisk(c));
+    } else {
+      fil = fil.filter(c => c.status === S.filter);
+    }
+  }
   
   // In-Memory Search Index using MiniSearch
   if (S.q) {

@@ -25,6 +25,12 @@ import {
 export function goBack() { S.view = 'list'; S.selId = null; R(); }
 
 export async function setView(v) {
+  if (v === 'dashboard') {
+    S.view = 'dashboard';
+    S.selId = null;
+    R();
+    return;
+  }
   if (v === 'timeline' || v === 'global-timeline') {
     if (!hasPermission('timeline.view')) {
       showToast(t('ليس لديك صلاحية عرض المخطط الزمني'), 'error');
@@ -112,7 +118,10 @@ export function openModal(m, formData) {
 
 export function closeModal() { S.modal = null; S.form = {}; R(); }
 
-export function bkClose(e) { if (e.target.classList.contains('mbk')) closeModal(); }
+export function bkClose(e) {
+  // Intentional safe behavior: Do not close modal on background click to prevent accidental data loss
+  // Users must explicitly click Cancel (إلغاء) or Close (×)
+}
 
 export function setAdvFil(key, val) {
   if (!hasPermission('filters.advanced')) return;
@@ -166,10 +175,148 @@ export function initDark() {
 
 export function setDbFilter(key, val) {
   S[key] = val;
-  if (key !== 'dbPage') {
-    S.dbPage = 1;
+  if (key === 'dbSearchQuery') {
+    S.q = val;
   }
   R();
+}
+
+export function setDbPeriod(period) {
+  S.dbPeriod = Number(period) || 30;
+  R();
+}
+
+export function setDbWilaya(wilaya) {
+  S.dbWilaya = wilaya || 'all';
+  R();
+}
+
+export function exportDashboardReport() {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const totalClients = clients.length;
+  const activeClients = clients.filter(c => c.status === 'نشط').length;
+  const totalPrograms = clients.reduce((acc, c) => acc + (c.programs?.length || Number(c.programsCount) || 0), 0);
+  const totalDevices = clients.reduce((acc, c) => acc + (c.programs?.reduce((pacc, p) => pacc + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 0), 0);
+  const openIssues = clients.flatMap(c => c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
+  
+  let csvContent = '\uFEFF';
+  csvContent += 'تقرير لوحة القيادة — PROGILIC CRM v3\n';
+  csvContent += `تاريخ التصدير: ${dateStr}\n`;
+  csvContent += `إجمالي العملاء: ${totalClients} (نشط: ${activeClients})\n`;
+  csvContent += `البرامج المرخصة: ${totalPrograms} على ${totalDevices} جهازاً\n`;
+  csvContent += `تذاكر الدعم المفتوحة: ${openIssues}\n\n`;
+  csvContent += 'اسم العميل,الولاية,الحالة,النقاط,البرامج,الأجهزة,المشاكل المفتوحة\n';
+  
+  clients.forEach(c => {
+    const progs = (c.programs || []).map(p => p.programName).join(' + ') || c.programNames?.join(' + ') || '';
+    const inst = (c.programs || []).reduce((a, p) => a + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 1;
+    const iss = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
+    csvContent += `"${(c.fullName || '').replace(/"/g, '""')}","${c.wilaya || ''}","${c.status || ''}",${c.score || 100},"${progs}",${inst},${iss}\n`;
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `progilic-dashboard-report-${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(t('تم تصدير تقرير لوحة القيادة بنجاح'));
+}
+
+export function openGeoReportModal() {
+  openModal('geoReport');
+}
+
+export function openTicketsAndReqsModal(tab = 'issues', filter = 'all') {
+  openModal('ticketsAndReqs', { tab, filter, search: '' });
+}
+
+export function openHealthScoreExplainerModal() {
+  openModal('healthScoreExplainer');
+}
+
+export function openLicensesExplorerModal(platform = 'all', version = 'all') {
+  openModal('licensesExplorer', { platform, version, type: 'all', search: '' });
+}
+
+export function exportLicensesCSV() {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const allLicenses = [];
+  clients.forEach(c => {
+    (c.programs || []).forEach(p => {
+      allLicenses.push({
+        clientName: c.fullName || '',
+        company: c.company || '',
+        wilaya: c.wilaya || '',
+        phone: c.phone || '',
+        status: c.status || 'نشط',
+        platform: p.platform || 'Desktop',
+        type: p.type || 'تجاري',
+        version: p.version || '',
+        devices: Number(p.installationsCount) || 1,
+        startDate: p.startDate || c.startDate || ''
+      });
+    });
+  });
+
+  let csv = '\uFEFFتقرير التراخيص والبرامج حسب الإصدار — PROGILIC CRM v3\n';
+  csv += `تاريخ التصدير: ${dateStr}\n`;
+  csv += `إجمالي التراخيص المسجلة: ${allLicenses.length}\n\n`;
+  csv += 'اسم العميل,المؤسسة,الولاية,الهاتف,الحالة,المنصة,نوع البرنامج,الإصدار,الأجهزة المرخصة,تاريخ البدء\n';
+
+  allLicenses.forEach(l => {
+    csv += `"${(l.clientName).replace(/"/g, '""')}","${(l.company).replace(/"/g, '""')}","${l.wilaya}","${l.phone}","${l.status}","${l.platform}","${l.type}","${l.version}",${l.devices},"${l.startDate}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `progilic-licenses-report-${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(t('تم تصدير تقرير التراخيص بنجاح'));
+}
+
+export function exportGeoReport() {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const wilayaCounts = {};
+  clients.forEach(c => {
+    const w = (c.wilaya || 'غير محدد').trim();
+    if (!wilayaCounts[w]) wilayaCounts[w] = { total: 0, active: 0, prospective: 0, stopped: 0, scoreSum: 0, issues: 0, progs: 0 };
+    wilayaCounts[w].total++;
+    if (c.status === 'نشط') wilayaCounts[w].active++;
+    else if (c.status === 'محتمل') wilayaCounts[w].prospective++;
+    else if (c.status === 'متوقف') wilayaCounts[w].stopped++;
+    wilayaCounts[w].scoreSum += (c.score !== undefined ? c.score : 100);
+    wilayaCounts[w].issues += (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
+    wilayaCounts[w].progs += (c.programs || []).length || Number(c.programsCount) || 0;
+  });
+
+  let csv = '\uFEFFالتقرير الجغرافي للولايات — PROGILIC CRM v3\n';
+  csv += `تاريخ التصدير: ${dateStr}\n`;
+  csv += 'الولاية,إجمالي العملاء,نشط,محتمل,متوقف,البرامج المرخصة,المشاكل المفتوحة,متوسط صحة العملاء\n';
+
+  Object.entries(wilayaCounts).sort((a,b) => b[1].total - a[1].total).forEach(([w, d]) => {
+    const avg = d.total ? Math.round(d.scoreSum / d.total) : 100;
+    csv += `"${w}",${d.total},${d.active},${d.prospective},${d.stopped},${d.progs},${d.issues},${avg}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `progilic-geo-report-${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(t('تم تصدير التقرير الجغرافي بنجاح'));
 }
 
 export function setDbPage(page) {
@@ -179,7 +326,6 @@ export function setDbPage(page) {
 
 export function setDbPageSize(size) {
   S.dbPageSize = Number(size) || 25;
-  S.dbPage = 1;
   R();
 }
 
@@ -189,14 +335,10 @@ export function setDbTab(tab) {
 }
 
 export function resetDbFilters() {
-  S.dbFilterWilaya = 'all';
-  S.dbFilterProg = 'all';
-  S.dbFilterTier = 'all';
   S.dbSearchQuery = '';
-  S.dbSortKey = 'score';
-  S.dbSortDir = 'desc';
-  S.dbPage = 1;
-  S.dbActiveTab = 'overview';
+  S.q = '';
+  S.dbWilaya = 'all';
+  S.dbPeriod = 30;
   R();
 }
 

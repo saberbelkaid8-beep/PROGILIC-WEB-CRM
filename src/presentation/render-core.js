@@ -242,12 +242,14 @@ function performRender() { try {
   // Build the complete next UI frame
   let pageContent = '';
   try {
-    if (S.view === 'list') {
-      pageContent = renderList();
-    } else if (S.view === 'dashboard') {
+    if (S.view === 'dashboard') {
       pageContent = renderDashboard();
+    } else if (S.view === 'list') {
+      pageContent = renderList();
     } else if (S.view === 'global-timeline' || S.view === 'timeline') {
       pageContent = renderGlobalTimeline();
+    } else if (S.view === 'employees') {
+      pageContent = renderEmployeesView();
     } else {
       pageContent = renderDetail();
     }
@@ -257,7 +259,7 @@ function performRender() { try {
       <div class="dash-error-boundary" style="padding:2.5rem; text-align:center; max-width:650px; margin:2rem auto; background:rgba(239,68,68,0.06); border:1px solid #EF4444; border-radius:12px">
         <h2 style="color:#EF4444; margin-bottom:8px">⚠️ ${S.lang === 'fr' ? 'Erreur d’affichage' : S.lang === 'en' ? 'Display Error' : 'خطأ في عرض الصفحة'}</h2>
         <p style="color:var(--t2); font-size:13px; margin-bottom:1rem">${S.lang === 'fr' ? 'Impossible de charger la vue demandée.' : S.lang === 'en' ? 'Unable to render the requested view.' : 'تعذر تحميل الواجهة المطلوبة بسبب خطأ غير متوقع.'}</p>
-        <button class="btn btn-primary" onclick="S.view='list'; if(window.R) window.R();">📋 ${S.lang === 'fr' ? 'Retour aux clients' : S.lang === 'en' ? 'Back to Clients' : 'العودة لقائمة العملاء'}</button>
+        <button class="btn btn-primary" onclick="S.view='dashboard'; if(window.R) window.R();">📊 ${S.lang === 'fr' ? 'Retour au tableau de bord' : S.lang === 'en' ? 'Back to Dashboard' : 'العودة للوحة القيادة'}</button>
       </div>
     `;
   }
@@ -272,9 +274,9 @@ function performRender() { try {
   const nextHTML = 
     offlineWarningBanner +
     renderHdr(alerts.length) +
-    (S.view === 'list' || S.view === 'dashboard' || S.view === 'global-timeline' ? renderAlertBanner(alerts) : '') +
-    `<div class="page ${S.view === 'dashboard' || S.view === 'global-timeline' ? 'dashboard-page' : ''}" style="${S.view === 'dashboard' || S.view === 'global-timeline' ? 'max-width:1300px; padding:1.25rem;' : ''}">` + pageContent + '</div>' +
-    (S.view === 'list' || S.view === 'dashboard' || S.view === 'global-timeline' ? renderStorageBar() : '') +
+    (S.view === 'list' || S.view === 'global-timeline' ? renderAlertBanner(alerts) : '') +
+    (S.view === 'dashboard' ? pageContent : `<div class="page ${S.view === 'global-timeline' ? 'dashboard-page' : ''}" style="${S.view === 'global-timeline' ? 'max-width:1300px; padding:1.25rem;' : ''}">` + pageContent + '</div>') +
+    (S.view === 'list' || S.view === 'global-timeline' ? renderStorageBar() : '') +
     modalHTML +
     renderStaffManagerModal() +
     (S.gi ? renderGlobalIntelligence() : '') +
@@ -296,11 +298,6 @@ function performRender() { try {
   } catch (morphErr) {
     console.warn("DOM Morph notice, falling back to innerHTML:", morphErr);
     app.innerHTML = tempWrapper.innerHTML;
-  }
-
-  // Trigger Recharts rendering if dashboard chart container exists
-  if (typeof window.renderRechartsChart === 'function') {
-    window.renderRechartsChart();
   }
 } catch(e) {
   console.error("performRender recovery caught:", e);
@@ -340,13 +337,13 @@ import { t, toggleLanguage, setLanguage, localizeRenderedDom } from '../utils/i1
 function renderHdr(alertCount) {
   const ac = clients.filter(c => c.status === 'نشط').length;
   return `<div class="hdr">
-    <div class="logo" onclick="setView('list')" style="cursor:pointer" title="${t('الرئيسية')}">PROGI<em>LIC</em></div>
+    <div class="logo" onclick="setView('dashboard')" style="cursor:pointer" title="${t('الرئيسية')}">PROGI<em>LIC</em></div>
     <span class="hdr-ver">CRM v3</span>
     
     <!-- View Switcher Tabs -->
     <div style="display:inline-flex;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);padding:2px;border-radius:var(--r-md);margin-right:12px;gap:2px">
+      <button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>
       <button class="btn btn-xs ${S.view === 'list' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('list')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👥 ${t('العملاء')}</button>
-      ${hasPermission('dashboard.view') ? `<button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>` : ''}
       ${hasPermission('timeline.view') ? `<button class="btn btn-xs ${S.view === 'global-timeline' || S.view === 'timeline' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('global-timeline')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">⏱️ ${t('المخطط الزمني العام')}</button>` : ''}
     </div>
 

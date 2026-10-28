@@ -1,39 +1,43 @@
-# ملخص المشروع: نظام PROGILIC CRM v3 - بيئة سحابية أونلاين بالكامل مع المخطط الزمني الشامل
+# Executive Dashboard & Real-Time Intelligence Summary
 
-## 1. التشغيل السحابي الحصري أونلاين (Online-Only Architecture)
-- **إلغاء وضع الأوفلاين والاعتماد الكلي على السحابة أونلاين**:
-  - تم تحويل النظام ليعمل حصرياً أونلاين عبر Cloud Firestore.
-  - أي عملية تسجيل دخول، حفظ، تعديل، تحقق، أو إضافة تُرْفَع فورياً إلى قاعدة البيانات السحابية المركزية.
-  - في حال انقطاع اتصال الإنترنت يظهر تنبيه فوري وشريط تحذيري يوضح أن النظام سحابي ويتطلب اتصالاً بالإنترنت لمزامنة العمليات.
-  - عند عودة الاتصال، يتم تفعيل المزامنة اللحظية تلقائياً وتحديث كافة البيانات في المتصفح.
+## Overview
+PROGILIC CRM v3 features a production-grade executive dashboard and client management engine with 100% reactive real-time data synchronization with Firestore and the CRM state store.
 
-## 2. المزامنة اللحظية الحية عبر كافة الحسابات والمستخدمين (Real-Time Cloud Sync)
-- **مزامنة فورية متعددة الأجهزة والمستخدمين**:
-  - استخدام مستمعات سحابية حية (`onSnapshot`) في السحابة لـ:
-    1. **قائمة العملاء وبياناتهم وتراخيصهم**: أي عميل أو برنامج يضاف أو يُعدل يظهر مباشرة عند جميع المستخدمين المسجلين في النظام.
-    2. **سجل وحسابات الموظفين والصلاحيات**: أي إضافة أو تعديل للمستخدمين ينعكس فورياً.
-    3. **المخطط الزمني وسجل العمليات الشامل (`activities`)**: أي نشاط يقوم به أي مستخدم يسجل ويرتفع مباشرة إلى السحابة ليظهر في المخطط الزمني لدى الجميع في نفس الثانية.
+## Recent Enhancements & Fixes
+1. **Dedicated Licenses & Versions Explorer Modal ("مستكشف التراخيص حسب الإصدار")**:
+   - The "التفاصيل" button on the licenses card now opens a dedicated Licenses Explorer Modal instead of the ticket explorer.
+   - Comprehensive breakdown of all CRM licenses grouped by platform (`Desktop`, `Mobile`, `Web`) and versions (`V27`, `V26`, `V24`, `V23`, `V21`).
+   - Displays client name, company, wilaya, phone number, licensed machine count, start date, lifetime status, and a one-click button to jump directly to the client's software tab.
+   - Includes one-click CSV export ("تصدير التراخيص CSV").
 
-## 3. استخراج ومزامنة كافة خدمات الـ CRM الحالية في المخطط الزمني (CRM Services Extraction & Backfill)
-- **استخراج تلقائي وشامل لكافة الخدمات والعمليات السابقة والحالية**:
-  - دالة `syncCrmServicesToTimeline`: تقوم بفحص كافة العملاء في الـ CRM واستخراج كافة الخدمات والأنشطة المرتبطة بهم:
-    1. **خدمات تراخيص البرمجيات (`programs`)**: اسم البرنامج، نوعه، منصة التشغيل، عدد الأجهزة المرخصة، وتاريخ العقد والبداية.
-    2. **خدمات الدعم الفني والصيانة (`issues`)**: عنوان المشكلة التقنية، الأولوية، الحلول المعتمدة، وتاريخ الإجراء.
-    3. **خدمات التواصل والمتابعة (`contacts`)**: المكالمات والزيارات وتواريخها.
-    4. **طلبات التطوير والميزات (`requirements`)**: تفاصيل الميزات وتاريخ تسجيلها.
-    5. **تسجيل واعتماد العملاء الجدد (`clients`)**: نشاط العميل وتاريخ اعتماده في النظام.
-- **التغطية الزمنية الدقيقة (اليوم، البارح، أول البارح، وكل التواريخ)**:
-  - ربط كل خدمة بتاريخها الحقيقي بدقة في السجل الزمني.
-  - توزيع وتنظيم الخدمات الحديثة لتغطي بوضوح: **اليوم**، **البارح (أمس)**، و**أول البارح (أول أمس)**.
-  - إضافة زر سريع مخصص في فلتر التواريخ: `أول أمس (أول البارح)` بجانب `اليوم` و`أمس (البارح)` و`آخر 7 أيام`.
-  - إضافة زر يدوي في شريط المخطط الزمني: `⚡ مزامنة كل خدمات الـ CRM` لإعادة فحص ورفع كافة الخدمات إلى السحابة بضغطة زر واحدة.
-- **الحفظ الدائم في السحابة أونلاين**:
-  - تُرفع كافة الخدمات المستخرجة مباشرة إلى Cloud Firestore في مسار `users/{userId}/activities` وتُحفظ محلياً في IndexedDB لضمان بقائها ومشاركتها عبر جميع الأجهزة.
+2. **Program Input Architecture Redesign**:
+   - Removed manual text input for "اسم البرنامج / البرودوي" (`programName`) across all forms (Add Client, Edit Client, Add Program, Edit Program).
+   - Standardized platforms strictly to: **Desktop**, **Mobile**, **Web** (completely eliminated "Hybrid").
+   - Added dynamic type selection (`updateProgramTypeSelect`) tailored per platform:
+     - **Desktop**: `تجاري (Commercial)`, `إنتاجي (Production)`, `توزيع (Distribution)`.
+     - **Mobile**: `تطبيق لوحة القيادة (Tableau de bord)`, `تطبيق VDD (Vendeur Distributeur)`, `تطبيق التاجر (Commerçant)`.
+     - **Web**: Displayed as clean empty state (`قيد التطوير`) as web versions are not yet released.
+   - Program identities are automatically derived as standard formatted titles (e.g., `Desktop - تجاري V27`).
 
-## 4. المزامنة التلقائية اللحظية لأنشطة جميع المستخدمين في المخطط الزمني للرئيس (Cross-User Instant Activity Sync)
-- **تسجيل ومزامنة عمليات الموظفين تلقائياً دون الحاجة لمنحهم صلاحية عرض المخطط الزمني**:
-  - تم حل مشكلة عدم ظهور أنشطة الموظفين في المخطط الزمني للرئيس:
-    1. **الحفاظ على معرف المستأجر السحابي (Tenant UID)**: تم تصحيح جلسات الموظفين بحيث ترسل كافة العمليات وقواعد البيانات إلى مسار حساب المؤسسة في Firestore بدلاً من معرف الموظف الفرعي.
-    2. **الامتثال لقواعد أمان Firestore (`isValidActivity`)**: أصبحت العمليات تُرفع بـ `actorUid` مطابق لمعرف حساب Firestore، مع تسجيل اسم الموظف ومنصبه وقسمه الحقيقي بدقة في حقول `userName` و`userRole` و`userId`.
-    3. **فصل صلاحية العرض عن المزامنة الخلفية**: إلغاء أي قيود تمنع المزامنة الخلفية عند عدم امتلاك صلاحية `timeline.view`؛ حيث تظل واجهة المخطط الزمني محمية ومحصورة بالرئيس، بينما تُسجل وترتفع كافة عمليات الموظفين في الخلفية وتظهر لحظياً في المخطط الزمني للرئيس عبر مستمع `onSnapshot` الفوري.
+3. **Strict Client Validation**:
+   - Mandatory validation rules enforced before submission ("valider"):
+     - Full Name (`fullName`)
+     - Company / Organization (`company`)
+     - Phone Number (`phone`)
+     - Wilaya (`wilaya`)
+     - Commune (`commune`)
+     - Main Business Type (`businessType`)
+     - Specialized Business Field (`businessField`)
+     - Client Status (`status`)
+     - Last Contact Date (`lastContact`)
+     - Start / Registration Date (`startDate`)
+   - Optional fields clearly demarcated: Gmail (`gmailAccount`), Address/Quarter (`location`), Notes (`notes`).
+   - If registering an active client's initial program: Platform, Type (if not Web), Version, and Machine Count are strictly validated.
 
+4. **Modal Backdrop Dismissal Safety**:
+   - Disabled modal closure on backdrop click (`mbk`).
+   - Modals now only close upon clicking explicit "إلغاء" (Cancel) or "×" (Close) buttons, preventing accidental data loss when filling lengthy customer information.
+
+5. **Global Timeline Performance Optimization**:
+   - Default timeline date preset set to **"اليوم" (Today)** for lightweight, fast rendering.
+   - Quick date filters for `اليوم` (Today), `أمس` (Yesterday), `آخر 7 أيام` (Last 7 Days), and `كل الأوقات` (All Time).

@@ -1,7 +1,8 @@
 import { S, clients } from '../state/store.js';
 import { BUSINESS_TYPES, PLATFORMS, PROGRAM_TYPES, PROGRAM_VERSIONS, ISSUE_TYPES, PRIORITY_LEVELS, ISSUE_STATUSES, ISSUE_SOURCES, REQ_STATUSES, IMPACT_LEVELS, WILAYAS } from '../constants/index.js';
-import { gc, selOpts, td, wOpts, actTypeOpts, esc } from '../utils/index.js';
+import { gc, selOpts, td, wOpts, actTypeOpts, esc, isClientAtRisk } from '../utils/index.js';
 import { getPurgeAuditLogs } from '../business/purgeService.js';
+import { computeScore, scoreColor } from '../business/intelligence.js';
 
 const CSTATUSES = ['نشط', 'محتمل', 'متوقف'];
 const ITYPES = ISSUE_TYPES;
@@ -37,11 +38,16 @@ export function renderModal(){
   if(m==='changeEmployeePassword')html=renderChangePasswordModal();
   if(m==='viewEmployeeTasks')html=renderViewEmployeeTasksModal();
   if(m==='adminPasswordConfirm')html=renderAdminPasswordModal();
-  return`<div class="mbk" onclick="bkClose(event)"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'};">${html}</div></div>`;
+  if(m==='geoReport')html=renderGeoReportModal();
+  if(m==='ticketsAndReqs')html=renderTicketsAndReqsModal();
+  if(m==='healthScoreExplainer')html=renderHealthScoreExplainerModal();
+  if(m==='licensesExplorer')html=renderLicensesExplorerModal();
+  const isWide = m === 'geoReport' || m === 'ticketsAndReqs' || m === 'healthScoreExplainer' || m === 'dbPurge' || m === 'licensesExplorer';
+  return`<div class="mbk"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'}; ${isWide ? 'max-width:920px; width:95vw;' : ''}">${html}</div></div>`;
 }
 
 import { t } from '../utils/i18n.js';
-import { cOpts } from '../utils/index.js';
+import { cOpts, programTypeOpts, updateProgramTypeSelect } from '../utils/index.js';
 
 function renderClientModal(){
   const isEdit=S.modal==='editClient';
@@ -49,66 +55,71 @@ function renderClientModal(){
   const curStatus = c.status || 'نشط';
   return`
     <div class="mhdr">
-      <div class="mtitle">${isEdit?t('تعديل'):t('إضافة عميل جديد')}</div>
+      <div class="mtitle">${isEdit?t('تعديل بيانات العميل'):t('إضافة عميل جديد')}</div>
       <button class="mclose" onclick="closeModal()">×</button>
     </div>
     <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('الاسم الكامل')} *</label><input class="fctl" id="f_fn" value="${esc(c.fullName)}"></div>
-      <div class="fgroup"><label class="flbl">${t('المؤسسة / الشركة')}</label><input class="fctl" id="f_co" value="${esc(c.company)}"></div>
+      <div class="fgroup"><label class="flbl">${t('الاسم الكامل')} *</label><input class="fctl" id="f_fn" value="${esc(c.fullName)}" placeholder="${t('مثال: محمد بن علي')}"></div>
+      <div class="fgroup"><label class="flbl">${t('المؤسسة / الشركة')} *</label><input class="fctl" id="f_co" value="${esc(c.company)}" placeholder="${t('مثال: شركة الأفق للتجارة')}"></div>
     </div>
     <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('الهاتف')}</label><input class="fctl" id="f_ph" dir="ltr" value="${esc(c.phone)}"></div>
-      <div class="fgroup"><label class="flbl">${t('الولاية')}</label><select class="fctl" id="f_wi" onchange="updateCommunesOpts()"><option value="">${t('اختر الولاية')}</option>${wOpts(c.wilaya)}</select></div>
-    </div>
-    <div class="fgroup"><label class="flbl">${t('حساب Gmail')}</label><input type="email" class="fctl" id="f_gmail" dir="ltr" autocomplete="email" value="${esc(c.gmailAccount)}" placeholder="name@gmail.com"></div>
-    <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('البلدية')}</label><select class="fctl" id="f_cm"><option value="">${t('اختر البلدية')}</option>${cOpts(c.wilaya, c.commune)}</select></div>
-      <div class="fgroup"><label class="flbl">${t('العنوان')} / ${t('المنطقة / الحي')}</label><input class="fctl" id="f_lo" value="${esc(c.location)}"></div>
+      <div class="fgroup"><label class="flbl">${t('الهاتف')} *</label><input class="fctl" id="f_ph" dir="ltr" value="${esc(c.phone)}" placeholder="0550 12 34 56"></div>
+      <div class="fgroup"><label class="flbl">${t('الولاية')} *</label><select class="fctl" id="f_wi" onchange="updateCommunesOpts()"><option value="">${t('اختر الولاية')}</option>${wOpts(c.wilaya)}</select></div>
     </div>
     <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('النشاط الرئيسي')}</label><select class="fctl" id="f_bt" onchange="updateActTypeOpts()"><option value="">${t('اختر النشاط')}</option>${selOpts(ACTIVITIES,c.businessType)}</select></div>
-      <div class="fgroup"><label class="flbl">${t('تخصص النشاط')}</label><select class="fctl" id="f_bf">${actTypeOpts(c.businessType||'',c.businessField)}</select></div>
+      <div class="fgroup"><label class="flbl">${t('البلدية')} *</label><select class="fctl" id="f_cm"><option value="">${t('اختر البلدية')}</option>${cOpts(c.wilaya, c.commune)}</select></div>
+      <div class="fgroup"><label class="flbl">${t('حساب Gmail')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label><input type="email" class="fctl" id="f_gmail" dir="ltr" autocomplete="email" value="${esc(c.gmailAccount)}" placeholder="client@gmail.com"></div>
+    </div>
+    <div class="fgroup"><label class="flbl">${t('العنوان / المنطقة أو الحي')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label><input class="fctl" id="f_lo" value="${esc(c.location)}" placeholder="${t('مثال: حي النصر، شارع أول نوفمبر')}"></div>
+    <div class="frow">
+      <div class="fgroup"><label class="flbl">${t('النشاط الرئيسي')} *</label><select class="fctl" id="f_bt" onchange="updateActTypeOpts()"><option value="">${t('اختر النشاط')}</option>${selOpts(ACTIVITIES,c.businessType)}</select></div>
+      <div class="fgroup"><label class="flbl">${t('تخصص النشاط')} *</label><select class="fctl" id="f_bf">${actTypeOpts(c.businessType||'',c.businessField)}</select></div>
     </div>
     <div class="fsec">${t('حالة العقد والارتباط')}</div>
     <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('الحالة')}</label><select class="fctl" id="f_st" onchange="onClientStatusChange()">${selOpts(CSTATUSES,curStatus)}</select></div>
-      <div class="fgroup"><label class="flbl">${t('آخر تواصل')}</label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||td()}"></div>
+      <div class="fgroup"><label class="flbl">${t('الحالة')} *</label><select class="fctl" id="f_st" onchange="onClientStatusChange()">${selOpts(CSTATUSES,curStatus)}</select></div>
+      <div class="fgroup"><label class="flbl">${t('آخر تواصل')} *</label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||td()}"></div>
     </div>
     <div class="fgroup">
-      <label class="flbl">${t('تاريخ البدء / التسجيل')} <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة')})</span></label>
+      <label class="flbl">${t('تاريخ البدء / التسجيل')} * <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة')})</span></label>
       <input type="date" class="fctl" id="f_sd" value="${c.startDate||(curStatus==='نشط'?td():'')}">
     </div>
     ${!isEdit ? `
     <div id="active_client_prog_sec" style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-top:10px; ${curStatus==='نشط'?'':'display:none;'}">
-      <div class="fsec" style="margin-top:0; color:var(--brand)">${t('📦 تسجيل أول برنامج ترخيص (اختياري للعميل النشط)')}</div>
-      <div class="fgroup">
-        <label class="flbl">${t('اسم البرنامج المرخص')}</label>
-        <input class="fctl" id="f_p_nm" placeholder="PROGILIC POS...">
+      <div class="fsec" style="margin-top:0; color:var(--brand)">${t('📦 تسجيل أول برنامج ترخيص للعميل')}</div>
+      <div class="frow">
+        <div class="fgroup">
+          <label class="flbl">${t('المنصة')} *</label>
+          <select class="fctl" id="f_p_pl" onchange="updateProgramTypeSelect(this.value, 'f_p_ty')">
+            <option value="Desktop" selected>Desktop</option>
+            <option value="Mobile">Mobile</option>
+            <option value="Web">Web</option>
+          </select>
+        </div>
+        <div class="fgroup">
+          <label class="flbl">${t('نوع البرنامج')} *</label>
+          <select class="fctl" id="f_p_ty">${programTypeOpts('Desktop', 'تجاري (Commercial)')}</select>
+        </div>
       </div>
       <div class="frow">
         <div class="fgroup">
-          <label class="flbl">${t('المنصة')}</label>
-          <select class="fctl" id="f_p_pl">${selOpts(PROGRAM_PLATFORMS, 'Desktop')}</select>
+          <label class="flbl">${t('إصدار البرنامج')} *</label>
+          <select class="fctl" id="f_p_ver">
+            <option value="">${t('اختر الإصدار')}</option>
+            ${PROGRAM_VERSIONS.map(v => `<option value="${v}">${v}</option>`).join('')}
+          </select>
         </div>
         <div class="fgroup">
-          <label class="flbl">${t('نوع البرنامج')}</label>
-          <select class="fctl" id="f_p_ty">${selOpts(PROGRAM_TYPES, 'تجاري')}</select>
-        </div>
-        <div class="fgroup">
-          <label class="flbl">${t('إصدار البرنامج')}</label>
-          <select class="fctl" id="f_p_ver"><option value="">${t('اختر الإصدار')}</option>${selOpts(PROGRAM_VERSIONS, '')}</select>
-        </div>
-        <div class="fgroup">
-          <label class="flbl">${t('عدد الأجهزة')}</label>
+          <label class="flbl">${t('عدد الأجهزة المرخصة')} *</label>
           <input type="number" class="fctl" id="f_p_ic" min="1" value="1">
         </div>
       </div>
     </div>
     ` : ''}
-    <div class="fgroup" style="margin-top:10px"><label class="flbl">${t('ملاحظات عامة')}</label><textarea class="fctl" id="f_no">${esc(c.notes)}</textarea></div>
+    <div class="fgroup" style="margin-top:10px"><label class="flbl">${t('ملاحظات عامة')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label><textarea class="fctl" id="f_no">${esc(c.notes)}</textarea></div>
     <div class="facts">
       <button class="btn btn-ghost" onclick="closeModal()">${t('إلغاء')}</button>
-      <button class="btn btn-primary" onclick="saveClient(${isEdit?c.id:null})">${isEdit?t('تعديل'):t('حفظ العميل')}</button>
+      <button class="btn btn-primary" onclick="saveClient(${isEdit?c.id:null})">${isEdit?t('تأكيد التعديل'):t('حفظ العميل')}</button>
     </div>`;
 }
 
@@ -117,32 +128,38 @@ function renderProgramModal(){
   const cid=S.selId;const c=clients.find(x=>x.id===cid);if(!c)return'';
   let p={};
   if(isEdit){const eid=S.form.eid;p=c.programs.find(x=>x.id===eid)||{};}
+  const curPlat = p.platform || 'Desktop';
   return`
     <div class="mhdr">
-      <div class="mtitle">${isEdit?t('تعديل البرنامج'):t('إضافة برنامج جديد')}</div>
+      <div class="mtitle">${isEdit?t('تعديل بيانات الترخيص'):t('إضافة برنامج وترخيص جديد')}</div>
       <button class="mclose" onclick="closeModal()">×</button>
-    </div>
-    <div class="fgroup">
-      <label class="flbl">${t('البرنامج / المنتج *')}</label>
-      <input class="fctl" id="fp_nm" value="${esc(p.programName)}" placeholder="PROGILIC POS...">
     </div>
     <div class="frow">
       <div class="fgroup">
-        <label class="flbl">${t('المنصة')}</label>
-        <select class="fctl" id="fp_pl">${selOpts(PROGRAM_PLATFORMS,p.platform||'Desktop')}</select>
+        <label class="flbl">${t('المنصة')} *</label>
+        <select class="fctl" id="fp_pl" onchange="updateProgramTypeSelect(this.value, 'fp_ty')">
+          <option value="Desktop"${curPlat==='Desktop'?' selected':''}>Desktop</option>
+          <option value="Mobile"${curPlat==='Mobile'?' selected':''}>Mobile</option>
+          <option value="Web"${curPlat==='Web'?' selected':''}>Web</option>
+        </select>
       </div>
       <div class="fgroup">
-        <label class="flbl">${t('النوع')}</label>
-        <select class="fctl" id="fp_ty">${selOpts(PROGRAM_TYPES,p.type||'تجاري')}</select>
-      </div>
-      <div class="fgroup">
-        <label class="flbl">${t('إصدار البرنامج')}</label>
-        <select class="fctl" id="fp_ver"><option value="">${t('اختر الإصدار')}</option>${selOpts(PROGRAM_VERSIONS,p.version||'')}</select>
+        <label class="flbl">${t('نوع البرنامج')} *</label>
+        <select class="fctl" id="fp_ty">${programTypeOpts(curPlat, p.type||'')}</select>
       </div>
     </div>
-    <div class="fgroup">
-      <label class="flbl">${t('عدد الأجهزة المرخصة')}</label>
-      <input type="number" class="fctl" id="fp_ic" min="1" value="${p.installationsCount||1}">
+    <div class="frow">
+      <div class="fgroup">
+        <label class="flbl">${t('إصدار البرنامج')} *</label>
+        <select class="fctl" id="fp_ver">
+          <option value="">${t('اختر الإصدار')}</option>
+          ${PROGRAM_VERSIONS.map(v => `<option value="${v}"${p.version===v?' selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fgroup">
+        <label class="flbl">${t('عدد الأجهزة المرخصة')} *</label>
+        <input type="number" class="fctl" id="fp_ic" min="1" value="${p.installationsCount||1}">
+      </div>
     </div>
     <div class="fgroup">
       <label class="flbl">${t('تاريخ البداية / التثبيت')} <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة — Licence à vie')})</span></label>
@@ -691,3 +708,673 @@ function renderStaffMemberModal(){
     </div>
   `;
 }
+
+// ─────────────────────────────────────────────────────────────
+// 1. التقرير الجغرافي الشامل للولايات (Geographic Report Modal)
+// ─────────────────────────────────────────────────────────────
+export function renderGeoReportModal() {
+  const geoSearch = (S.form.geoSearch || '').trim().toLowerCase();
+  
+  // Aggregate clients by wilaya
+  const wilayaStats = {};
+  WILAYAS.forEach(w => {
+    wilayaStats[w] = { name: w, total: 0, active: 0, prospective: 0, stopped: 0, scoreSum: 0, issues: 0, progs: 0 };
+  });
+
+  clients.forEach(c => {
+    const w = (c.wilaya || 'غير محدد').trim();
+    if (!wilayaStats[w]) {
+      wilayaStats[w] = { name: w, total: 0, active: 0, prospective: 0, stopped: 0, scoreSum: 0, issues: 0, progs: 0 };
+    }
+    wilayaStats[w].total++;
+    if (c.status === 'نشط') wilayaStats[w].active++;
+    else if (c.status === 'محتمل') wilayaStats[w].prospective++;
+    else if (c.status === 'متوقف') wilayaStats[w].stopped++;
+    wilayaStats[w].scoreSum += (c.score !== undefined ? Number(c.score) : computeScore(c).total);
+    wilayaStats[w].issues += (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
+    wilayaStats[w].progs += (c.programs || []).length || Number(c.programsCount) || (c.programNames?.length || 0);
+  });
+
+  const allWilayasList = Object.values(wilayaStats).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ar'));
+  const filteredList = geoSearch 
+    ? allWilayasList.filter(item => item.name.toLowerCase().includes(geoSearch))
+    : allWilayasList;
+
+  const coveredCount = allWilayasList.filter(item => item.total > 0).length;
+  const topWilaya = allWilayasList[0] || { name: '—', total: 0 };
+  const maxClientsInWilaya = Math.max(1, ...allWilayasList.map(x => x.total));
+
+  return `
+    <div class="mhd" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">📍</span>
+        <div>
+          <div class="mtitle" style="font-size:17px;font-weight:800;color:var(--t1)">${t('التقرير الجغرافي الشامل للولايات')}</div>
+          <div style="font-size:12px;color:var(--t2)">${t('توزيع قاعدة العملاء، التراخيص، ومؤشرات الأداء عبر كل الولايات')}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="exportGeoReport()">
+          📥 ${t('تصدير التقرير (CSV)')}
+        </button>
+        <button class="mcls" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+
+    <!-- Quick KPIs Summary -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <div style="background:var(--border-soft);padding:10px 14px;border-radius:10px">
+        <div style="font-size:11px;color:var(--t2);font-weight:600">${t('الولايات المغطاة')}</div>
+        <div style="font-size:22px;font-weight:800;color:var(--t1)" class="num">${coveredCount} <span style="font-size:12px;color:var(--t3);font-weight:600">/ ${WILAYAS.length}</span></div>
+      </div>
+      <div style="background:var(--border-soft);padding:10px 14px;border-radius:10px">
+        <div style="font-size:11px;color:var(--t2);font-weight:600">${t('أعلى ولاية كثافة')}</div>
+        <div style="font-size:20px;font-weight:800;color:#2a78d6">${esc(topWilaya.name)} <span style="font-size:13px;color:var(--t2)" class="num">(${topWilaya.total})</span></div>
+      </div>
+      <div style="background:var(--border-soft);padding:10px 14px;border-radius:10px">
+        <div style="font-size:11px;color:var(--t2);font-weight:600">${t('نسبة التغطية الوطنية')}</div>
+        <div style="font-size:22px;font-weight:800;color:#10b981" class="num">${((coveredCount / (WILAYAS.length || 1)) * 100).toFixed(1)}%</div>
+      </div>
+      <div style="background:var(--border-soft);padding:10px 14px;border-radius:10px">
+        <div style="font-size:11px;color:var(--t2);font-weight:600">${t('إجمالي العملاء')}</div>
+        <div style="font-size:22px;font-weight:800;color:var(--t1)" class="num">${clients.length}</div>
+      </div>
+    </div>
+
+    <!-- Search input -->
+    <div style="margin-bottom:12px;position:relative">
+      <input 
+        type="text" 
+        class="fctl" 
+        style="padding-right:32px" 
+        placeholder="${t('ابحث عن اسم ولاية...')}" 
+        value="${esc(geoSearch)}"
+        oninput="S.form.geoSearch=this.value; R();"
+      >
+      <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--t3)">🔍</span>
+    </div>
+
+    <!-- Scrollable Wilayas Table -->
+    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;text-align:right">
+        <thead>
+          <tr style="background:var(--border-soft);color:var(--t2);border-bottom:1px solid var(--border);font-size:12px">
+            <th style="padding:10px 14px">${t('الولاية')}</th>
+            <th style="padding:10px 14px;text-align:center">${t('عدد العملاء')}</th>
+            <th style="padding:10px 14px">${t('توزيع الحالة (نشط / محتمل / متوقف)')}</th>
+            <th style="padding:10px 14px;text-align:center">${t('البرامج')}</th>
+            <th style="padding:10px 14px;text-align:center">${t('مشاكل مفتوحة')}</th>
+            <th style="padding:10px 14px;text-align:center">${t('صحة العملاء')}</th>
+            <th style="padding:10px 14px;text-align:center">${t('إجراء سريع')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredList.map(item => {
+            const avg = item.total ? Math.round(item.scoreSum / item.total) : 100;
+            const barW = Math.round((item.total / maxClientsInWilaya) * 100);
+            return `
+              <tr style="border-bottom:1px solid var(--border-soft);transition:background .15s" onmouseover="this.style.background='var(--border-soft)'" onmouseout="this.style.background=''">
+                <td style="padding:10px 14px;font-weight:700;color:var(--t1)">
+                  ${esc(item.name)}
+                </td>
+                <td style="padding:10px 14px;text-align:center;font-weight:800;font-family:Inter" class="num">
+                  <div style="display:inline-flex;align-items:center;gap:8px">
+                    <span>${item.total}</span>
+                    <div style="width:50px;height:6px;background:var(--border-soft);border-radius:3px;overflow:hidden">
+                      <div style="width:${barW}%;height:100%;background:#2a78d6"></div>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding:10px 14px">
+                  ${item.total > 0 ? `
+                    <div style="display:flex;gap:6px;font-size:11.5px">
+                      <span style="color:#10b981;font-weight:700">${item.active} ${t('نشط')}</span> · 
+                      <span style="color:#f59e0b;font-weight:700">${item.prospective} ${t('محتمل')}</span> · 
+                      <span style="color:#ef4444;font-weight:700">${item.stopped} ${t('متوقف')}</span>
+                    </div>
+                  ` : `<span style="color:var(--t3);font-size:11.5px">—</span>`}
+                </td>
+                <td style="padding:10px 14px;text-align:center" class="num">${item.progs}</td>
+                <td style="padding:10px 14px;text-align:center" class="num">
+                  ${item.issues > 0 ? `<span style="color:#ef4444;font-weight:700">⚠️ ${item.issues}</span>` : `<span style="color:var(--t3)">0</span>`}
+                </td>
+                <td style="padding:10px 14px;text-align:center">
+                  ${item.total > 0 ? `<span class="pill" style="background:${scoreColor(avg)}18;color:${scoreColor(avg)}">${avg}/100</span>` : '<span style="color:var(--t3)">—</span>'}
+                </td>
+                <td style="padding:10px 14px;text-align:center">
+                  <div style="display:flex;gap:6px;justify-content:center">
+                    <button class="btn btn-xs btn-outline" onclick="setDbWilaya('${esc(item.name)}');closeModal();setView('dashboard')" title="${t('تصفية لوحة القيادة بهذه الولاية')}">
+                      📊 ${t('تصفية اللوحة')}
+                    </button>
+                    <button class="btn btn-xs btn-primary" onclick="S.fWilaya='${esc(item.name)}';S.filter='الكل';closeModal();setView('list')" title="${t('عرض العملاء في القائمة')}">
+                      👥 ${t('العملاء')}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="facts" style="margin-top:14px;display:flex;justify-content:space-between">
+      <span style="font-size:12px;color:var(--t2)">${t('تم العثور على')} <strong>${filteredList.length}</strong> ${t('ولاية')}</span>
+      <button class="btn btn-ghost" onclick="closeModal()">${t('إغلاق')}</button>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2. مستكشف التذاكر وطلبات الميزات (Tickets & Requirements Modal)
+// ─────────────────────────────────────────────────────────────
+export function renderTicketsAndReqsModal() {
+  const curTab = S.form.tab || 'issues';
+  const curFilter = S.form.filter || 'all';
+  const curSearch = (S.form.search || '').trim().toLowerCase();
+
+  const allIssues = clients.flatMap(c => (c.issues || []).map(i => ({
+    ...i,
+    clientId: c.id,
+    clientName: c.fullName,
+    clientWilaya: c.wilaya,
+    clientStatus: c.status
+  })));
+
+  const allReqs = clients.flatMap(c => (c.requirements || []).map(r => ({
+    ...r,
+    clientId: c.id,
+    clientName: c.fullName,
+    clientWilaya: c.wilaya,
+    clientStatus: c.status
+  })));
+
+  let displayItems = [];
+  if (curTab === 'issues') {
+    displayItems = allIssues.filter(i => {
+      if (curFilter !== 'all') {
+        if (['عاجل', 'عالية', 'متوسطة', 'منخفضة'].includes(curFilter) && i.priority !== curFilter) return false;
+        if (['مفتوح', 'قيد المعالجة', 'محلول', 'مغلق'].includes(curFilter) && i.status !== curFilter) return false;
+      }
+      if (curSearch) {
+        const txt = `${i.title || ''} ${i.clientName || ''} ${i.notes || ''} ${i.type || ''}`.toLowerCase();
+        if (!txt.includes(curSearch)) return false;
+      }
+      return true;
+    });
+  } else {
+    displayItems = allReqs.filter(r => {
+      if (curFilter !== 'all') {
+        if (['مقترح', 'قيد الدراسة', 'مخطط', 'منفذ', 'مرفوض'].includes(curFilter) && r.status !== curFilter) return false;
+        if (['عالي', 'متوسط', 'منخفض'].includes(curFilter) && r.impact !== curFilter) return false;
+      }
+      if (curSearch) {
+        const txt = `${r.title || ''} ${r.clientName || ''} ${r.notes || ''} ${r.type || ''}`.toLowerCase();
+        if (!txt.includes(curSearch)) return false;
+      }
+      return true;
+    });
+  }
+
+  return `
+    <div class="mhd" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">${curTab === 'issues' ? '🎫' : '💡'}</span>
+        <div>
+          <div class="mtitle" style="font-size:17px;font-weight:800;color:var(--t1)">${t('مستكشف التذاكر وطلبات الميزات والتطوير')}</div>
+          <div style="font-size:12px;color:var(--t2)">${t('استعراض وتتبع كافة مشاكل الدعم الفني وطلبات التحسين البرمجي عبر العملاء')}</div>
+        </div>
+      </div>
+      <button class="mcls" onclick="closeModal()">✕</button>
+    </div>
+
+    <!-- Tab Switcher -->
+    <div style="display:flex;background:var(--border-soft);border-radius:10px;padding:3px;margin-bottom:14px;gap:4px">
+      <button 
+        class="btn btn-sm ${curTab === 'issues' ? 'btn-primary' : 'btn-ghost'}" 
+        style="flex:1;border-radius:8px;font-weight:700"
+        onclick="S.form.tab='issues'; S.form.filter='all'; R();"
+      >
+        🎫 ${t('تذاكر الدعم والمشاكل التقنية')} (${allIssues.length})
+      </button>
+      <button 
+        class="btn btn-sm ${curTab === 'reqs' ? 'btn-primary' : 'btn-ghost'}" 
+        style="flex:1;border-radius:8px;font-weight:700"
+        onclick="S.form.tab='reqs'; S.form.filter='all'; R();"
+      >
+        💡 ${t('طلبات الميزات والتطوير')} (${allReqs.length})
+      </button>
+    </div>
+
+    <!-- Filters Bar and Search -->
+    <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px;position:relative">
+        <input 
+          type="text" 
+          class="fctl" 
+          style="padding-right:32px" 
+          placeholder="${curTab === 'issues' ? t('ابحث عن عنوان تذكرة أو اسم عميل...') : t('ابحث عن طلب ميزة...')}" 
+          value="${esc(curSearch)}"
+          oninput="S.form.search=this.value; R();"
+        >
+        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--t3)">🔍</span>
+      </div>
+
+      <!-- Quick Filter Pills -->
+      <div class="filter-bar" style="margin:0;border:none;padding:0;gap:4px">
+        ${curTab === 'issues' ? `
+          ${['all', 'عاجل', 'عالية', 'مفتوح', 'محلول'].map(f => `
+            <span 
+              class="fpill ${curFilter === f ? 'on' : ''}" 
+              onclick="S.form.filter='${f}'; R();"
+            >
+              ${f === 'all' ? t('الكل') : t(f)}
+            </span>
+          `).join('')}
+        ` : `
+          ${['all', 'مقترح', 'قيد الدراسة', 'مخطط', 'منفذ'].map(f => `
+            <span 
+              class="fpill ${curFilter === f ? 'on' : ''}" 
+              onclick="S.form.filter='${f}'; R();"
+            >
+              ${f === 'all' ? t('الكل') : t(f)}
+            </span>
+          `).join('')}
+        `}
+      </div>
+    </div>
+
+    <!-- Items List -->
+    <div style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+      ${displayItems.length ? displayItems.map(item => {
+        const isUrgent = item.priority === 'عاجل';
+        const isHigh = item.priority === 'عالية' || item.impact === 'عالي';
+        const isSolved = item.status === 'محلول' || item.status === 'منفذ';
+        return `
+          <div 
+            class="card" 
+            style="padding:12px 16px;cursor:pointer;border-inline-start:4px solid ${isUrgent ? '#ef4444' : (isHigh ? '#f97316' : (isSolved ? '#10b981' : '#2a78d6'))};transition:all .15s"
+            onmouseover="this.style.transform='translateY(-1px)'" 
+            onmouseout="this.style.transform=''"
+            onclick="closeModal(); selClient(${item.clientId}); setTab('${curTab === 'issues' ? 'issues' : 'requirements'}');"
+            title="${t('اضغط لفتح بطاقة العميل والتفاصيل الكاملة')}"
+          >
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+              <div>
+                <div style="font-weight:700;font-size:14px;color:var(--t1);margin-bottom:3px">
+                  ${esc(item.title || item.name || 'بدون عنوان')}
+                </div>
+                <div style="font-size:12px;color:var(--t2);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span>👤 <strong>${esc(item.clientName)}</strong></span>
+                  <span>📍 ${esc(item.clientWilaya || '—')}</span>
+                  ${item.date ? `<span>📅 ${esc(item.date)}</span>` : ''}
+                  ${item.repeatCount && Number(item.repeatCount) > 1 ? `<span style="color:#ef4444;font-weight:700">🔄 تكررت ${item.repeatCount} مرات</span>` : ''}
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+                ${item.priority ? `
+                  <span class="pill ${item.priority === 'عاجل' ? 'r' : (item.priority === 'عالية' ? 'w' : 'b')}">
+                    ${esc(item.priority)}
+                  </span>
+                ` : ''}
+                ${item.impact ? `
+                  <span class="pill ${item.impact === 'عالي' ? 'w' : 'b'}">
+                    تأثير ${esc(item.impact)}
+                  </span>
+                ` : ''}
+                <span class="pill ${isSolved ? 'g' : 'w'}">
+                  ${esc(item.status || 'مفتوح')}
+                </span>
+                <span style="font-size:13px;color:var(--t3);margin-inline-start:4px">←</span>
+              </div>
+            </div>
+            ${item.solution ? `
+              <div style="font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:6px 10px;margin-top:8px">
+                ✅ <strong>${t('الحل:')}</strong> ${esc(item.solution)}
+              </div>
+            ` : (item.notes ? `
+              <div style="font-size:12px;color:var(--t2);margin-top:6px;line-height:1.4">
+                📝 ${esc(item.notes)}
+              </div>
+            ` : '')}
+          </div>
+        `;
+      }).join('') : `
+        <div style="padding:3rem 1rem;text-align:center;color:var(--t2);background:var(--border-soft);border-radius:10px">
+          <div style="font-size:32px;margin-bottom:8px">🔍</div>
+          <div style="font-weight:700;font-size:14px">${t('لا توجد عناصر تطابق بحثك حالياً')}</div>
+        </div>
+      `}
+    </div>
+
+    <div class="facts" style="margin-top:14px;display:flex;justify-content:space-between">
+      <span style="font-size:12px;color:var(--t2)">${t('تم العثور على')} <strong>${displayItems.length}</strong> ${curTab === 'issues' ? t('تذكرة') : t('طلب ميزة')}</span>
+      <button class="btn btn-ghost" onclick="closeModal()">${t('إغلاق')}</button>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. توضيح بطاقة صحة العملاء (Health Score Explainer Modal)
+// ─────────────────────────────────────────────────────────────
+export function renderHealthScoreExplainerModal() {
+  return `
+    <div class="mhd" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">ℹ️</span>
+        <div>
+          <div class="mtitle" style="font-size:17px;font-weight:800;color:var(--t1)">${t('دليل مؤشر صحة العملاء (Customer Health Score)')}</div>
+          <div style="font-size:12px;color:var(--t2)">${t('كيفية احتساب النقاط وتصنيف الحسابات والمعايير الأربعة المعتمدة')}</div>
+        </div>
+      </div>
+      <button class="mcls" onclick="closeModal()">✕</button>
+    </div>
+
+    <div style="font-size:13.5px;color:var(--t1);line-height:1.6;margin-bottom:16px">
+      <strong>مؤشر صحة العميل</strong> هو مقياس حسابي ذكي من <strong>0 إلى 100 نقطة</strong>، يُحسب آلياً لكل عميل في الوقت الحقيقي بناءً على 4 محاور أساسية تعكس استقرار حسابه ورضاه ومستوى ولائه لنظام PROGILIC CRM.
+    </div>
+
+    <!-- Tiers Breakdown -->
+    <div style="font-size:13px;font-weight:800;color:var(--t1);margin-bottom:10px">🏷️ التصنيفات الأربعة لمستوى صحة العميل:</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px">
+      <div style="border:1px solid #10b981;background:rgba(16,185,129,0.08);border-radius:10px;padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:800;color:#065f46;margin-bottom:4px">
+          <span style="font-size:16px">🌟</span> عميل متميز (75 – 100 نقطة)
+        </div>
+        <div style="font-size:12px;color:var(--t2)">
+          حساب نموذجي مستقر، لديه تراخيص نشطة، تواصل دوري مستمر، ولا توجد أي مشاكل معلقة أو أعطال حرجة.
+        </div>
+      </div>
+
+      <div style="border:1px solid #f59e0b;background:rgba(245,158,11,0.08);border-radius:10px;padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:800;color:#92400e;margin-bottom:4px">
+          <span style="font-size:16px">👍</span> عميل جيد (50 – 74 نقطة)
+        </div>
+        <div style="font-size:12px;color:var(--t2)">
+          حساب مستقر في مساره الطبيعي، قد يحتاج لتواصل اعتيادي أو تجديد ترخيص قادم في وقته.
+        </div>
+      </div>
+
+      <div style="border:1px solid #f97316;background:rgba(249,115,22,0.08);border-radius:10px;padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:800;color:#c2410c;margin-bottom:4px">
+          <span style="font-size:16px">⚠️</span> يحتاج متابعة (25 – 49 نقطة)
+        </div>
+        <div style="font-size:12px;color:var(--t2)">
+          تظهر عليه مؤشرات الفتور؛ مثل انقطاع الاتصال لأكثر من 30 يوماً، أو وجود مشكلة فنية غير محلولة.
+        </div>
+      </div>
+
+      <div style="border:1px solid #ef4444;background:rgba(239,68,68,0.08);border-radius:10px;padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:800;color:#991b1b;margin-bottom:4px">
+          <span style="font-size:16px">🚨</span> خطر عالٍ (أقل من 25 نقطة)
+        </div>
+        <div style="font-size:12px;color:var(--t2)">
+          حساب حرج جداً مهدد بالإلغاء أو التوقف؛ تراكم مشاكل عاجلة، عقد منتهي دون تجديد، أو انقطاع التواصل لأكثر من 60 يوماً.
+        </div>
+      </div>
+    </div>
+
+    <!-- The 4 Pillars Breakdown -->
+    <div style="font-size:13px;font-weight:800;color:var(--t1);margin-bottom:10px">⚖️ كيف تُوزع الـ 100 نقطة بالتفصيل؟</div>
+    <div style="border:1px solid var(--border);border-radius:10px;background:var(--surface);overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border-soft);gap:12px">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(42,120,214,0.15);color:#2a78d6;display:grid;place-items:center;font-weight:800">35</div>
+        <div>
+          <div style="font-weight:700;color:var(--t1)">1. البرامج والتراخيص (35 نقطة كحد أقصى)</div>
+          <div style="font-size:12px;color:var(--t2)">يُحتسب بناءً على عدد البرامج النشطة ونسبة الأجهزة المفعلة من التراخيص. الحساب الذي يمتلك تراخيص ممتدة ومحطات متعددة يحصل على كامل النقاط.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border-soft);gap:12px">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(235,104,52,0.15);color:#eb6834;display:grid;place-items:center;font-weight:800">25</div>
+        <div>
+          <div style="font-weight:700;color:var(--t1)">2. التواصل الدوري وسجل الاتصالات (25 نقطة كحد أقصى)</div>
+          <div style="font-size:12px;color:var(--t2)">25 نقطة إذا تم التواصل خلال آخر 7 أيام · 18 نقطة خلال 30 يوماً · 10 نقاط خلال 60 يوماً · 4 نقاط خلال 90 يوماً · 0 نقطة إذا تجاوز الانقطاع 90 يوماً.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border-soft);gap:12px">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(27,175,122,0.15);color:#1baf7a;display:grid;place-items:center;font-weight:800">25</div>
+        <div>
+          <div style="font-weight:700;color:var(--t1)">3. الدعم الفني واستقرار النظام (25 نقطة كحد أقصى)</div>
+          <div style="font-size:12px;color:var(--t2)">تبدأ من 25 نقطة؛ ويُخصم (4 نقاط) عن كل مشكلة مفتوحة، و(7 نقاط) عن كل مشكلة عاجلة معلقة، و(3 نقاط) عن المشاكل المتكررة 3 مرات فأكثر.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;padding:10px 14px;gap:12px">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(237,161,0,0.15);color:#eda100;display:grid;place-items:center;font-weight:800">15</div>
+        <div>
+          <div style="font-weight:700;color:var(--t1)">4. الميزات والمقترحات التطويرية (15 نقطة كحد أقصى)</div>
+          <div style="font-size:12px;color:var(--t2)">يُمنح العميل 5 نقاط عن كل طلب ميزة أو متطلب ذي تأثير عالي مقدم من طرفه، مما يعكس شراكته وتفاعله الإيجابي في تطوير البرنامج.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="facts" style="margin-top:14px;display:flex;justify-content:flex-end">
+      <button class="btn btn-primary" onclick="closeModal()">${t('حسناً، فهمت ذلك')}</button>
+    </div>
+  `;
+}
+
+export function renderLicensesExplorerModal() {
+  const curPlatform = S.form.platform || 'all';
+  const curVersion = S.form.version || 'all';
+  const curType = S.form.type || 'all';
+  const curSearch = (S.form.search || '').trim().toLowerCase();
+
+  // Aggregate all licenses across all clients
+  const allLicenses = [];
+  clients.forEach(c => {
+    const progs = c.programs || [];
+    progs.forEach(p => {
+      allLicenses.push({
+        ...p,
+        clientId: c.id,
+        clientName: c.fullName || 'عميل غير مسمى',
+        clientCompany: c.company || '—',
+        clientWilaya: c.wilaya || '—',
+        clientPhone: c.phone || '—',
+        clientStatus: c.status || 'نشط'
+      });
+    });
+  });
+
+  // Calculate high-level stats
+  const totalLicenses = allLicenses.length;
+  const desktopLicenses = allLicenses.filter(l => (l.platform || 'Desktop') === 'Desktop').length;
+  const mobileLicenses = allLicenses.filter(l => l.platform === 'Mobile').length;
+  const webLicenses = allLicenses.filter(l => l.platform === 'Web').length;
+  const totalDevices = allLicenses.reduce((sum, l) => sum + (Number(l.installationsCount) || 1), 0);
+
+  // Filter licenses
+  let filtered = allLicenses.filter(l => {
+    const plat = l.platform || 'Desktop';
+    if (curPlatform !== 'all' && plat !== curPlatform) return false;
+    if (curVersion !== 'all' && (l.version || '').toUpperCase() !== curVersion.toUpperCase()) return false;
+    if (curType !== 'all') {
+      const lType = (l.type || '').toLowerCase();
+      if (!lType.includes(curType.toLowerCase())) return false;
+    }
+    if (curSearch) {
+      const q = curSearch;
+      const match = (l.clientName || '').toLowerCase().includes(q) ||
+                    (l.clientCompany || '').toLowerCase().includes(q) ||
+                    (l.clientWilaya || '').toLowerCase().includes(q) ||
+                    (l.clientPhone || '').toLowerCase().includes(q) ||
+                    (l.programName || '').toLowerCase().includes(q) ||
+                    (l.version || '').toLowerCase().includes(q) ||
+                    (l.type || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  // Sort by client name
+  filtered.sort((a, b) => (a.clientName || '').localeCompare(b.clientName || ''));
+
+  return `
+    <div class="mhdr" style="margin-bottom:12px">
+      <div>
+        <div class="mtitle" style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px">📦</span>
+          <span>${t('مستكشف التراخيص والبرامج حسب الإصدار والمنصة')}</span>
+          <span class="bdg bdg-b" style="font-size:12px;font-weight:700">${filtered.length} ${t('ترخيص')}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--t2);margin-top:3px">
+          ${t('استعراض تفصيلي لكافة تراخيص العملاء والمنصات والإصدارات وعدد الأجهزة المرخصة في الـ CRM')}
+        </div>
+      </div>
+      <button class="mclose" onclick="closeModal()">×</button>
+    </div>
+
+    <!-- Quick Stat KPI Pills -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--t3)">${t('إجمالي التراخيص')}</span>
+        <span style="font-weight:800;font-size:15px;color:var(--t1)">${totalLicenses}</span>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--t3)">🖥️ Desktop</span>
+        <span style="font-weight:800;font-size:15px;color:#2a78d6">${desktopLicenses}</span>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--t3)">📱 Mobile</span>
+        <span style="font-weight:800;font-size:15px;color:#eda100">${mobileLicenses}</span>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--t3)">🌐 Web</span>
+        <span style="font-weight:800;font-size:15px;color:#10b981">${webLicenses}</span>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--t3)">💻 ${t('إجمالي الأجهزة')}</span>
+        <span style="font-weight:800;font-size:15px;color:var(--brand)">${totalDevices}</span>
+      </div>
+    </div>
+
+    <!-- Platform Selector Tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:10px;flex-wrap:wrap">
+      ${[
+        { id: 'all', label: 'كافة المنصات', icon: '🌐' },
+        { id: 'Desktop', label: 'برامج Desktop (تجاري، إنتاجي، توزيع)', icon: '🖥️' },
+        { id: 'Mobile', label: 'تطبيقات Mobile (لوحة القيادة، VDD، التاجر)', icon: '📱' },
+        { id: 'Web', label: 'منظومة Web', icon: '🌐' }
+      ].map(tab => `
+        <button 
+          class="btn btn-sm ${curPlatform === tab.id ? 'btn-primary' : 'btn-ghost'}" 
+          style="font-size:12px;padding:6px 14px;border-radius:8px;font-weight:700"
+          onclick="S.form.platform='${tab.id}'; S.form.type='all'; R();"
+        >
+          ${tab.icon} ${t(tab.label)}
+        </button>
+      `).join('')}
+    </div>
+
+    <!-- Sub-Filters: Versions, Types, Search & CSV Export -->
+    <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+      
+      <!-- Search -->
+      <div style="flex:1;min-width:220px;position:relative">
+        <input 
+          type="text" 
+          class="fctl" 
+          style="padding-right:32px;font-size:12.5px" 
+          placeholder="${t('ابحث: اسم العميل، الشركة، الولاية، أو الإصدار...')}" 
+          value="${esc(curSearch)}"
+          oninput="S.form.search=this.value; R();"
+        >
+        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--t3)">🔍</span>
+      </div>
+
+      <!-- Version Pills -->
+      <div class="filter-bar" style="margin:0;border:none;padding:0;gap:4px">
+        <span style="font-size:11.5px;color:var(--t3);font-weight:700;margin-left:4px">${t('الإصدار')}:</span>
+        ${['all', 'V27', 'V26', 'V24', 'V23', 'V21'].map(v => `
+          <span 
+            class="fpill ${curVersion === v ? 'on' : ''}" 
+            onclick="S.form.version='${v}'; R();"
+            style="font-size:11.5px;padding:3px 8px"
+          >
+            ${v === 'all' ? t('الكل') : v}
+          </span>
+        `).join('')}
+      </div>
+
+      <!-- Export CSV Button -->
+      <button class="btn btn-outline btn-xs" onclick="exportLicensesCSV()" style="font-size:11.5px;color:var(--brand);font-weight:700;margin-inline-start:auto">
+        📊 ${t('تصدير التراخيص CSV')}
+      </button>
+    </div>
+
+    <!-- Licenses Cards Grid / Table -->
+    <div style="max-height:440px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-left:4px">
+      ${filtered.length ? filtered.map(item => {
+        const plat = item.platform || 'Desktop';
+        const platColor = plat === 'Desktop' ? '#2a78d6' : (plat === 'Mobile' ? '#eda100' : '#10b981');
+        const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : '🌐');
+        return `
+          <div 
+            class="card" 
+            style="padding:12px 16px;border-inline-start:4px solid ${platColor};transition:all .15s;cursor:pointer"
+            onmouseover="this.style.transform='translateY(-1px)'" 
+            onmouseout="this.style.transform=''"
+            onclick="closeModal(); selClient(${item.clientId}); setTab('programs');"
+            title="${t('اضغط لفتح بطاقة العميل وإدارة برامجه وتراخيصه')}"
+          >
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:260px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span style="font-weight:800;font-size:14.5px;color:var(--t1)">${esc(item.clientName)}</span>
+                  <span style="font-size:12.5px;color:var(--t2)">(${esc(item.clientCompany)})</span>
+                  <span class="bdg ${item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-y')}" style="font-size:11px">
+                    ${t(item.clientStatus)}
+                  </span>
+                </div>
+                
+                <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--t2);flex-wrap:wrap">
+                  <span style="display:flex;align-items:center;gap:4px">📍 ${esc(item.clientWilaya)}</span>
+                  <span style="display:flex;align-items:center;gap:4px" dir="ltr">📞 ${esc(item.clientPhone)}</span>
+                  <span style="color:var(--brand);font-weight:700">⏳ ${t('ترخيص مدى الحياة')}</span>
+                  ${item.startDate ? `<span>📅 ${t('بدء التثبيت')}: ${esc(item.startDate)}</span>` : ''}
+                </div>
+              </div>
+
+              <!-- Program Badge & Version & Devices -->
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="background:rgba(42,120,214,0.1);color:${platColor};font-weight:700;font-size:11.5px;padding:4px 10px;border-radius:6px;border:1px solid rgba(42,120,214,0.2)">
+                  ${platIcon} ${esc(item.platform || 'Desktop')}
+                </span>
+                <span style="background:var(--surface);border:1px solid var(--border);color:var(--t1);font-weight:700;font-size:11.5px;padding:4px 10px;border-radius:6px">
+                  ${esc(item.type || 'تجاري')}
+                </span>
+                <span style="background:#2563EB;color:#fff;font-weight:800;font-size:11.5px;padding:4px 10px;border-radius:6px">
+                  ${esc(item.version || 'V27')}
+                </span>
+                <span style="background:var(--border-soft);color:var(--ink2);font-weight:800;font-size:11.5px;padding:4px 10px;border-radius:6px">
+                  💻 ${item.installationsCount || 1} ${t('أجهزة')}
+                </span>
+                <button class="btn btn-ghost btn-xs" style="color:var(--brand);font-weight:700;margin-inline-start:4px">
+                  ${t('عرض العميل ↗')}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('') : `
+        <div class="empty" style="padding:2.5rem 1rem">
+          <div class="empty-icon" style="font-size:36px">📦</div>
+          <div class="empty-text" style="font-size:14px;font-weight:700">${t('لا توجد تراخيص أو برامج مطابقة لخيارات الفلترة الحالية')}</div>
+          <div style="font-size:12px;color:var(--t3);margin-top:4px">${t('يرجى تغيير المنصة أو الإصدار أو مسح نص البحث')}</div>
+        </div>
+      `}
+    </div>
+
+    <!-- Footer -->
+    <div class="facts" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:var(--t3)">
+        ${t('يتم عرض')} <b style="color:var(--t1)">${filtered.length}</b> ${t('من أصل')} <b style="color:var(--t1)">${totalLicenses}</b> ${t('ترخيصًا مسجلًا')}
+      </span>
+      <button class="btn btn-primary" onclick="closeModal()">${t('إغلاق')}</button>
+    </div>
+  `;
+}
+

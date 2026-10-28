@@ -101,19 +101,40 @@ export async function saveProgram(editId) {
     showToast(t('⚠️ لا تملك صلاحية تعديل بيانات البرامج والتراخيص.'), 'error');
     return;
   }
-  const nm = gv('fp_nm'); if (!nm) { showToast(t('الرجاء اختيار اسم البرنامج'), 'error'); return; }
+  
+  const platform = (gv('fp_pl') || 'Desktop').trim();
+  if (!platform) {
+    showToast(t('الرجاء اختيار المنصة (Desktop / Mobile / Web) *'), 'error');
+    return;
+  }
+
+  const type = (gv('fp_ty') || '').trim();
+  if (platform !== 'Web' && !type) {
+    showToast(t('الرجاء اختيار نوع البرنامج المرخص *'), 'error');
+    return;
+  }
+
+  const version = (gv('fp_ver') || '').trim();
+  if (!version) {
+    showToast(t('الرجاء اختيار إصدار البرنامج (مثال: V27, V26...) *'), 'error');
+    return;
+  }
+
+  const installationsCount = Math.max(1, gn('fp_ic', 1));
   const c = gc(); if (!c) return;
+
+  const typeDisplay = type ? type.split(' ')[0] : (platform === 'Web' ? 'الويب' : '');
+  const derivedProgramName = `${platform} - ${typeDisplay} ${version}`.trim();
   
   const d = {
-    programName: nm,
-    platform: gv('fp_pl') || 'Desktop',
-    type: gv('fp_ty') || 'تجاري',
-    version: gv('fp_ver') || '',
-    installationsCount: Math.max(1, gn('fp_ic', 1)),
-    startDate: gv('fp_sd') || '',
+    programName: derivedProgramName,
+    platform: platform,
+    type: type || 'الويب',
+    version: version,
+    installationsCount: installationsCount,
+    startDate: gv('fp_sd') || td(),
     endDate: gv('fp_ed') || ''
   };
-
 
   if (!Array.isArray(c.programs)) c.programs = [];
 
@@ -177,26 +198,56 @@ export async function saveProgram(editId) {
 
 export async function saveClient(editId) {
   console.log("saveClient: starting with editId =", editId);
-  const fn = gv('f_fn'); 
-  console.log("saveClient: retrieved fullName =", fn);
-  if (!fn) { showToast(t('الرجاء إدخال اسم العميل'), 'error'); return; }
+
+  // 1. Strict Validation of Mandatory Fields
+  const fn = (gv('f_fn') || '').trim(); 
+  if (!fn) { showToast(t('الرجاء إدخال الاسم الكامل للعميل *'), 'error'); return; }
+
+  const co = (gv('f_co') || '').trim();
+  if (!co) { showToast(t('الرجاء إدخال اسم المؤسسة أو الشركة *'), 'error'); return; }
+
+  const ph = (gv('f_ph') || '').trim();
+  if (!ph) { showToast(t('الرجاء إدخال رقم الهاتف *'), 'error'); return; }
+
+  const wi = (gv('f_wi') || '').trim();
+  if (!wi) { showToast(t('الرجاء اختيار الولاية *'), 'error'); return; }
+
+  const cm = (gv('f_cm') || '').trim();
+  if (!cm) { showToast(t('الرجاء اختيار أو إدخال البلدية *'), 'error'); return; }
+
+  const bt = (gv('f_bt') || '').trim();
+  if (!bt) { showToast(t('الرجاء اختيار النشاط الرئيسي *'), 'error'); return; }
+
+  const bf = (gv('f_bf') || '').trim();
+  if (!bf) { showToast(t('الرجاء اختيار تخصص النشاط *'), 'error'); return; }
+
+  const st = (gv('f_st') || 'نشط').trim();
+  if (!st) { showToast(t('الرجاء تحديد حالة العميل (نشط / محتمل / متوقف) *'), 'error'); return; }
+
+  const lc = (gv('f_lc') || '').trim();
+  if (!lc) { showToast(t('الرجاء تحديد تاريخ آخر تواصل *'), 'error'); return; }
+
+  const sd = (gv('f_sd') || '').trim();
+  if (!sd) { showToast(t('الرجاء تحديد تاريخ البدء / التسجيل *'), 'error'); return; }
+
+  // Optional fields: gmailAccount, location, notes
   const d = {
     fullName: fn,
-    phone: gv('f_ph'),
-    gmailAccount: gv('f_gmail'),
-    company: gv('f_co'),
-    wilaya: gv('f_wi'),
-    commune: gv('f_cm'),
-    location: gv('f_lo'),
-    businessType: gv('f_bt'),
-    businessField: gv('f_bf'),
-    status: gv('f_st') || 'نشط',
-    startDate: gv('f_sd') || '',
-    endDate: gv('f_ed') || '',
-    lastContact: gv('f_lc'),
-    notes: gv('f_no')
+    phone: ph,
+    gmailAccount: (gv('f_gmail') || '').trim(),
+    company: co,
+    wilaya: wi,
+    commune: cm,
+    location: (gv('f_lo') || '').trim(),
+    businessType: bt,
+    businessField: bf,
+    status: st,
+    startDate: sd,
+    endDate: (gv('f_ed') || '').trim(),
+    lastContact: lc,
+    notes: (gv('f_no') || '').trim()
   };
-  console.log("saveClient: form data d =", JSON.stringify(d));
+  console.log("saveClient: validated form data d =", JSON.stringify(d));
 
   const clientEditId = editId !== null && editId !== 'null' ? editId : null;
   if (clientEditId === null && !hasPermission('clients.create') && !hasPermission('canAddClients')) {
@@ -289,14 +340,26 @@ export async function saveClient(editId) {
     };
 
     // Check if initial program was created in the modal
-    const pName = gv('f_p_nm');
-    if (pName) {
+    const pPl = (gv('f_p_pl') || '').trim();
+    const pVer = (gv('f_p_ver') || '').trim();
+    const pTy = (gv('f_p_ty') || '').trim();
+    if (pVer || (d.status === 'نشط' && pPl)) {
+      if (!pVer) {
+        showToast(t('الرجاء اختيار إصدار البرنامج المرخص (مثال: V27, V26...) *'), 'error');
+        return;
+      }
+      if (pPl !== 'Web' && !pTy) {
+        showToast(t('الرجاء اختيار نوع البرنامج المرخص *'), 'error');
+        return;
+      }
+      const typeDisplay = pTy ? pTy.split(' ')[0] : (pPl === 'Web' ? 'الويب' : '');
+      const derivedName = `${pPl || 'Desktop'} - ${typeDisplay} ${pVer}`.trim();
       const pProg = {
         id: Date.now() + 1,
-        programName: pName,
-        platform: gv('f_p_pl') || 'Desktop',
-        type: gv('f_p_ty') || 'تجاري',
-        version: gv('f_p_ver') || '',
+        programName: derivedName,
+        platform: pPl || 'Desktop',
+        type: pTy || 'الويب',
+        version: pVer,
         installationsCount: Math.max(1, gn('f_p_ic', 1)),
         startDate: startDateVal || td(),
         endDate: gv('f_ed') || ''

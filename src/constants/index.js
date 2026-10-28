@@ -24,9 +24,29 @@ export const ACTIVITY_TYPES = {
   "أخرى": ["نشاط غير مصنف"]
 };
 
-export const PLATFORMS = ["Desktop", "Mobile", "Web", "Hybrid"];
-export const PROGRAM_TYPES = ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"];
-export const PROGRAM_VERSIONS = ["V21", "V23", "V24", "V26", "V27"];
+export const PLATFORMS = ["Desktop", "Mobile", "Web"];
+export const PLATFORM_PROGRAM_TYPES = {
+  "Desktop": [
+    "تجاري (Commercial)",
+    "إنتاجي (Production)",
+    "توزيع (Distribution)"
+  ],
+  "Mobile": [
+    "تطبيق لوحة القيادة (Tableau de bord)",
+    "تطبيق VDD (Vendeur Distributeur)",
+    "تطبيق التاجر (Commerçant)"
+  ],
+  "Web": []
+};
+export const PROGRAM_TYPES = [
+  "تجاري (Commercial)",
+  "إنتاجي (Production)",
+  "توزيع (Distribution)",
+  "تطبيق لوحة القيادة (Tableau de bord)",
+  "تطبيق VDD (Vendeur Distributeur)",
+  "تطبيق التاجر (Commerçant)"
+];
+export const PROGRAM_VERSIONS = ["V27", "V26", "V24", "V23", "V21"];
 
 export const PRIORITY_LEVELS = ["عاجل", "عالية", "متوسطة", "منخفضة"];
 export const ISSUE_STATUSES = ["مفتوح", "قيد المعالجة", "محلول", "مغلق"];

@@ -62,7 +62,7 @@ window.addEventListener('error', event => {
 import './firebase/config.js';
 import * as actions from './business/actions.js';
 import { R } from './presentation/render-core.js';
-import { updateActTypeOpts, updateCommunesOpts, onClientStatusChange } from './utils/index.js';
+import { updateActTypeOpts, updateCommunesOpts, updateProgramTypeSelect, onClientStatusChange } from './utils/index.js';
 import { exportData, exportToDump, exportToCSV, importData, importFromDump, triggerImportDumOrJson, clearAllData, resolveConflict } from './business/storage.js';
 import { toggleLanguage, setLanguage, applyLanguageToDocument } from './utils/i18n.js';
 import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
@@ -83,6 +83,7 @@ window.S = S;
 window.updateState = updateState;
 window.updateActTypeOpts = updateActTypeOpts;
 window.updateCommunesOpts = updateCommunesOpts;
+window.updateProgramTypeSelect = updateProgramTypeSelect;
 window.onClientStatusChange = onClientStatusChange;
 window.exportData = exportData;
 window.exportToDump = exportToDump;
