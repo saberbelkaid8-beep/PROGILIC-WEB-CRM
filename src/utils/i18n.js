@@ -1,4 +1,5 @@
 import { S } from '../state/store.js';
+import locationsData from '../data/algeria-locations.json';
 
 export const SUPPORTED_LANGUAGES = ['ar', 'fr', 'en'];
 
@@ -1669,11 +1670,137 @@ Object.assign(extraTranslations, {
   "تغيير كلمة المرور الشخصية": ["Modifier le mot de passe personnel", "Change Personal Password"],
   "تحديث كلمة المرور الشخصية للمستخدم": ["Mettre à jour le mot de passe personnel de l'utilisateur", "Update the user's personal password"],
   "إدارة الجلسات وتبديل المستخدمين": ["Gérer les sessions et changer d'utilisateur", "Manage Sessions and Switch Users"],
-  "التحكم في تسجيلات الدخول وبوابة التبديل": ["Gérer les connexions et le portail de changement d'utilisateur", "Manage sign-ins and the user-switching portal"]
+  "التحكم في تسجيلات الدخول وبوابة التبديل": ["Gérer les connexions et le portail de changement d'utilisateur", "Manage sign-ins and the user-switching portal"],
+
+  // Cosmetics & Beauty Activity and Sub-activities
+  "منتوجات التجميل والكوسميتيك": ["Cosmétiques et produits de beauté", "Cosmetics & Beauty Products"],
+  "محل مستحضرات تجميل وكوسميتيك": ["Magasin de cosmétiques et beauté", "Cosmetics and beauty shop"],
+  "عطور وكوسميتيك بالجملة": ["Parfums et cosmétiques en gros", "Wholesale perfumes and cosmetics"],
+  "توزيع منتجات العناية والتجميل": ["Distribution de produits de soin et beauté", "Distribution of care and beauty products"],
+  "صالون حلاقة وتجميل": ["Salon de coiffure et d'esthétique", "Hair and beauty salon"],
+  "شبه صيدلاني وكوسميتيك": ["Parapharmacie et cosmétique", "Parapharmacy and cosmetics"],
+  "أخرى (كوسميتيك وتجميل)": ["Autres (cosmétiques & beauté)", "Other (cosmetics & beauty)"],
+  "منتوجات التجميل والكوسميتيك بالجملة": ["Cosmétiques et produits de beauté en gros", "Wholesale cosmetics & beauty products"],
+  "منتوجات التجميل والكوسميتيك بالتجزئة": ["Cosmétiques et produits de beauté au détail", "Retail cosmetics & beauty products"],
+  "عطور ومستحضرات تجميل وكوسميتيك بالتجزئة": ["Cosmétiques et produits de beauté au détail", "Retail cosmetics & beauty products"],
+  "عطور ومستحضرات تجميل وكوسميتيك بالجملة": ["Cosmétiques et produits de beauté en gros", "Wholesale cosmetics & beauty products"],
+  "عطور وتجميل": ["Parfumerie et produits de beauté", "Perfumes & cosmetics"],
+
+  // Versions
+  "v15": ["v15", "v15"],
+  "v16": ["v16", "v16"],
+  "v18": ["v18", "v18"],
+  "R+": ["R+", "R+"],
+  "arabe": ["Arabe", "Arabic"],
+  "V27": ["V27", "V27"],
+  "V26": ["V26", "V26"],
+  "V24": ["V24", "V24"],
+  "V23": ["V23", "V23"],
+  "V21": ["V21", "V21"],
+
+  // Optional Commune and Form Helpers
+  "اختر البلدية (اختياري)": ["Sélectionner la commune (facultatif)", "Select commune (optional)"],
+  "البلدية": ["Commune", "Municipality / Commune"],
+  "اختياري": ["facultatif", "optional"],
+  "الولاية": ["Wilaya", "Wilaya"],
+  "اختر الولاية": ["Sélectionner la wilaya", "Select wilaya"],
+  "اختر البلدية": ["Sélectionner la commune", "Select commune"],
+  "اختر النشاط": ["Sélectionner l'activité", "Select activity"],
+  "اختر التخصص": ["Sélectionner la spécialité", "Select specialty"],
+
+  // Licenses Explorer & Comparative Metrics
+  "مستكشف التراخيص والبرامج حسب الإصدار والمنصة": ["Explorateur de licences et logiciels par version et plateforme", "Licenses & Software Explorer by Version & Platform"],
+  "استعراض تفصيلي ومقارنة حية لتراخيص العملاء والمنصات (Desktop · Mobile · Web) والإصدارات في الـ CRM": ["Aperçu détaillé et comparaison en direct des licences clients et des plateformes (Desktop, Mobile, Web) et des versions dans le CRM", "Detailed overview and live comparison of client licenses and platforms (Desktop, Mobile, Web) and versions in CRM"],
+  "كافة المنصات (الكل)": ["Toutes les plateformes", "All Platforms"],
+  "برامج Desktop": ["Logiciels Desktop", "Desktop Software"],
+  "تطبيقات Mobile": ["Applications Mobile", "Mobile Applications"],
+  "منظومة Web": ["Système Web", "Web System"],
+  "إجمالي التراخيص": ["Total licences", "Total Licenses"],
+  "إجمالي الأجهزة": ["Total appareils", "Total Devices"],
+  "استكشاف تراخيص وتوزيع المنصات": ["Explorateur de licences et plateformes", "Licenses & Platforms Explorer"],
+  "مقارنة حية ودقيقة بين منصات Desktop و Mobile و Web وتفاصيل التراخيص حسب الإصدار والولاية.": ["Comparaison précise en temps réel entre Desktop, Mobile et Web avec licences par version et wilaya.", "Real-time comparison between Desktop, Mobile, and Web with licenses by version and wilaya."],
+  "منصة Desktop": ["Plateforme Desktop", "Desktop Platform"],
+  "منصة Mobile": ["Plateforme Mobile", "Mobile Platform"],
+  "منصة Web": ["Plateforme Web", "Web Platform"],
+  "المنصة الرائدة": ["Plateforme dominante", "Leading Platform"],
+  "المتصدر": ["Leader", "Leader"],
+  "👑 المتصدر": ["👑 Leader", "👑 Leader"],
+  "اضغط لعرض تراخيص": ["Afficher les licences pour", "Show licenses for"],
+  "فقط": ["uniquement", "only"],
+  "عرض تفاصيل تراخيص": ["Afficher les détails des licences", "View license details for"],
+  "عرض الجدول المفصل": ["Vue tableau détaillée", "Detailed Table View"],
+  "عرض البطاقات المجمعة": ["Vue cartes groupées", "Grouped Cards View"],
+  "تصفية المنصة:": ["Filtrer par plateforme :", "Filter by platform:"],
+  "تصفية الإصدار:": ["Filtrer par version :", "Filter by version:"],
+  "جميع الإصدارات": ["Toutes les versions", "All versions"],
+  "ابحث: اسم العميل، الشركة، الولاية، أو الإصدار...": ["Rechercher : client, entreprise, wilaya ou version...", "Search: client, company, wilaya, or version..."],
+  "العميل والمؤسسة": ["Client et Entreprise", "Client and Company"],
+  "الولاية والهاتف": ["Wilaya et Téléphone", "Wilaya and Phone"],
+  "البرنامج والنوع": ["Logiciel et Type", "Program and Type"],
+  "حالة الترخيص": ["Statut de la licence", "License Status"],
+  "إجراء": ["Action", "Action"],
+  "عرض ↗": ["Voir ↗", "View ↗"],
+  "عرض العميل ↗": ["Voir fiche client ↗", "View Client ↗"],
+  "بدء التثبيت": ["Installation", "Installation Start"],
+  "لا توجد تراخيص أو برامج مطابقة لخيارات الفلترة الحالية": ["Aucune licence ne correspond aux filtres actuels", "No licenses match the current filters"],
+  "يرجى تغيير المنصة أو الإصدار أو مسح نص البحث": ["Veuillez modifier la plateforme, la version ou effacer la recherche", "Please change the platform, version, or clear the search query"],
+  "إعادة تعيين الفلاتر": ["Réinitialiser les filtres", "Reset filters"],
+  "تصدير التراخيص إلى ملف CSV": ["Exporter les licences en CSV", "Export licenses to CSV"],
+  "عرض جدول تفصيلي منظم": ["Afficher un tableau détaillé", "Show detailed organized table"],
+  "عرض بطاقات رحبة": ["Afficher des cartes spacieuses", "Show spacious cards"],
+  "جدول": ["Tableau", "Table"],
+  "بطاقات": ["Cartes", "Cards"],
+  "يتم عرض": ["Affichage de", "Showing"],
+  "ترخيصًا مسجلًا": ["licence(s) enregistrée(s)", "registered license(s)"],
+  "مقارنة منصات التشغيل": ["Comparaison des plateformes", "Operating Platforms Comparison"],
+  "ينتهي قريباً": ["Expire bientôt", "Expiring Soon"],
+  "اضغط على أي منصة لعرض تراخيصها فقط": ["Cliquez sur une plateforme pour afficher ses licences uniquement", "Click any platform to view its licenses only"],
+  "اضغط لفتح بطاقة العميل وإدارة برامجه وتراخيصه": ["Cliquez pour ouvrir la fiche client et gérer ses licences", "Click to open client profile and manage licenses"],
+  "فتح بطاقة العميل": ["Ouvrir la fiche client", "Open client profile"],
+  "مسح البحث": ["Effacer la recherche", "Clear search"],
+  "بدون إصدار": ["Sans version", "No version"],
+  "تطبيق لوحة القيادة (Tableau de bord)": ["Application Tableau de bord", "Dashboard Application"],
+  "تطبيق VDD (Vendeur Distributeur)": ["Application VDD (Vendeur Distributeur)", "VDD App (Distributor Seller)"],
+  "تطبيق التاجر (Commerçant)": ["Application Commerçant", "Merchant App"],
+  "تجاري (Commercial)": ["Commercial", "Commercial"],
+  "إنتاجي (Production)": ["Production", "Production"],
+  "توزيع (Distribution)": ["Distribution", "Distribution"],
+  "اختر الإصدار": ["Sélectionner la version", "Select version"],
+  "إصدار البرنامج": ["Version du logiciel", "Software Version"],
+  "المنصة": ["Plateforme", "Platform"]
 });
 
-const frFullDict = { ...frDict, ...Object.fromEntries(Object.entries(extraTranslations).map(([key, values]) => [key, values[0]])) };
-const enFullDict = { ...enDict, ...Object.fromEntries(Object.entries(extraTranslations).map(([key, values]) => [key, values[1]])) };
+const locationTranslations = {};
+if (Array.isArray(locationsData)) {
+  for (const w of locationsData) {
+    if (w.name_ar && w.name_fr) {
+      locationTranslations[w.name_ar] = [w.name_fr, w.name_fr];
+    }
+    if (Array.isArray(w.aliases)) {
+      for (const alias of w.aliases) {
+        if (alias && w.name_fr) locationTranslations[alias] = [w.name_fr, w.name_fr];
+      }
+    }
+    if (Array.isArray(w.communes)) {
+      for (const c of w.communes) {
+        if (c.name_ar && c.name_fr) {
+          locationTranslations[c.name_ar] = [c.name_fr, c.name_fr];
+        }
+      }
+    }
+  }
+}
+
+const frFullDict = {
+  ...frDict,
+  ...Object.fromEntries(Object.entries(extraTranslations).map(([key, values]) => [key, values[0]])),
+  ...Object.fromEntries(Object.entries(locationTranslations).map(([key, values]) => [key, values[0]]))
+};
+const enFullDict = {
+  ...enDict,
+  ...Object.fromEntries(Object.entries(extraTranslations).map(([key, values]) => [key, values[1]])),
+  ...Object.fromEntries(Object.entries(locationTranslations).map(([key, values]) => [key, values[1]]))
+};
 
 function createUniqueReverseDictionary(dictionary) {
   const reverse = new Map();
@@ -1755,6 +1882,7 @@ export function t(str) {
 }
 
 function translateDynamicText(str, lang) {
+  if (lang === 'ar') return str;
   const importMatch = str.match(/^تم استيراد (\d+) عميل بنجاح من ملف (.+)!$/);
   if (importMatch) {
     return lang === 'fr'
@@ -1861,19 +1989,117 @@ function translateDynamicText(str, lang) {
       ? `${deployedLicenseMatch[1]} licence(s) déployée(s)`
       : `${deployedLicenseMatch[1]} deployed license(s)`;
   }
+  const licensesDisplayMatch = str.match(/^يتم عرض (\d+) من أصل (\d+) ترخيصًا مسجلًا$/);
+  if (licensesDisplayMatch) {
+    return lang === 'fr'
+      ? `Affichage de ${licensesDisplayMatch[1]} sur ${licensesDisplayMatch[2]} licence(s) enregistrée(s)`
+      : `Showing ${licensesDisplayMatch[1]} of ${licensesDisplayMatch[2]} registered license(s)`;
+  }
+  const clickPlatMatch = str.match(/^اضغط لعرض تراخيص (.+) فقط$/);
+  if (clickPlatMatch) {
+    return lang === 'fr'
+      ? `Cliquez pour afficher les licences ${clickPlatMatch[1]} uniquement`
+      : `Click to view ${clickPlatMatch[1]} licenses only`;
+  }
+  const viewPlatMatch = str.match(/^عرض تفاصيل تراخيص (.+)$/);
+  if (viewPlatMatch) {
+    return lang === 'fr'
+      ? `Afficher les détails des licences ${viewPlatMatch[1]}`
+      : `View license details for ${viewPlatMatch[1]}`;
+  }
+  const devicesUnitMatch = str.match(/^(\d+) أجهزة$/);
+  if (devicesUnitMatch) {
+    return lang === 'fr'
+      ? `${devicesUnitMatch[1]} appareil(s)`
+      : `${devicesUnitMatch[1]} device(s)`;
+  }
   return '';
 }
 
 const protectedContentSelector = [
-  '.client-name', '.client-company', '.client-email', '.client-phone',
-  '.cc-name', '.cc-company', '.ch-name', '.ch-company', '.rh-name',
-  '.notes-box', '.tl-note', '.prog-name',
-  '.ival', '.staff-name', '.staff-position', '.staff-supervisor',
-  '.client-notes', '.client-description', '.activity-description',
-  '.timeline-description', '.user-name', '.staff-name', '.data-value',
-  '[data-user-content="true"]', '[contenteditable="true"]',
-  'input', 'textarea', 'code', 'pre'
+  'input:focus', 'textarea:focus', '[contenteditable="true"]:focus',
+  'code', 'pre',
+  '[data-no-translate="true"]', '[translate="no"]'
 ].join(',');
+
+// In-memory + persistent cache for dynamic machine translations
+const autoTransCache = {
+  fr: new Map(),
+  en: new Map()
+};
+
+function initAutoTransCache() {
+  for (const lang of ['fr', 'en']) {
+    try {
+      const raw = localStorage.getItem(`crm_auto_trans_${lang}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        for (const [k, v] of Object.entries(parsed)) {
+          if (k && v) autoTransCache[lang].set(k, v);
+        }
+      }
+    } catch (e) {}
+  }
+}
+initAutoTransCache();
+
+let persistTimer = null;
+function persistAutoTransCache(lang) {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    try {
+      const map = autoTransCache[lang];
+      if (map) {
+        const obj = Object.fromEntries(map.entries());
+        localStorage.setItem(`crm_auto_trans_${lang}`, JSON.stringify(obj));
+      }
+    } catch (e) {}
+  }, 800);
+}
+
+// In-flight request deduplication map
+const pendingRequests = new Map();
+
+export async function fetchMachineTranslation(text, targetLang) {
+  if (!text || typeof text !== 'string') return text;
+  const trimmed = text.trim();
+  if (!trimmed || !/[\u0600-\u06FF]/.test(trimmed)) return text;
+  if (targetLang === 'ar') return text;
+
+  if (autoTransCache[targetLang]?.has(trimmed)) {
+    return autoTransCache[targetLang].get(trimmed);
+  }
+
+  const cacheKey = `${targetLang}:${trimmed}`;
+  if (pendingRequests.has(cacheKey)) {
+    return pendingRequests.get(cacheKey);
+  }
+
+  const promise = (async () => {
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(trimmed)}`;
+      const response = await fetch(url);
+      if (!response.ok) return trimmed;
+      const data = await response.json();
+      if (Array.isArray(data) && Array.isArray(data[0])) {
+        const fullTranslation = data[0].map(segment => segment[0]).join('');
+        if (fullTranslation && fullTranslation.trim()) {
+          autoTransCache[targetLang].set(trimmed, fullTranslation);
+          persistAutoTransCache(targetLang);
+          return fullTranslation;
+        }
+      }
+      return trimmed;
+    } catch (err) {
+      return trimmed;
+    } finally {
+      pendingRequests.delete(cacheKey);
+    }
+  })();
+
+  pendingRequests.set(cacheKey, promise);
+  return promise;
+}
 
 function replaceKnownPhrases(text, dictionary, lang) {
   const keys = phraseKeys[lang] || [];
@@ -1918,6 +2144,11 @@ function translateRenderedText(text, dictionary, lang) {
   const dynamicTranslation = translateDynamicText(text, lang);
   if (dynamicTranslation) return dynamicTranslation;
 
+  // Check auto-translation cache for dynamic/user texts
+  if (lang !== 'ar' && autoTransCache[lang]?.has(text)) {
+    return autoTransCache[lang].get(text);
+  }
+
   return replaceKnownSourcePhrases(
     replaceKnownPhrases(text, dictionary, lang),
     lang
@@ -1944,6 +2175,7 @@ export function localizeRenderedDom(root) {
       delete element.dataset.i18nAlign;
     }
   }
+
   const dictionary = getDictionary(lang);
   const walker = doc.createTreeWalker(root, doc.defaultView.NodeFilter.SHOW_TEXT);
   const textNodes = [];
@@ -1952,32 +2184,111 @@ export function localizeRenderedDom(root) {
   for (const node of textNodes) {
     const element = node.parentElement;
     if (!element) continue;
-    if (element.closest('style, script')) continue;
-    const statusBadge = element.closest('.bdg, .badge');
-    const clientValue = element.closest('.ival');
-    if (
-      element.closest(protectedContentSelector) &&
-      !(statusBadge && clientValue)
-    ) continue;
-    const original = node.nodeValue;
+    if (element.closest('style, script, code, pre')) continue;
+    if (element.closest(protectedContentSelector)) continue;
+
+    if (lang === 'ar') {
+      // Lossless restoration of original Arabic text
+      if (node.__crm_orig !== undefined) {
+        node.nodeValue = node.__crm_orig;
+      }
+      continue;
+    }
+
+    // Save pristine original value for lossless round-trip reversion
+    if (node.__crm_orig === undefined) {
+      node.__crm_orig = node.nodeValue;
+    }
+
+    const original = node.__crm_orig;
     const trimmed = original.trim();
     if (!trimmed) continue;
+
+    // Skip pure numbers, dates, times, emails, phone numbers, and urls
+    if (/^[0-9\s.,/:\-+%#$€£¥]+$/.test(trimmed)) continue;
+    if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)) continue;
+    if (/^https?:\/\//i.test(trimmed)) continue;
+
     const translated = translateRenderedText(trimmed, dictionary, lang);
     const localized = localizeDigits(translated, lang);
+
     if (localized !== trimmed) {
       const start = original.indexOf(trimmed);
       node.nodeValue = original.slice(0, start) + localized + original.slice(start + trimmed.length);
+    } else if (/[\u0600-\u06FF]/.test(trimmed)) {
+      // Dynamic machine translation for any custom text, activities, notes, or entries
+      fetchMachineTranslation(trimmed, lang).then(autoTranslated => {
+        if (autoTranslated && autoTranslated !== trimmed && S.lang === lang && node.parentElement) {
+          const loc = localizeDigits(autoTranslated, lang);
+          const start = original.indexOf(trimmed);
+          node.nodeValue = original.slice(0, start) + loc + original.slice(start + trimmed.length);
+        }
+      });
     }
   }
 
+  // Localize Attributes: placeholder, title, aria-label
   for (const element of root.querySelectorAll('[title], [placeholder], [aria-label]')) {
-    if (!element.matches('input, textarea') && element.closest(protectedContentSelector)) continue;
+    if (element.matches('input:focus, textarea:focus')) continue;
+    if (element.closest(protectedContentSelector)) continue;
+
     for (const attribute of ['title', 'placeholder', 'aria-label']) {
-      const value = element.getAttribute(attribute);
-      if (value) {
-        const translated = localizeDigits(translateRenderedText(value, dictionary, lang), lang);
-        if (translated !== value) element.setAttribute(attribute, translated);
+      const attrKey = `data-crm-orig-${attribute}`;
+      if (lang === 'ar') {
+        const savedOrig = element.getAttribute(attrKey);
+        if (savedOrig !== null) {
+          element.setAttribute(attribute, savedOrig);
+          element.removeAttribute(attrKey);
+        }
+        continue;
       }
+
+      const value = element.getAttribute(attribute);
+      if (!value) continue;
+      if (!element.hasAttribute(attrKey)) {
+        element.setAttribute(attrKey, value);
+      }
+
+      const origVal = element.getAttribute(attrKey);
+      const translated = localizeDigits(translateRenderedText(origVal, dictionary, lang), lang);
+      if (translated !== origVal) {
+        element.setAttribute(attribute, translated);
+      } else if (/[\u0600-\u06FF]/.test(origVal)) {
+        fetchMachineTranslation(origVal, lang).then(autoTranslated => {
+          if (autoTranslated && autoTranslated !== origVal && S.lang === lang) {
+            element.setAttribute(attribute, localizeDigits(autoTranslated, lang));
+          }
+        });
+      }
+    }
+  }
+
+  // Localize <select> <option> text content
+  for (const opt of root.querySelectorAll('option')) {
+    if (lang === 'ar') {
+      if (opt.dataset.crmOrigText !== undefined) {
+        opt.textContent = opt.dataset.crmOrigText;
+        delete opt.dataset.crmOrigText;
+      }
+      continue;
+    }
+
+    if (!opt.dataset.crmOrigText) {
+      opt.dataset.crmOrigText = opt.textContent;
+    }
+
+    const origText = opt.dataset.crmOrigText.trim();
+    if (!origText) continue;
+
+    const translated = localizeDigits(translateRenderedText(origText, dictionary, lang), lang);
+    if (translated !== origText) {
+      opt.textContent = translated;
+    } else if (/[\u0600-\u06FF]/.test(origText)) {
+      fetchMachineTranslation(origText, lang).then(autoTranslated => {
+        if (autoTranslated && autoTranslated !== origText && S.lang === lang) {
+          opt.textContent = localizeDigits(autoTranslated, lang);
+        }
+      });
     }
   }
 
@@ -2004,6 +2315,49 @@ export function localizeRenderedDom(root) {
         element.style.textAlign = 'left';
       }
     }
+  }
+}
+
+// Global Mutation Observer to automatically translate dynamically injected DOM components (modals, rows, toasts)
+let transObserver = null;
+let transDebounce = null;
+
+export function initTranslationObserver() {
+  if (typeof window === 'undefined' || !window.document) return;
+  if (transObserver) return;
+
+  transObserver = new MutationObserver((mutations) => {
+    if (S.lang === 'ar') return;
+    let hasRelevantMutations = false;
+    for (const m of mutations) {
+      if (m.type === 'childList' && m.addedNodes.length > 0) {
+        hasRelevantMutations = true;
+        break;
+      }
+    }
+    if (!hasRelevantMutations) return;
+
+    if (transDebounce) clearTimeout(transDebounce);
+    transDebounce = setTimeout(() => {
+      const app = document.getElementById('app');
+      if (app && S.lang !== 'ar') {
+        localizeRenderedDom(app);
+      }
+    }, 60);
+  });
+
+  const appEl = document.getElementById('app') || document.body;
+  if (appEl) {
+    transObserver.observe(appEl, { childList: true, subtree: true });
+  }
+}
+
+// Auto-initialize when file is imported in browser
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTranslationObserver);
+  } else {
+    setTimeout(initTranslationObserver, 100);
   }
 }
 

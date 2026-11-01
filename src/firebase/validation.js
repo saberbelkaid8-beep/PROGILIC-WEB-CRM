@@ -1,6 +1,11 @@
 export function validateClient(c) {
   const data = { ...c };
-  const validBT = ["تجارة تجزئة", "تجارة جملة", "مطاعم وفنادق", "خدمات ومهن حرة", "إنتاج وصناعة", "أخرى"];
+  const validBT = [
+    "تجارة تجزئة", "تجارة جملة", "منتوجات التجميل والكوسميتيك", "مطاعم وفنادق", 
+    "خدمات ومهن حرة", "شركة خدمات", "إنتاج وصناعة", "صناعة / تصنيع", 
+    "صحة وصيدلة", "تعليم وتكوين", "بناء وعقارات", "نقل ولوجستيك", 
+    "زراعة وأغذية", "تقنية ومعلوماتية", "مالية وتأمين", "أخرى"
+  ];
   
   const doc = {
     id: Number(data.id) || Date.now(),
@@ -31,12 +36,17 @@ export function validateClient(c) {
 
 export function validateProgram(p) {
   const objId = Number(p.id) || (Date.now() + Math.floor(Math.random() * 9999));
+  const isMobile = p.platform === 'Mobile';
+  const allowedVersions = [
+    "V27", "V26", "V24", "V23", "V21", "v18", "v16", "v15", "R+", "arabe",
+    "V18", "V16", "V15", "r+", "Arabe"
+  ];
   return {
     id: objId,
     programName: (p.programName || p.product || 'غير محدد').substring(0, 100) || 'غير محدد',
     platform: ["Desktop", "Mobile", "Web", "Hybrid"].includes(p.platform) ? p.platform : "Desktop",
-    type: ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"].includes(p.type) ? p.type : "أخرى",
-    version: ["V21", "V23", "V24", "V26", "V27"].includes(p.version) ? p.version : "",
+    type: ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"].includes(p.type) ? p.type : (p.type || "أخرى"),
+    version: isMobile ? "" : (allowedVersions.includes(p.version) ? p.version : (p.version || "")),
     installationsCount: Number(p.installationsCount) || 1,
     startDate: (p.startDate || '').substring(0, 20),
     endDate: (p.endDate || '').substring(0, 20)

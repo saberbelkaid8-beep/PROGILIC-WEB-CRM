@@ -1,160 +1,336 @@
-/* PROGILIC CRM v3 - Pixel-Perfect Dashboard Stylesheet */
+/* PROGILIC CRM v3 - Apple Liquid Glass (iOS 26 / macOS Tahoe) Control Panel Stylesheet */
+
 :root {
-  --nav: #0F172A;
-  --bg: #F4F6FA;
-  --surface: #FFFFFF;
-  --border: #E2E8F0;
-  --border-soft: #F1F5F9;
-  --ink: #0F172A;
-  --ink2: #475569;
-  --muted: #64748B;
-  --brand: #F97316;
-  --brand-dark: #C2410C;
-  --brand-tint: #FFF3E8;
-  --s1: #2a78d6;
-  --s2: #eb6834;
-  --s3: #1baf7a;
-  --s4: #eda100;
-  --good: #10B981;
-  --good-bg: #ECFDF5;
-  --good-t: #065F46;
-  --warn: #F59E0B;
-  --warn-bg: #FFFBEB;
-  --warn-t: #92400E;
-  --bad: #EF4444;
-  --bad-bg: #FEF2F2;
-  --bad-t: #991B1B;
-  --info-bg: #EFF6FF;
-  --info-t: #1E40AF;
-  --grid: #E8ECF2;
+  /* ==========================================================================
+     1. Apple Typography & Sizing Scale
+     ========================================================================== */
+  --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Arabic", Inter, system-ui, "Segoe UI", "Noto Sans Arabic", Tahoma, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Arabic", Inter, system-ui, "Segoe UI", "Noto Sans Arabic", Tahoma, sans-serif;
+
+  /* Type scale: 34 / 28 / 22 / 17 / 15 / 13 / 11px */
+  --fs-hero: 34px;
+  --fs-title1: 28px;
+  --fs-title2: 22px;
+  --fs-headline: 17px;
+  --fs-body: 15px;
+  --fs-footnote: 13px;
+  --fs-caption: 11px;
+
+  /* ==========================================================================
+     2. Apple System Colors (Light Mode)
+     ========================================================================== */
+  --sys-blue: #007AFF;
+  --sys-green: #34C759;
+  --sys-orange: #FF9500;
+  --sys-red: #FF3B30;
+  --sys-purple: #AF52DE;
+  --sys-teal: #30B0C7;
+  --sys-indigo: #5856D6;
+
+  /* Semantic UI tokens (Light Mode) */
+  --ink: #000000;
+  --ink2: rgba(60, 60, 67, 0.85);
+  --muted: rgba(60, 60, 67, 0.60);
+  --border-soft: rgba(0, 0, 0, 0.06);
+  --brand: var(--sys-orange);
+  --brand-dark: #E08200;
+
+  /* Semantic Status Fills & Badges */
+  --good: var(--sys-green);
+  --good-bg: rgba(52, 199, 89, 0.12);
+  --good-t: #248A3D;
+  --warn: var(--sys-orange);
+  --warn-bg: rgba(255, 149, 0, 0.12);
+  --warn-t: #C97200;
+  --bad: var(--sys-red);
+  --bad-bg: rgba(255, 59, 48, 0.12);
+  --bad-t: #D70015;
+  --info: var(--sys-blue);
+  --info-bg: rgba(0, 122, 255, 0.12);
+  --info-t: #0062CC;
+
+  /* ==========================================================================
+     3. Apple Liquid Glass Tokens (Light Mode)
+     ========================================================================== */
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.90), rgba(255, 255, 255, 0.72));
+  --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.82));
+  --glass-blur: blur(24px) saturate(180%);
+  --glass-edge: 1px solid rgba(0, 0, 0, 0.08);
+  --glass-specular: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0) 100%);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --glass-shadow-hover: 0 14px 40px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1);
+
+  /* Apple Radii */
+  --r-lg: 24px;
+  --r-md: 16px;
+  --r-sm: 12px;
+  --r-pill: 9999px;
+
+  /* Ambient Mesh Background */
+  --ambient-bg: radial-gradient(120% 120% at 85% 10%, rgba(0, 122, 255, 0.07) 0%, transparent 60%),
+                radial-gradient(100% 100% at 15% 30%, rgba(255, 149, 0, 0.06) 0%, transparent 55%),
+                radial-gradient(90% 90% at 50% 90%, rgba(52, 199, 89, 0.05) 0%, transparent 65%),
+                #F2F4F8;
+
+  /* ==========================================================================
+     4. Apple Motion Curves
+     ========================================================================== */
+  --ease: cubic-bezier(.32, .72, 0, 1);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --d-fast: 150ms;
+  --d: 280ms;
+  --d-slow: 480ms;
 }
 
+/* ==========================================================================
+   Dark Mode Tokens (iOS 26 / macOS Tahoe Dark Glass)
+   ========================================================================== */
 body.dark {
-  --nav: #0B1120;
-  --bg: #0B1120;
-  --surface: #1E293B;
-  --border: #334155;
-  --border-soft: #1E293B;
-  --ink: #F8FAFC;
-  --ink2: #CBD5E1;
-  --muted: #94A3B8;
-  --grid: #334155;
-  --good-bg: rgba(16, 185, 129, 0.15);
-  --good-t: #34D399;
-  --warn-bg: rgba(245, 158, 11, 0.15);
-  --warn-t: #FBBF24;
-  --bad-bg: rgba(239, 68, 68, 0.15);
-  --bad-t: #F87171;
-  --info-bg: rgba(37, 99, 235, 0.15);
-  --info-t: #60A5FA;
+  /* Apple System Colors (Dark Mode) */
+  --sys-blue: #0A84FF;
+  --sys-green: #30D158;
+  --sys-orange: #FF9F0A;
+  --sys-red: #FF453A;
+  --sys-purple: #BF5AF2;
+  --sys-teal: #40C8E0;
+  --sys-indigo: #5E5CE6;
+
+  /* Semantic UI tokens (Dark Mode) */
+  --ink: #FFFFFF;
+  --ink2: rgba(235, 235, 245, 0.85);
+  --muted: rgba(235, 235, 245, 0.60);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --brand: var(--sys-orange);
+  --brand-dark: #FF9F0A;
+
+  /* Dark Semantic Status Fills */
+  --good: var(--sys-green);
+  --good-bg: rgba(48, 209, 88, 0.16);
+  --good-t: #30D158;
+  --warn: var(--sys-orange);
+  --warn-bg: rgba(255, 159, 10, 0.16);
+  --warn-t: #FF9F0A;
+  --bad: var(--sys-red);
+  --bad-bg: rgba(255, 69, 58, 0.16);
+  --bad-t: #FF453A;
+  --info: var(--sys-blue);
+  --info-bg: rgba(10, 132, 255, 0.16);
+  --info-t: #64D2FF;
+
+  /* Dark Liquid Glass */
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
+  --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+  --glass-edge: 1px solid rgba(255, 255, 255, 0.18);
+  --glass-specular: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.06) 40%, rgba(255, 255, 255, 0) 100%);
+  --glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  --glass-shadow-hover: 0 18px 48px rgba(0, 0, 0, 0.48), 0 4px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+
+  /* Dark Ambient Mesh Background */
+  --ambient-bg: radial-gradient(120% 120% at 85% 10%, rgba(10, 132, 255, 0.14) 0%, transparent 60%),
+                radial-gradient(100% 100% at 15% 30%, rgba(255, 159, 10, 0.10) 0%, transparent 55%),
+                radial-gradient(90% 90% at 50% 90%, rgba(48, 209, 88, 0.08) 0%, transparent 65%),
+                #0B0E14;
 }
 
+/* ==========================================================================
+   5. Global Number Formatting & Typography Normalization
+   ========================================================================== */
 .num {
-  font-feature-settings: "tnum";
+  font-family: var(--font-display);
+  font-feature-settings: "tnum" 1, "cv01" 1;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
-/* Page Container */
+/* Latin titles >= 22px get subtle negative tracking */
+h1:lang(en), h2:lang(en), h3:lang(en), .num {
+  letter-spacing: -0.015em;
+}
+
+/* Arabic typography: strictly no letter-spacing, generous line-height */
+:lang(ar), [dir="rtl"] {
+  font-family: var(--font-apple);
+  letter-spacing: normal !important;
+  line-height: 1.65;
+}
+
+/* ==========================================================================
+   6. Dashboard Root Canvas (Liquid Glass Foundation)
+   ========================================================================== */
 .dashboard-root {
-  background: var(--bg);
+  font-family: var(--font-apple);
+  background: var(--ambient-bg);
+  background-attachment: fixed;
   color: var(--ink);
   min-height: calc(100vh - 68px);
-  padding: 24px 32px 36px;
+  padding: 28px 36px 44px;
   width: 100%;
   max-width: 1920px;
   margin: 0 auto;
   box-sizing: border-box;
+  position: relative;
+  transition: background var(--d) var(--ease), color var(--d) var(--ease);
 }
 
+/* ==========================================================================
+   7. Page Header & Floating Controls
+   ========================================================================== */
 .phead {
   display: flex;
   align-items: flex-end;
-  margin-bottom: 22px;
-  gap: 20px;
+  margin-bottom: 26px;
+  gap: 18px;
   flex-wrap: wrap;
 }
+
 .phead h1 {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.2px;
+  font-family: var(--font-display);
+  font-size: var(--fs-title1);
+  font-weight: 700;
   line-height: 1.2;
+  color: var(--ink);
 }
+
 .phead p {
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: var(--fs-footnote);
   margin-top: 4px;
+  font-weight: 400;
 }
+
+/* Apple Segmented Control (Chips) */
 .chips {
-  display: flex;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 11px;
+  display: inline-flex;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-edge);
+  border-radius: var(--r-md);
   padding: 3px;
-  gap: 2px;
+  gap: 3px;
+  box-shadow: var(--glass-shadow);
+  position: relative;
 }
+
 .chip {
-  padding: 7px 15px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: calc(var(--r-md) - 3px);
+  font-size: var(--fs-footnote);
   font-weight: 600;
   color: var(--ink2);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform var(--d-fast) var(--ease), background var(--d-fast) var(--ease), color var(--d-fast) var(--ease), box-shadow var(--d-fast) var(--ease);
   user-select: none;
-}
-.chip:hover {
-  background: var(--border-soft);
-}
-.chip.on {
-  background: var(--nav);
-  color: #fff;
-}
-body.dark .chip.on {
-  background: var(--brand);
-  color: #fff;
-}
-
-.db-btn {
-  display: flex;
+  border: 1px solid transparent;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 11px;
-  font-weight: 700;
-  font-size: 13px;
-  background: var(--brand);
-  color: #fff;
-  box-shadow: 0 4px 12px -4px rgba(249, 115, 22, 0.6);
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.db-btn:hover {
-  background: var(--brand-dark);
-}
-.db-btn.ghost {
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--border);
-  box-shadow: none;
-}
-.db-btn.ghost:hover {
-  background: var(--border-soft);
+  justify-content: center;
+  min-height: 32px;
 }
 
+.chip:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+  .chip:hover:not(.on) {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--ink);
+  }
+}
+
+.chip.on {
+  background: rgba(255, 255, 255, 0.88);
+  color: #000000;
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+body.dark .chip.on {
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Apple Capsule Buttons & Selects */
+.db-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 18px;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+  font-size: var(--fs-footnote);
+  background: var(--sys-blue);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: transform var(--d-fast) var(--ease), background var(--d) var(--ease), box-shadow var(--d) var(--ease), filter var(--d-fast) var(--ease);
+  outline: none;
+}
+
+.db-btn:active {
+  transform: scale(0.97);
+  transition-timing-function: var(--spring);
+}
+
+@media (hover: hover) {
+  .db-btn:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0, 122, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+}
+
+.db-btn.ghost {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  color: var(--ink);
+  border: var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+}
+
+@media (hover: hover) {
+  .db-btn.ghost:hover {
+    background: var(--glass-bg-hover);
+    filter: none;
+  }
+}
+
+.db-btn:focus-visible, select.db-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--sys-blue), 0 0 0 4px rgba(0, 122, 255, 0.25);
+}
+
+/* ==========================================================================
+   8. Liquid Glass Cards Grid
+   ========================================================================== */
 .db-grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 20px;
 }
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 22px 24px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+
+/* Grid animation cascade (Enter animation) */
+.db-grid > .card {
+  animation: appleGlassEnter var(--d-slow) var(--ease) backwards;
 }
+
+@keyframes appleGlassEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .c2 { grid-column: span 2; }
 .c3 { grid-column: span 3; }
 .c4 { grid-column: span 4; }
@@ -174,348 +350,576 @@ body.dark .chip.on {
 }
 @media (max-width: 640px) {
   .c2 { grid-column: span 12; }
+  .dashboard-root { padding: 18px 16px 28px; }
 }
 
+/* Base Liquid Glass Card */
+.card {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-edge);
+  border-radius: var(--r-lg);
+  padding: 22px 24px;
+  box-shadow: var(--glass-shadow);
+  color: var(--ink);
+  transition: transform var(--d) var(--ease), box-shadow var(--d) var(--ease), background var(--d) var(--ease), border-color var(--d) var(--ease);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Concentric squircle support where available */
+@supports (corner-shape: squircle) {
+  .card {
+    corner-shape: squircle;
+  }
+}
+
+/* Apple 1px Specular Top Highlight */
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--glass-specular);
+  pointer-events: none;
+  opacity: 0.95;
+  z-index: 2;
+  transition: opacity var(--d) var(--ease);
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-hover);
+    background: var(--glass-bg-hover);
+  }
+  .card:hover::before {
+    opacity: 1;
+  }
+}
+
+/* Card Headers */
 .chd {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 16px;
 }
+
 .chd h3 {
-  font-size: 16px;
+  font-family: var(--font-display);
+  font-size: var(--fs-headline);
   font-weight: 700;
   line-height: 1.3;
+  color: var(--ink);
 }
+
 .chd p {
-  font-size: 12px;
+  font-size: var(--fs-footnote);
   color: var(--muted);
   margin-top: 2px;
 }
+
 .chd .act {
   margin-inline-start: auto;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--brand-dark);
+  font-size: var(--fs-footnote);
+  font-weight: 600;
+  color: var(--sys-blue);
   display: flex;
   align-items: center;
   gap: 4px;
   white-space: nowrap;
   cursor: pointer;
-  transition: opacity 0.15s;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  transition: background var(--d-fast) var(--ease), transform var(--d-fast) var(--ease);
 }
-.chd .act:hover {
-  opacity: 0.8;
-}
-.pill {
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.pill.r { background: var(--bad-bg); color: var(--bad-t); }
-.pill.w { background: var(--warn-bg); color: var(--warn-t); }
-.pill.g { background: var(--good-bg); color: var(--good-t); }
-.pill.b { background: var(--info-bg); color: var(--info-t); }
 
-/* KPI */
-.kpi {
-  padding: 18px 20px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  position: relative;
-  overflow: hidden;
+.chd .act:active {
+  transform: scale(0.97);
 }
+
+@media (hover: hover) {
+  .chd .act:hover {
+    background: rgba(0, 122, 255, 0.08);
+  }
+}
+
+/* ==========================================================================
+   9. KPI Cards (Precision Apple Gauges)
+   ========================================================================== */
+.kpi {
+  padding: 20px 22px 18px;
+  gap: 8px;
+}
+
 .kpi .top {
   display: flex;
   align-items: center;
   gap: 10px;
   color: var(--ink2);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-footnote);
 }
+
 .kpi .chipi {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform var(--d-fast) var(--ease);
 }
+
+.kpi:hover .chipi {
+  transform: scale(1.05);
+}
+
 .kpi .val {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 2px;
 }
+
 .kpi .val b {
-  font-size: 38px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  line-height: 1.1;
-  font-family: Inter, Cairo, sans-serif;
+  font-family: var(--font-display);
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  line-height: 1.08;
+  color: var(--ink);
 }
+
 .kpi .val small {
-  font-size: 13px;
+  font-size: var(--fs-footnote);
   color: var(--muted);
   font-weight: 600;
 }
+
 .kpi .row {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
+  margin-top: auto;
 }
+
+.kpi .sub {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* Apple Delta Capsule */
 .delta {
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-weight: 700;
-  padding: 2px 8px 2px 8px;
-  border-radius: 999px;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
   width: fit-content;
-}
-.delta.g { background: var(--good-bg); color: var(--good-t); }
-.delta.b { background: var(--bad-bg); color: var(--bad-t); }
-.kpi .sub {
-  font-size: 12px;
-  color: var(--muted);
+  border: 1px solid transparent;
 }
 
-/* Horizontal Bars */
+.delta.g {
+  background: var(--good-bg);
+  color: var(--good-t);
+  border-color: rgba(52, 199, 89, 0.2);
+}
+
+.delta.b {
+  background: var(--bad-bg);
+  color: var(--bad-t);
+  border-color: rgba(255, 59, 48, 0.2);
+}
+
+/* ==========================================================================
+   10. Horizontal Progress Bars & Gauges
+   ========================================================================== */
 .hb {
   display: grid;
-  grid-template-columns: 118px 1fr 46px;
+  grid-template-columns: 120px 1fr 48px;
   align-items: center;
   gap: 12px;
-  height: var(--rh, 34px);
+  height: var(--rh, 36px);
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+  transition: background var(--d-fast) var(--ease);
 }
+
+@media (hover: hover) {
+  .hb:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
 .hb .l {
-  font-size: 13px;
+  font-size: var(--fs-footnote);
   color: var(--ink2);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .hb .t {
-  height: 12px;
-  background: var(--border-soft);
-  border-radius: 6px;
+  height: 9px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: var(--r-pill);
   overflow: hidden;
   display: flex;
+  position: relative;
 }
+
+body.dark .hb .t {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .hb .f {
   height: 100%;
-  border-start-end-radius: 4px;
-  border-end-end-radius: 4px;
-  transition: width 0.3s ease;
+  border-radius: var(--r-pill);
+  transition: width 0.4s var(--ease);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
+
 .hb .v {
-  font-family: Inter, Cairo, sans-serif;
-  font-size: 13px;
+  font-family: var(--font-display);
+  font-size: var(--fs-footnote);
   font-weight: 700;
   text-align: start;
   direction: ltr;
   justify-self: start;
+  color: var(--ink);
 }
+
+/* ==========================================================================
+   11. Pills & Status Badges
+   ========================================================================== */
+.pill {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+}
+
+.pill.r { background: var(--bad-bg); color: var(--bad-t); border-color: rgba(255, 59, 48, 0.25); }
+.pill.w { background: var(--warn-bg); color: var(--warn-t); border-color: rgba(255, 149, 0, 0.25); }
+.pill.g { background: var(--good-bg); color: var(--good-t); border-color: rgba(52, 199, 89, 0.25); }
+.pill.b { background: var(--info-bg); color: var(--info-t); border-color: rgba(0, 122, 255, 0.25); }
+
+/* Legends */
 .legend {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   flex-wrap: wrap;
-  font-size: 12.5px;
+  font-size: var(--fs-caption);
   color: var(--ink2);
   font-weight: 600;
 }
+
 .legend i {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 3px;
-  margin-inline-end: 7px;
-  vertical-align: -1px;
+  margin-inline-end: 6px;
+  vertical-align: middle;
 }
+
 .legend i.ln {
   height: 3px;
-  width: 18px;
+  width: 16px;
   border-radius: 2px;
-  vertical-align: 3px;
+  vertical-align: middle;
 }
+
+/* Status breakdown rows */
 .lrow {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 0;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border-soft);
-  font-size: 13.5px;
+  font-size: var(--fs-footnote);
+  border-radius: var(--r-sm);
+  transition: background var(--d-fast) var(--ease);
 }
+
 .lrow:last-child {
   border-bottom: 0;
 }
+
+@media (hover: hover) {
+  .lrow:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
 .lrow i {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 3px;
 }
+
 .lrow .n {
   margin-inline-start: auto;
-  font-family: Inter;
+  font-family: var(--font-display);
   font-weight: 700;
   direction: ltr;
+  color: var(--ink);
 }
+
 .lrow .p {
   width: 44px;
   text-align: end;
   color: var(--muted);
-  font-family: Inter;
-  font-size: 12px;
+  font-family: var(--font-display);
+  font-size: var(--fs-caption);
   direction: ltr;
 }
 
-/* Lists and Items */
+/* ==========================================================================
+   12. Activity Items & Lists (Glass Row Components)
+   ========================================================================== */
 .item {
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  padding: 13px 0;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 10px;
   border-bottom: 1px solid var(--border-soft);
   cursor: pointer;
-  transition: background 0.14s ease;
+  border-radius: var(--r-md);
+  transition: transform var(--d-fast) var(--ease), background var(--d-fast) var(--ease);
 }
-.item:hover {
-  background: var(--border-soft);
-  border-radius: 8px;
-  padding-inline: 6px;
+
+.item:active {
+  transform: scale(0.985);
 }
+
+@media (hover: hover) {
+  .item:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+
 .item:last-child {
   border-bottom: 0;
-  padding-bottom: 0;
 }
-.item:first-child {
-  padding-top: 2px;
-}
+
 .ico {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   display: grid;
   place-items: center;
   flex: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
-.ico.r { background: var(--bad-bg); color: #DC2626; }
-.ico.w { background: var(--warn-bg); color: #D97706; }
-.ico.b { background: var(--info-bg); color: #2563EB; }
-.ico.g { background: var(--good-bg); color: #059669; }
-.ico.p { background: #F5F3FF; color: #7C3AED; }
+
+.ico.r { background: var(--bad-bg); color: var(--sys-red); }
+.ico.w { background: var(--warn-bg); color: var(--sys-orange); }
+.ico.b { background: var(--info-bg); color: var(--sys-blue); }
+.ico.g { background: var(--good-bg); color: var(--sys-green); }
+.ico.p { background: rgba(175, 82, 222, 0.14); color: var(--sys-purple); }
 
 .item .tx b {
-  font-size: 13.5px;
+  font-size: var(--fs-footnote);
   font-weight: 700;
   display: block;
   line-height: 1.4;
+  color: var(--ink);
 }
+
 .item .tx span {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--muted);
 }
+
 .item .end {
   margin-inline-start: auto;
   text-align: end;
   flex: none;
 }
+
 .ring {
   position: relative;
   width: 44px;
   height: 44px;
   flex: none;
 }
+
 .ring b {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  font-family: Inter;
+  font-family: var(--font-display);
   font-weight: 800;
-  font-size: 14px;
+  font-size: 13px;
+  color: var(--ink);
 }
+
 .av {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   display: grid;
   place-items: center;
-  font-size: 12.5px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   flex: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
+
 .tag {
   display: inline-block;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
   margin-inline-start: 6px;
+  border: 1px solid transparent;
 }
+
+/* ==========================================================================
+   13. Department Cards (Interactive Micro-Panels)
+   ========================================================================== */
 .dept {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 18px 20px;
+  padding: 20px 22px;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border-radius: var(--r-lg);
+  position: relative;
 }
-.dept:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+
+.dept:active {
+  transform: scale(0.97);
+  transition-timing-function: var(--spring);
 }
+
+@media (hover: hover) {
+  .dept:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-hover);
+  }
+}
+
 .dept .h {
   display: flex;
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: var(--fs-footnote);
+  color: var(--ink);
 }
+
 .dept .big {
-  font-family: Inter;
-  font-size: 30px;
+  font-family: var(--font-display);
+  font-size: var(--fs-title1);
   font-weight: 800;
   line-height: 1;
-  letter-spacing: -0.5px;
+  color: var(--ink);
 }
+
 .dept .big small {
-  font-family: Cairo;
-  font-size: 13px;
+  font-family: var(--font-apple);
+  font-size: var(--fs-footnote);
   font-weight: 600;
   color: var(--muted);
   margin-inline-start: 6px;
-  letter-spacing: 0;
 }
+
 .dept .m {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--muted);
 }
+
+/* ==========================================================================
+   14. Footers, Sections & Dividers
+   ========================================================================== */
 .footer {
-  margin-top: 22px;
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   flex-wrap: wrap;
   gap: 10px;
 }
+
 .sec {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   color: var(--muted);
-  letter-spacing: 0.2px;
   margin: 0 0 10px;
 }
+
 .hr {
   height: 1px;
   background: var(--border-soft);
   margin: 14px 0;
+  border: none;
+}
+
+/* ==========================================================================
+   15. Accessibility Fallbacks & System Modes
+   ========================================================================== */
+
+/* Fallback for browsers lacking backdrop-filter */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card, .chips, .db-btn.ghost {
+    background: rgba(248, 250, 252, 0.95);
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+  body.dark .card, body.dark .chips, body.dark .db-btn.ghost {
+    background: rgba(20, 26, 38, 0.95);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+}
+
+/* High Contrast & Reduced Transparency */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .card, .chips, .db-btn.ghost {
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+  }
+  body.dark .card, body.dark .chips, body.dark .db-btn.ghost {
+    background: #111827 !important;
+    border: 1px solid #374151 !important;
+  }
+  .card::before {
+    display: none !important;
+  }
+}
+
+/* Reduced Motion Mode */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 120ms !important;
+    transform: none !important;
+  }
 }

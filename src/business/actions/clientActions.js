@@ -115,7 +115,7 @@ export async function saveProgram(editId) {
   }
 
   const version = (gv('fp_ver') || '').trim();
-  if (!version) {
+  if (platform !== 'Mobile' && !version) {
     showToast(t('الرجاء اختيار إصدار البرنامج (مثال: V27, V26...) *'), 'error');
     return;
   }
@@ -124,13 +124,15 @@ export async function saveProgram(editId) {
   const c = gc(); if (!c) return;
 
   const typeDisplay = type ? type.split(' ')[0] : (platform === 'Web' ? 'الويب' : '');
-  const derivedProgramName = `${platform} - ${typeDisplay} ${version}`.trim();
+  const derivedProgramName = platform === 'Mobile'
+    ? `${platform} - ${typeDisplay}`.trim()
+    : `${platform} - ${typeDisplay} ${version}`.trim();
   
   const d = {
     programName: derivedProgramName,
     platform: platform,
     type: type || 'الويب',
-    version: version,
+    version: platform === 'Mobile' ? '' : version,
     installationsCount: installationsCount,
     startDate: gv('fp_sd') || td(),
     endDate: gv('fp_ed') || ''
@@ -213,7 +215,6 @@ export async function saveClient(editId) {
   if (!wi) { showToast(t('الرجاء اختيار الولاية *'), 'error'); return; }
 
   const cm = (gv('f_cm') || '').trim();
-  if (!cm) { showToast(t('الرجاء اختيار أو إدخال البلدية *'), 'error'); return; }
 
   const bt = (gv('f_bt') || '').trim();
   if (!bt) { showToast(t('الرجاء اختيار النشاط الرئيسي *'), 'error'); return; }
@@ -343,8 +344,9 @@ export async function saveClient(editId) {
     const pPl = (gv('f_p_pl') || '').trim();
     const pVer = (gv('f_p_ver') || '').trim();
     const pTy = (gv('f_p_ty') || '').trim();
-    if (pVer || (d.status === 'نشط' && pPl)) {
-      if (!pVer) {
+    const hasInitialProg = (pPl === 'Mobile' && (pTy || d.status === 'نشط')) || pVer || (d.status === 'نشط' && pPl);
+    if (hasInitialProg) {
+      if (pPl !== 'Mobile' && !pVer) {
         showToast(t('الرجاء اختيار إصدار البرنامج المرخص (مثال: V27, V26...) *'), 'error');
         return;
       }
@@ -353,13 +355,15 @@ export async function saveClient(editId) {
         return;
       }
       const typeDisplay = pTy ? pTy.split(' ')[0] : (pPl === 'Web' ? 'الويب' : '');
-      const derivedName = `${pPl || 'Desktop'} - ${typeDisplay} ${pVer}`.trim();
+      const derivedName = pPl === 'Mobile'
+        ? `${pPl} - ${typeDisplay}`.trim()
+        : `${pPl || 'Desktop'} - ${typeDisplay} ${pVer}`.trim();
       const pProg = {
         id: Date.now() + 1,
         programName: derivedName,
         platform: pPl || 'Desktop',
         type: pTy || 'الويب',
-        version: pVer,
+        version: pPl === 'Mobile' ? '' : pVer,
         installationsCount: Math.max(1, gn('f_p_ic', 1)),
         startDate: startDateVal || td(),
         endDate: gv('f_ed') || ''

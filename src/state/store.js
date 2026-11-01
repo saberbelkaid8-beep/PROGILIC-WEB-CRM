@@ -483,6 +483,15 @@ export function setClients(newClients) {
   scheduleRender();
 }
 
+export function getClients() {
+  return clients;
+}
+
+if (typeof window !== 'undefined') {
+  window.setClients = setClients;
+  window.getClients = getClients;
+}
+
 export function setCurrentUser(newUser) {
   if (newUser && !newUser.uid) {
     newUser = { ...newUser, uid: (auth && auth.currentUser && auth.currentUser.uid) || null };

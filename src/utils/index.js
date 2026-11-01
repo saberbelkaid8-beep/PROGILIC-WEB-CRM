@@ -115,8 +115,22 @@ export function programTypeOpts(platform, cur) {
 
 export function updateProgramTypeSelect(platform, targetId = 'fp_ty') {
   const sel = document.getElementById(targetId);
-  if (!sel) return;
-  sel.innerHTML = programTypeOpts(platform, '');
+  if (sel) {
+    sel.innerHTML = programTypeOpts(platform, '');
+  }
+  
+  // Mobile applications do not have versions; Desktop / PC applications do.
+  const isClientModal = targetId === 'f_p_ty';
+  const verGroup = document.getElementById(isClientModal ? 'f_p_ver_group' : 'fp_ver_group');
+  if (verGroup) {
+    if (platform === 'Mobile') {
+      verGroup.style.display = 'none';
+      const verSelect = document.getElementById(isClientModal ? 'f_p_ver' : 'fp_ver');
+      if (verSelect) verSelect.value = '';
+    } else {
+      verGroup.style.display = '';
+    }
+  }
 }
 
 export function onClientStatusChange() {
@@ -134,7 +148,21 @@ export function onClientStatusChange() {
 }
 
 export function activityIcon(act) {
-  const m = { "تجارة جملة": "📦", "تجارة تجزئة": "🛒", "شركة خدمات": "🏢", "صناعة / تصنيع": "🏭", "مطاعم وفنادق": "🍽️", "صحة وصيدلة": "💊", "تعليم وتكوين": "📚", "بناء وعقارات": "🏗️", "نقل ولوجستيك": "🚛", "زراعة وأغذية": "🌾", "تقنية ومعلوماتية": "💻", "مالية وتأمين": "💰" };
+  const m = { 
+    "تجارة جملة": "📦", 
+    "تجارة تجزئة": "🛒", 
+    "منتوجات التجميل والكوسميتيك": "💄",
+    "شركة خدمات": "🏢", 
+    "صناعة / تصنيع": "🏭", 
+    "مطاعم وفنادق": "🍽️", 
+    "صحة وصيدلة": "💊", 
+    "تعليم وتكوين": "📚", 
+    "بناء وعقارات": "🏗️", 
+    "نقل ولوجستيك": "🚛", 
+    "زراعة وأغذية": "🌾", 
+    "تقنية ومعلوماتية": "💻", 
+    "مالية وتأمين": "💰" 
+  };
   return m[act] || '🏪';
 }
 

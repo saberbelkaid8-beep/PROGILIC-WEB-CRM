@@ -42,8 +42,9 @@ export function renderModal(){
   if(m==='ticketsAndReqs')html=renderTicketsAndReqsModal();
   if(m==='healthScoreExplainer')html=renderHealthScoreExplainerModal();
   if(m==='licensesExplorer')html=renderLicensesExplorerModal();
-  const isWide = m === 'geoReport' || m === 'ticketsAndReqs' || m === 'healthScoreExplainer' || m === 'dbPurge' || m === 'licensesExplorer';
-  return`<div class="mbk"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'}; ${isWide ? 'max-width:920px; width:95vw;' : ''}">${html}</div></div>`;
+  const isSuperWide = m === 'licensesExplorer';
+  const isWide = m === 'geoReport' || m === 'ticketsAndReqs' || m === 'healthScoreExplainer' || m === 'dbPurge' || isSuperWide;
+  return`<div class="mbk"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'}; ${isSuperWide ? 'max-width:1080px; width:96vw; max-height:94vh;' : isWide ? 'max-width:920px; width:95vw;' : ''}">${html}</div></div>`;
 }
 
 import { t } from '../utils/i18n.js';
@@ -67,7 +68,7 @@ function renderClientModal(){
       <div class="fgroup"><label class="flbl">${t('الولاية')} *</label><select class="fctl" id="f_wi" onchange="updateCommunesOpts()"><option value="">${t('اختر الولاية')}</option>${wOpts(c.wilaya)}</select></div>
     </div>
     <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('البلدية')} *</label><select class="fctl" id="f_cm"><option value="">${t('اختر البلدية')}</option>${cOpts(c.wilaya, c.commune)}</select></div>
+      <div class="fgroup"><label class="flbl">${t('البلدية')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label><select class="fctl" id="f_cm"><option value="">${t('اختر البلدية (اختياري)')}</option>${cOpts(c.wilaya, c.commune)}</select></div>
       <div class="fgroup"><label class="flbl">${t('حساب Gmail')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label><input type="email" class="fctl" id="f_gmail" dir="ltr" autocomplete="email" value="${esc(c.gmailAccount)}" placeholder="client@gmail.com"></div>
     </div>
     <div class="fgroup"><label class="flbl">${t('العنوان / المنطقة أو الحي')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label><input class="fctl" id="f_lo" value="${esc(c.location)}" placeholder="${t('مثال: حي النصر، شارع أول نوفمبر')}"></div>
@@ -102,7 +103,7 @@ function renderClientModal(){
         </div>
       </div>
       <div class="frow">
-        <div class="fgroup">
+        <div class="fgroup" id="f_p_ver_group">
           <label class="flbl">${t('إصدار البرنامج')} *</label>
           <select class="fctl" id="f_p_ver">
             <option value="">${t('اختر الإصدار')}</option>
@@ -149,7 +150,7 @@ function renderProgramModal(){
       </div>
     </div>
     <div class="frow">
-      <div class="fgroup">
+      <div class="fgroup" id="fp_ver_group" style="${curPlat==='Mobile'?'display:none;':''}">
         <label class="flbl">${t('إصدار البرنامج')} *</label>
         <select class="fctl" id="fp_ver">
           <option value="">${t('اختر الإصدار')}</option>
@@ -1161,6 +1162,7 @@ export function renderLicensesExplorerModal() {
   const curVersion = S.form.version || 'all';
   const curType = S.form.type || 'all';
   const curSearch = (S.form.search || '').trim().toLowerCase();
+  const curViewMode = S.form.viewMode || 'table';
 
   // Aggregate all licenses across all clients
   const allLicenses = [];
@@ -1187,7 +1189,7 @@ export function renderLicensesExplorerModal() {
   const totalDevices = allLicenses.reduce((sum, l) => sum + (Number(l.installationsCount) || 1), 0);
 
   // Filter licenses
-  let filtered = allLicenses.filter(l => {
+  const filtered = allLicenses.filter(l => {
     const plat = l.platform || 'Desktop';
     if (curPlatform !== 'all' && plat !== curPlatform) return false;
     if (curVersion !== 'all' && (l.version || '').toUpperCase() !== curVersion.toUpperCase()) return false;
@@ -1209,172 +1211,363 @@ export function renderLicensesExplorerModal() {
     return true;
   });
 
-  // Sort by client name
-  filtered.sort((a, b) => (a.clientName || '').localeCompare(b.clientName || ''));
+  // Sort by client name, then program
+  filtered.sort((a, b) => {
+    const nameCmp = (a.clientName || '').localeCompare(b.clientName || '', 'ar');
+    if (nameCmp !== 0) return nameCmp;
+    return (a.programName || '').localeCompare(b.programName || '', 'ar');
+  });
 
   return `
-    <div class="mhdr" style="margin-bottom:12px">
+    <!-- Modal Header -->
+    <div class="mhdr" style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px">
       <div>
-        <div class="mtitle" style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:20px">📦</span>
-          <span>${t('مستكشف التراخيص والبرامج حسب الإصدار والمنصة')}</span>
-          <span class="bdg bdg-b" style="font-size:12px;font-weight:700">${filtered.length} ${t('ترخيص')}</span>
+        <div class="mtitle" style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:22px">📦</span>
+          <span style="font-size:16px;font-weight:800">${t('مستكشف التراخيص والبرامج حسب الإصدار والمنصة')}</span>
+          <span class="bdg bdg-b" style="font-size:12px;font-weight:800;padding:3px 10px">${filtered.length} ${t('ترخيص')}</span>
         </div>
-        <div style="font-size:12.5px;color:var(--t2);margin-top:3px">
-          ${t('استعراض تفصيلي لكافة تراخيص العملاء والمنصات والإصدارات وعدد الأجهزة المرخصة في الـ CRM')}
+        <div style="font-size:12px;color:var(--t2);margin-top:4px">
+          ${t('استعراض تفصيلي ومقارنة حية لتراخيص العملاء والمنصات (Desktop · Mobile · Web) والإصدارات في الـ CRM')}
         </div>
       </div>
-      <button class="mclose" onclick="closeModal()">×</button>
+      <button class="mclose" onclick="closeModal()" title="${t('إغلاق')}">×</button>
     </div>
 
-    <!-- Quick Stat KPI Pills -->
+    <!-- Quick Stat KPI Pills Grid -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;color:var(--t3)">${t('إجمالي التراخيص')}</span>
-        <span style="font-weight:800;font-size:15px;color:var(--t1)">${totalLicenses}</span>
+      <div class="lic-kpi-card" style="border-inline-start:3px solid var(--brand)">
+        <span class="lic-kpi-lbl">📦 ${t('إجمالي التراخيص')}</span>
+        <span class="lic-kpi-val" style="color:var(--t1)">${totalLicenses}</span>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;color:var(--t3)">🖥️ Desktop</span>
-        <span style="font-weight:800;font-size:15px;color:#2a78d6">${desktopLicenses}</span>
+      <div class="lic-kpi-card" style="border-inline-start:3px solid #007AFF">
+        <span class="lic-kpi-lbl">🖥️ Desktop</span>
+        <span class="lic-kpi-val" style="color:#007AFF">${desktopLicenses}</span>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;color:var(--t3)">📱 Mobile</span>
-        <span style="font-weight:800;font-size:15px;color:#eda100">${mobileLicenses}</span>
+      <div class="lic-kpi-card" style="border-inline-start:3px solid #34C759">
+        <span class="lic-kpi-lbl">📱 Mobile</span>
+        <span class="lic-kpi-val" style="color:#34C759">${mobileLicenses}</span>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;color:var(--t3)">🌐 Web</span>
-        <span style="font-weight:800;font-size:15px;color:#10b981">${webLicenses}</span>
+      <div class="lic-kpi-card" style="border-inline-start:3px solid #FF9500">
+        <span class="lic-kpi-lbl">🌐 Web</span>
+        <span class="lic-kpi-val" style="color:#FF9500">${webLicenses}</span>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;color:var(--t3)">💻 ${t('إجمالي الأجهزة')}</span>
-        <span style="font-weight:800;font-size:15px;color:var(--brand)">${totalDevices}</span>
+      <div class="lic-kpi-card" style="border-inline-start:3px solid #5856D6">
+        <span class="lic-kpi-lbl">💻 ${t('إجمالي الأجهزة')}</span>
+        <span class="lic-kpi-val" style="color:#5856D6">${totalDevices}</span>
       </div>
     </div>
 
-    <!-- Platform Selector Tabs -->
-    <div style="display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:10px;flex-wrap:wrap">
+    <!-- Platform Tabs (Desktop / Mobile / Web) -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
       ${[
-        { id: 'all', label: 'كافة المنصات', icon: '🌐' },
-        { id: 'Desktop', label: 'برامج Desktop (تجاري، إنتاجي، توزيع)', icon: '🖥️' },
-        { id: 'Mobile', label: 'تطبيقات Mobile (لوحة القيادة، VDD، التاجر)', icon: '📱' },
-        { id: 'Web', label: 'منظومة Web', icon: '🌐' }
-      ].map(tab => `
-        <button 
-          class="btn btn-sm ${curPlatform === tab.id ? 'btn-primary' : 'btn-ghost'}" 
-          style="font-size:12px;padding:6px 14px;border-radius:8px;font-weight:700"
-          onclick="S.form.platform='${tab.id}'; S.form.type='all'; R();"
-        >
-          ${tab.icon} ${t(tab.label)}
-        </button>
-      `).join('')}
+        { id: 'all', label: 'كافة المنصات (الكل)', icon: '🌐', count: totalLicenses, color: 'var(--brand)' },
+        { id: 'Desktop', label: 'برامج Desktop', icon: '🖥️', count: desktopLicenses, color: '#007AFF' },
+        { id: 'Mobile', label: 'تطبيقات Mobile', icon: '📱', count: mobileLicenses, color: '#34C759' },
+        { id: 'Web', label: 'منظومة Web', icon: '🌐', count: webLicenses, color: '#FF9500' }
+      ].map(tab => {
+        const isActive = curPlatform === tab.id;
+        return `
+          <button 
+            type="button"
+            class="btn btn-sm ${isActive ? 'btn-primary' : 'btn-ghost'}" 
+            style="font-size:12px;padding:6px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px"
+            onclick="S.form.platform='${tab.id}'; S.form.type='all'; R();"
+          >
+            <span>${tab.icon}</span>
+            <span>${t(tab.label)}</span>
+            <span style="background:${isActive ? 'rgba(255,255,255,0.25)' : 'var(--border)'};color:${isActive ? '#fff' : 'var(--t2)'};padding:1px 7px;border-radius:10px;font-size:11px">
+              ${tab.count}
+            </span>
+          </button>
+        `;
+      }).join('')}
     </div>
 
-    <!-- Sub-Filters: Versions, Types, Search & CSV Export -->
-    <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+    <!-- Sub-Filters Toolbar: Search, Version, View Mode Switcher, and Export -->
+    <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
       
-      <!-- Search -->
+      <!-- Live Search Input -->
       <div style="flex:1;min-width:220px;position:relative">
         <input 
           type="text" 
           class="fctl" 
-          style="padding-right:32px;font-size:12.5px" 
+          style="padding-inline-start:32px;font-size:12px;height:36px;border-radius:8px" 
           placeholder="${t('ابحث: اسم العميل، الشركة، الولاية، أو الإصدار...')}" 
           value="${esc(curSearch)}"
           oninput="S.form.search=this.value; R();"
         >
-        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--t3)">🔍</span>
+        <span style="position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:13px;pointer-events:none">🔍</span>
+        ${curSearch ? `
+          <button 
+            type="button" 
+            onclick="S.form.search=''; R();" 
+            style="position:absolute;inset-inline-end:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);cursor:pointer;font-size:12px;padding:2px 6px"
+            title="${t('مسح البحث')}"
+          >✕</button>
+        ` : ''}
       </div>
 
-      <!-- Version Pills -->
-      <div class="filter-bar" style="margin:0;border:none;padding:0;gap:4px">
-        <span style="font-size:11.5px;color:var(--t3);font-weight:700;margin-left:4px">${t('الإصدار')}:</span>
-        ${['all', 'V27', 'V26', 'V24', 'V23', 'V21'].map(v => `
+      <!-- Version Filter Pills -->
+      <div class="filter-bar" style="margin:0;border:none;padding:0;gap:4px;display:flex;align-items:center;flex-wrap:wrap">
+        <span style="font-size:11.5px;color:var(--t3);font-weight:700;margin-inline-end:4px">${t('الإصدار')}:</span>
+        ${['all', ...PROGRAM_VERSIONS].map(v => `
           <span 
             class="fpill ${curVersion === v ? 'on' : ''}" 
             onclick="S.form.version='${v}'; R();"
-            style="font-size:11.5px;padding:3px 8px"
+            style="font-size:11.5px;padding:3px 9px;cursor:pointer;border-radius:6px"
           >
             ${v === 'all' ? t('الكل') : v}
           </span>
         `).join('')}
       </div>
 
-      <!-- Export CSV Button -->
-      <button class="btn btn-outline btn-xs" onclick="exportLicensesCSV()" style="font-size:11.5px;color:var(--brand);font-weight:700;margin-inline-start:auto">
-        📊 ${t('تصدير التراخيص CSV')}
-      </button>
+      <!-- View Switcher (Table vs Cards) & Export CSV -->
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)">
+          <button 
+            type="button"
+            class="btn btn-xs ${curViewMode === 'table' ? 'btn-primary' : 'btn-ghost'}" 
+            style="border-radius:0;font-size:11.5px;padding:5px 10px;font-weight:700"
+            onclick="S.form.viewMode='table'; R();"
+            title="${t('عرض جدول تفصيلي منظم')}"
+          >
+            📊 ${t('جدول')}
+          </button>
+          <button 
+            type="button"
+            class="btn btn-xs ${curViewMode === 'cards' ? 'btn-primary' : 'btn-ghost'}" 
+            style="border-radius:0;font-size:11.5px;padding:5px 10px;font-weight:700"
+            onclick="S.form.viewMode='cards'; R();"
+            title="${t('عرض بطاقات رحبة')}"
+          >
+            🗂️ ${t('بطاقات')}
+          </button>
+        </div>
+
+        <button 
+          type="button"
+          class="btn btn-outline btn-xs" 
+          onclick="exportLicensesCSV()" 
+          style="font-size:11.5px;color:var(--brand);font-weight:700;padding:5px 10px;border-radius:8px"
+          title="${t('تصدير التراخيص إلى ملف CSV')}"
+        >
+          📥 CSV
+        </button>
+      </div>
     </div>
 
-    <!-- Licenses Cards Grid / Table -->
-    <div style="max-height:440px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-left:4px">
-      ${filtered.length ? filtered.map(item => {
-        const plat = item.platform || 'Desktop';
-        const platColor = plat === 'Desktop' ? '#2a78d6' : (plat === 'Mobile' ? '#eda100' : '#10b981');
-        const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : '🌐');
-        return `
-          <div 
-            class="card" 
-            style="padding:12px 16px;border-inline-start:4px solid ${platColor};transition:all .15s;cursor:pointer"
-            onmouseover="this.style.transform='translateY(-1px)'" 
-            onmouseout="this.style.transform=''"
-            onclick="closeModal(); selClient(${item.clientId}); setTab('programs');"
-            title="${t('اضغط لفتح بطاقة العميل وإدارة برامجه وتراخيصه')}"
-          >
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-              <div style="flex:1;min-width:260px">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                  <span style="font-weight:800;font-size:14.5px;color:var(--t1)">${esc(item.clientName)}</span>
-                  <span style="font-size:12.5px;color:var(--t2)">(${esc(item.clientCompany)})</span>
-                  <span class="bdg ${item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-y')}" style="font-size:11px">
+    <!-- Main Content Area: Table View or Cards View -->
+    ${filtered.length === 0 ? `
+      <div class="empty" style="padding:3rem 1rem;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-md)">
+        <div class="empty-icon" style="font-size:38px;margin-bottom:8px">📦</div>
+        <div class="empty-text" style="font-size:14px;font-weight:800;color:var(--t1)">${t('لا توجد تراخيص أو برامج مطابقة لخيارات الفلترة الحالية')}</div>
+        <div style="font-size:12px;color:var(--t3);margin-top:4px;margin-bottom:12px">${t('يرجى تغيير المنصة أو الإصدار أو مسح نص البحث')}</div>
+        <button class="btn btn-outline btn-sm" onclick="S.form.platform='all'; S.form.version='all'; S.form.search=''; R();">
+          🔄 ${t('إعادة تعيين الفلاتر')}
+        </button>
+      </div>
+    ` : (curViewMode === 'table' ? `
+      <!-- 1. Table View (Clean, Pristine & Non-Overlapping) -->
+      <div class="lic-table-wrap">
+        <table class="lic-table">
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center">#</th>
+              <th style="min-width:180px">${t('العميل والمؤسسة')}</th>
+              <th style="min-width:140px">${t('الولاية والهاتف')}</th>
+              <th style="min-width:110px">${t('المنصة')}</th>
+              <th style="min-width:140px">${t('البرنامج والنوع')}</th>
+              <th style="width:75px;text-align:center">${t('الإصدار')}</th>
+              <th style="width:85px;text-align:center">${t('الأجهزة')}</th>
+              <th style="min-width:110px">${t('حالة الترخيص')}</th>
+              <th style="width:90px;text-align:center">${t('إجراء')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map((item, idx) => {
+              const plat = item.platform || 'Desktop';
+              const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : 'lic-pill-web');
+              const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : '🌐');
+              const statusBdg = item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-y');
+
+              return `
+                <tr>
+                  <!-- Index -->
+                  <td style="text-align:center;color:var(--t3);font-size:11px;font-weight:700">
+                    ${idx + 1}
+                  </td>
+
+                  <!-- Client Name & Company -->
+                  <td>
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <strong style="color:var(--t1);font-size:13px;cursor:pointer" onclick="closeModal(); selClient(${item.clientId}); setTab('programs');">
+                        ${esc(item.clientName)}
+                      </strong>
+                      <span class="bdg ${statusBdg}" style="font-size:10px;padding:1px 6px">
+                        ${t(item.clientStatus)}
+                      </span>
+                    </div>
+                    ${item.clientCompany && item.clientCompany !== '—' ? `
+                      <div style="font-size:11.5px;color:var(--t2);margin-top:2px">
+                        🏢 ${esc(item.clientCompany)}
+                      </div>
+                    ` : ''}
+                  </td>
+
+                  <!-- Wilaya & Phone -->
+                  <td>
+                    <div style="font-size:12px;color:var(--t1);display:flex;align-items:center;gap:4px">
+                      <span>📍</span>
+                      <span>${esc(item.clientWilaya)}</span>
+                    </div>
+                    ${item.clientPhone && item.clientPhone !== '—' ? `
+                      <div style="font-size:11.5px;color:var(--t2);margin-top:2px;direction:ltr;text-align:right">
+                        📞 <a href="tel:${esc(item.clientPhone)}" style="color:inherit;text-decoration:none">${esc(item.clientPhone)}</a>
+                      </div>
+                    ` : ''}
+                  </td>
+
+                  <!-- Platform Badge -->
+                  <td>
+                    <span class="${platPillClass}">
+                      ${platIcon} ${esc(plat)}
+                    </span>
+                  </td>
+
+                  <!-- Program & Type -->
+                  <td>
+                    <div style="font-weight:700;color:var(--t1);font-size:12.5px">
+                      ${esc(item.programName || item.type || 'PROGILIC')}
+                    </div>
+                    <div style="font-size:11px;color:var(--t3);margin-top:1px">
+                      ${esc(item.type || 'تجاري')}
+                    </div>
+                  </td>
+
+                  <!-- Version Pill -->
+                  <td style="text-align:center">
+                    <span class="lic-pill-ver">
+                      ${esc(item.version || 'V27')}
+                    </span>
+                  </td>
+
+                  <!-- Devices Count -->
+                  <td style="text-align:center">
+                    <span class="lic-pill-dev">
+                      💻 ${item.installationsCount || 1}
+                    </span>
+                  </td>
+
+                  <!-- License Validity & Date -->
+                  <td>
+                    <div style="font-size:11.5px;color:var(--brand);font-weight:700">
+                      ⏳ ${t('مدى الحياة')}
+                    </div>
+                    ${item.startDate ? `
+                      <div style="font-size:10.5px;color:var(--t3);margin-top:2px">
+                        📅 ${esc(item.startDate)}
+                      </div>
+                    ` : ''}
+                  </td>
+
+                  <!-- Action Button -->
+                  <td style="text-align:center">
+                    <button 
+                      type="button"
+                      class="btn btn-ghost btn-xs" 
+                      style="color:var(--brand);font-weight:800;font-size:11px;padding:4px 8px;border-radius:6px"
+                      onclick="closeModal(); selClient(${item.clientId}); setTab('programs');"
+                      title="${t('فتح بطاقة العميل')}"
+                    >
+                      ${t('عرض ↗')}
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    ` : `
+      <!-- 2. Cards View (Spacious, Tiered & Non-Overlapping) -->
+      <div style="max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-inline-end:4px">
+        ${filtered.map(item => {
+          const plat = item.platform || 'Desktop';
+          const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : 'lic-pill-web');
+          const platColor = plat === 'Desktop' ? '#007AFF' : (plat === 'Mobile' ? '#34C759' : '#FF9500');
+          const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : '🌐');
+          const statusBdg = item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-y');
+
+          return `
+            <div 
+              class="lic-card-item" 
+              style="border-inline-start:4px solid ${platColor}"
+              onclick="closeModal(); selClient(${item.clientId}); setTab('programs');"
+              title="${t('اضغط لفتح بطاقة العميل وإدارة برامجه وتراخيصه')}"
+            >
+              <!-- Tier 1: Client Header -->
+              <div class="lic-card-top">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="font-weight:800;font-size:14px;color:var(--t1)">${esc(item.clientName)}</span>
+                  ${item.clientCompany && item.clientCompany !== '—' ? `
+                    <span style="font-size:12px;color:var(--t2)">(${esc(item.clientCompany)})</span>
+                  ` : ''}
+                  <span class="bdg ${statusBdg}" style="font-size:10.5px">
                     ${t(item.clientStatus)}
                   </span>
                 </div>
-                
-                <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--t2);flex-wrap:wrap">
-                  <span style="display:flex;align-items:center;gap:4px">📍 ${esc(item.clientWilaya)}</span>
-                  <span style="display:flex;align-items:center;gap:4px" dir="ltr">📞 ${esc(item.clientPhone)}</span>
-                  <span style="color:var(--brand);font-weight:700">⏳ ${t('ترخيص مدى الحياة')}</span>
-                  ${item.startDate ? `<span>📅 ${t('بدء التثبيت')}: ${esc(item.startDate)}</span>` : ''}
-                </div>
-              </div>
 
-              <!-- Program Badge & Version & Devices -->
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="background:rgba(42,120,214,0.1);color:${platColor};font-weight:700;font-size:11.5px;padding:4px 10px;border-radius:6px;border:1px solid rgba(42,120,214,0.2)">
-                  ${platIcon} ${esc(item.platform || 'Desktop')}
-                </span>
-                <span style="background:var(--surface);border:1px solid var(--border);color:var(--t1);font-weight:700;font-size:11.5px;padding:4px 10px;border-radius:6px">
-                  ${esc(item.type || 'تجاري')}
-                </span>
-                <span style="background:#2563EB;color:#fff;font-weight:800;font-size:11.5px;padding:4px 10px;border-radius:6px">
-                  ${esc(item.version || 'V27')}
-                </span>
-                <span style="background:var(--border-soft);color:var(--ink2);font-weight:800;font-size:11.5px;padding:4px 10px;border-radius:6px">
-                  💻 ${item.installationsCount || 1} ${t('أجهزة')}
-                </span>
-                <button class="btn btn-ghost btn-xs" style="color:var(--brand);font-weight:700;margin-inline-start:4px">
+                <button 
+                  type="button"
+                  class="btn btn-ghost btn-xs" 
+                  style="color:var(--brand);font-weight:700;font-size:11.5px;padding:3px 8px;border-radius:6px"
+                >
                   ${t('عرض العميل ↗')}
                 </button>
               </div>
-            </div>
-          </div>
-        `;
-      }).join('') : `
-        <div class="empty" style="padding:2.5rem 1rem">
-          <div class="empty-icon" style="font-size:36px">📦</div>
-          <div class="empty-text" style="font-size:14px;font-weight:700">${t('لا توجد تراخيص أو برامج مطابقة لخيارات الفلترة الحالية')}</div>
-          <div style="font-size:12px;color:var(--t3);margin-top:4px">${t('يرجى تغيير المنصة أو الإصدار أو مسح نص البحث')}</div>
-        </div>
-      `}
-    </div>
 
-    <!-- Footer -->
-    <div class="facts" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
+              <!-- Tier 2: Metadata Details -->
+              <div class="lic-card-meta">
+                <span style="display:inline-flex;align-items:center;gap:4px">📍 ${esc(item.clientWilaya)}</span>
+                ${item.clientPhone && item.clientPhone !== '—' ? `
+                  <span style="display:inline-flex;align-items:center;gap:4px" dir="ltr">📞 ${esc(item.clientPhone)}</span>
+                ` : ''}
+                <span style="display:inline-flex;align-items:center;gap:4px;color:var(--brand);font-weight:700">⏳ ${t('ترخيص مدى الحياة')}</span>
+                ${item.startDate ? `
+                  <span style="display:inline-flex;align-items:center;gap:4px">📅 ${t('بدء التثبيت')}: ${esc(item.startDate)}</span>
+                ` : ''}
+              </div>
+
+              <!-- Tier 3: Separated Badges Strip -->
+              <div class="lic-card-pills">
+                <span class="${platPillClass}">
+                  ${platIcon} ${esc(plat)}
+                </span>
+                <span style="background:var(--surface);border:1px solid var(--border);color:var(--t1);font-weight:700;font-size:11.5px;padding:3px 10px;border-radius:6px">
+                  ${esc(item.type || 'تجاري')}
+                </span>
+                <span class="lic-pill-ver">
+                  ${esc(item.version || 'V27')}
+                </span>
+                <span class="lic-pill-dev">
+                  💻 ${item.installationsCount || 1} ${t('أجهزة')}
+                </span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `)}
+
+    <!-- Modal Footer -->
+    <div class="facts" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px">
       <span style="font-size:12px;color:var(--t3)">
         ${t('يتم عرض')} <b style="color:var(--t1)">${filtered.length}</b> ${t('من أصل')} <b style="color:var(--t1)">${totalLicenses}</b> ${t('ترخيصًا مسجلًا')}
       </span>
-      <button class="btn btn-primary" onclick="closeModal()">${t('إغلاق')}</button>
+      <button type="button" class="btn btn-primary" onclick="closeModal()">${t('إغلاق')}</button>
     </div>
   `;
 }
+
 

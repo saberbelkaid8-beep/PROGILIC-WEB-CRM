@@ -59,18 +59,22 @@ window.addEventListener('error', event => {
     showErrorScreen(event.error || event.message, "خطأ تشغيل قاتل");
   }
 });
+import './css/main.css';
+import './css/components.css';
+import './css/responsive.css';
+import './css/dashboard.css';
 import './firebase/config.js';
 import * as actions from './business/actions.js';
 import { R } from './presentation/render-core.js';
 import { updateActTypeOpts, updateCommunesOpts, updateProgramTypeSelect, onClientStatusChange } from './utils/index.js';
 import { exportData, exportToDump, exportToCSV, importData, importFromDump, triggerImportDumOrJson, clearAllData, resolveConflict } from './business/storage.js';
-import { toggleLanguage, setLanguage, applyLanguageToDocument } from './utils/i18n.js';
+import { toggleLanguage, setLanguage, applyLanguageToDocument, fetchMachineTranslation, localizeRenderedDom } from './utils/i18n.js';
 import { initAiAssistantWidget } from './presentation/ai/assistantWidget.js';
 import { createDefaultGerant } from './constants/index.js';
 
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
-import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, setClients, subscribe, updateState } from './state/store.js';
+import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState } from './state/store.js';
 import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 
@@ -94,9 +98,15 @@ window.triggerImportDumOrJson = triggerImportDumOrJson;
 window.clearAllData = clearAllData;
 window.toggleLanguage = toggleLanguage;
 window.setLanguage = setLanguage;
+window.fetchMachineTranslation = fetchMachineTranslation;
+window.localizeRenderedDom = localizeRenderedDom;
+window.setCurrentUser = setCurrentUser;
+window.setCurrentStaffUser = setCurrentStaffUser;
 window.R = R;
+window.setClients = setClients;
+window.getClients = getClients;
 window.resolveConflict = resolveConflict;
-  window.mergeDatabase = actions.mergeWithSessionAndUser;
+window.mergeDatabase = actions.mergeWithSessionAndUser;
 
   // Boot application
   function boot() {

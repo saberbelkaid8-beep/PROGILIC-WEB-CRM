@@ -54,8 +54,8 @@ function spark(d, color, w = 88, h = 38) {
 const hb = (l, v, max, c, fmt, rng, extraAttr = '') => `
   <div class="hb" ${extraAttr}>
     <span class="l" title="${esc(l)}">${esc(l)}${rng ? ` <bdi dir="ltr" style="font-family:Inter;font-size:11.5px;color:var(--muted);font-weight:600;margin-inline-start:4px">${esc(rng)}</bdi>` : ''}</span>
-    <div class="t"><div class="f" style="width:${Math.min(100, Math.max(0, (v / (max || 1)) * 100))}%;background:${c}"></div></div>
-    <span class="v num">${fmt !== undefined ? fmt : v}</span>
+    <div class="t"><div class="f" style="width:${Math.min(100, Math.max(0, (((v || 0) / (max || 1)) * 100)))}%;background:${c}"></div></div>
+    <span class="v num">${fmt !== undefined && fmt !== null ? fmt : (v !== undefined && v !== null ? v : 0)}</span>
   </div>
 `;
 
@@ -94,21 +94,41 @@ function donut(segs, size = 176, r = 66, sw = 22, center = '') {
   `;
 }
 
-// Column Chart for Licenses
+// Column Chart for Licenses (Interactive Platform Comparison: Desktop, Mobile, Web)
 function colChart(rows, mxVal = 140) {
-  const W = 330, H = 160, pb = 26, pt = 24, bw = 42;
+  const W = 360, H = 175, pb = 32, pt = 28, bw = 54;
   const mx = Math.max(mxVal, ...rows.map(r => r.v), 10);
   const n = rows.length, step = W / (n || 1);
-  let g = `<line x1="0" x2="${W}" y1="${H - pb}" y2="${H - pb}" stroke="#CBD5E1"/>`;
+  const colors = {
+    'Desktop': { bar: '#007AFF', bg: 'rgba(0,122,255,0.12)', label: '#007AFF', icon: '💻' },
+    'Mobile': { bar: '#34C759', bg: 'rgba(52,199,89,0.12)', label: '#34C759', icon: '📱' },
+    'Web': { bar: '#FF9500', bg: 'rgba(255,149,0,0.12)', label: '#FF9500', icon: '🌐' }
+  };
+  const maxV = Math.max(...rows.map(r => r.v));
+  const tot = rows.reduce((acc, r) => acc + r.v, 0) || 1;
+
+  let g = `<line x1="10" x2="${W - 10}" y1="${H - pb}" y2="${H - pb}" stroke="rgba(0,0,0,0.08)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
   rows.forEach((r, i) => {
-    const h = (r.v / mx) * (H - pb - pt);
+    const pal = colors[r.l] || { bar: '#007AFF', bg: 'rgba(0,122,255,0.12)', label: '#007AFF', icon: '💻' };
+    const isLeader = r.v > 0 && r.v === maxV;
+    const h = Math.max(6, (r.v / mx) * (H - pb - pt));
     const x = step * i + (step - bw) / 2;
     const y = H - pb - h;
-    g += `<path d="M${x},${H - pb} V${y + 4} Q${x},${y} ${x + 4},${y} H${x + bw - 4} Q${x + bw},${y} ${x + bw},${y + 4} V${H - pb} Z" fill="#2a78d6"/>`;
-    g += `<text x="${x + bw / 2}" y="${y - 8}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)" font-family="Inter">${r.v}</text>`;
-    g += `<text x="${x + bw / 2}" y="${H - 7}" text-anchor="middle" font-size="12" fill="var(--muted)" font-weight="600" font-family="Inter">${esc(r.l)}</text>`;
+    const pct = Math.round((r.v / tot) * 100);
+
+    g += `
+      <g style="cursor:pointer" onclick="openLicensesExplorerModal('${r.l}')" class="plat-col-group">
+        <title>${esc(r.l)}: ${r.v} (${pct}%) — ${t('اضغط لعرض تراخيص')} ${esc(r.l)} ${t('فقط')}</title>
+        <rect x="${x}" y="${pt}" width="${bw}" height="${H - pb - pt}" rx="12" fill="${pal.bg}" opacity="0.45"/>
+        <rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="10" fill="${pal.bar}" style="filter:drop-shadow(0 4px 10px ${pal.bar}40)"/>
+        <text x="${x + bw / 2}" y="${y - 8}" text-anchor="middle" font-size="13" font-weight="800" fill="var(--ink)" font-family="Inter">${r.v}</text>
+        ${isLeader ? `<text x="${x + bw / 2}" y="${pt - 8}" text-anchor="middle" font-size="10" font-weight="700" fill="#EAB308">👑 ${t('المتصدر')}</text>` : ''}
+        <text x="${x + bw / 2}" y="${H - 14}" text-anchor="middle" font-size="12" font-weight="700" fill="${pal.label}" font-family="Inter">${pal.icon} ${esc(r.l)}</text>
+        <text x="${x + bw / 2}" y="${H - 2}" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--muted)" font-family="Inter">${pct}%</text>
+      </g>
+    `;
   });
-  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="direction:ltr">${g}</svg>`;
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="direction:ltr;overflow:visible">${g}</svg>`;
 }
 
 // Mini Column Sparkline for Departments
@@ -817,7 +837,7 @@ export function renderDashboard() {
           <div class="hr"></div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <div class="sec" style="margin:0">${t('كيف تُحسب الدرجة؟ (من 100)')}</div>
-            <span style="font-size:11px;color:#2a78d6;cursor:pointer;font-weight:700" onclick="openHealthScoreExplainerModal()">التفاصيل ↗</span>
+            <span style="font-size:11px;color:#2a78d6;cursor:pointer;font-weight:700" onclick="openHealthScoreExplainerModal()">${t('التفاصيل')} ↗</span>
           </div>
           <div style="display:flex;gap:2px;height:12px;cursor:pointer" onclick="openHealthScoreExplainerModal()">
             <div style="flex:35;background:#2a78d6;border-radius:0 4px 4px 0" title="البرامج (35 نقطة)"></div>
@@ -875,13 +895,27 @@ export function renderDashboard() {
               ${t('التفاصيل')} ${ic('chevl', 14, 2.6)}
             </div>
           </div>
-          <div style="padding-top:10px">
+
+          <!-- 3 Platform Quick Filters -->
+          <div style="display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap">
+            <button class="btn btn-xs" onclick="openLicensesExplorerModal('Desktop')" style="flex:1; min-width:80px; background:rgba(0,122,255,0.1); color:#007AFF; border:1px solid rgba(0,122,255,0.25); font-weight:700; border-radius:10px; padding:4px 8px; font-size:11.5px;" title="${t('عرض تفاصيل تراخيص')} Desktop">
+              💻 Desktop (${platformCounts.Desktop})
+            </button>
+            <button class="btn btn-xs" onclick="openLicensesExplorerModal('Mobile')" style="flex:1; min-width:80px; background:rgba(52,199,89,0.1); color:#34C759; border:1px solid rgba(52,199,89,0.25); font-weight:700; border-radius:10px; padding:4px 8px; font-size:11.5px;" title="${t('عرض تفاصيل تراخيص')} Mobile">
+              📱 Mobile (${platformCounts.Mobile})
+            </button>
+            <button class="btn btn-xs" onclick="openLicensesExplorerModal('Web')" style="flex:1; min-width:80px; background:rgba(255,149,0,0.1); color:#FF9500; border:1px solid rgba(255,149,0,0.25); font-weight:700; border-radius:10px; padding:4px 8px; font-size:11.5px;" title="${t('عرض تفاصيل تراخيص')} Web">
+              🌐 Web (${platformCounts.Web})
+            </button>
+          </div>
+
+          <div style="padding-top:4px">
             ${colChart(platformRows)}
           </div>
           <div class="hr" style="margin:12px 0 10px"></div>
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;color:var(--t2)">${t('تحليل حصص المنصات من إجمالي التراخيص المسجلة')}</span>
-            <span style="font-size:11px;color:#2a78d6;cursor:pointer;font-weight:700" onclick="openLicensesExplorerModal()">استعراض التفاصيل ↗</span>
+            <span style="font-size:12px;color:var(--t2)">${t('اضغط على أي منصة لعرض تراخيصها فقط')}</span>
+            <span style="font-size:11px;color:#007AFF;cursor:pointer;font-weight:700" onclick="openLicensesExplorerModal()">${t('استعراض الكل')} ↗</span>
           </div>
         </div>
 
@@ -900,7 +934,7 @@ export function renderDashboard() {
           <!-- Tickets rows with click to filter -->
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <div class="sec" style="margin:0">${t('التذاكر المفتوحة حسب الأولوية')} (${openIssues.length})</div>
-            <span style="font-size:11px;color:#2a78d6;cursor:pointer;font-weight:700" onclick="openTicketsAndReqsModal('issues', 'all')">عرض الكل ↗</span>
+            <span style="font-size:11px;color:#2a78d6;cursor:pointer;font-weight:700" onclick="openTicketsAndReqsModal('issues', 'all')">${t('عرض الكل')} ↗</span>
           </div>
           <div style="cursor:pointer" onclick="openTicketsAndReqsModal('issues', 'عاجل')" title="${t('عرض التذاكر العاجلة')}">
             ${hb(t('عاجل'), issuesByPriority['عاجل'], Math.max(openIssues.length, 1), '#EF4444')}
