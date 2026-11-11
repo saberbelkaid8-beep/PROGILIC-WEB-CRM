@@ -59,6 +59,11 @@ async function migrateLocalActivities(uid) {
 
       const lastActivity = batch[batch.length - 1];
     }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`progilic_crm_activity_migration_${uid}`, 'complete');
+      } catch (_) {}
+    }
   } catch (error) {
     S.timelineCloudStatus = 'partial';
     console.error('[Timeline] Failed to migrate local history to the shared audit log:', error);
@@ -139,8 +144,9 @@ export const ActivityType = {
   STAFF_EDITED: 'STAFF_EDITED',
   STAFF_DELETED: 'STAFF_DELETED',
 
-  // System
-  SYSTEM_PURGE: 'SYSTEM_PURGE'
+  // System & Integration
+  SYSTEM_PURGE: 'SYSTEM_PURGE',
+  TRELLO_SYNCED: 'TRELLO_SYNCED'
 };
 
 /**
@@ -207,6 +213,9 @@ export function getActivityVisuals(type) {
     case ActivityType.SYSTEM_PURGE:
       return { icon: '⚠️', label: 'تصفية أو محو بيانات', category: 'system', colorClass: 'bg-red-500/10 text-red-500 border-red-500/20' };
 
+    case ActivityType.TRELLO_SYNCED:
+      return { icon: '📋', label: 'مزامنة Trello', category: 'trello', colorClass: 'bg-sky-500/10 text-sky-400 border-sky-500/20' };
+
     default:
       return { icon: '⏱️', label: 'إجراء نظام', category: 'system', colorClass: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
   }
@@ -232,7 +241,11 @@ export async function logActivity(clientId, type, title, description, source = '
   let userRole = 'الإدارة العامة (Gérant)';
   let userId = 'gerant';
 
-  if (activeStaff) {
+  if (source === 'trello') {
+    userName = 'Trello';
+    userRole = 'Integration';
+    userId = 'trello-integration';
+  } else if (activeStaff) {
     userName = activeStaff.name || activeStaff.fullName || 'موظف';
     userRole = activeStaff.department || activeStaff.position || (activeStaff.role === 'GERANT' ? 'المسؤول العام (Gérant)' : 'فريق العمل');
     userId = activeStaff.id || 'staff';

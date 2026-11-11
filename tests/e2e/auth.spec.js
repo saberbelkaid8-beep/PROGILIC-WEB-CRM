@@ -20,7 +20,7 @@ test.describe('Authentication & Session Persistence', () => {
     await page.fill('input[name="password"]', testPassword);
     await page.click('button[type="submit"]');
     await expect(page.locator('.hdr')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('text=PROGILIC')).toBeVisible();
+    await expect(page.locator('.logo')).toBeVisible();
   });
 
   test('should logout the user', async ({ page }) => {
@@ -32,8 +32,8 @@ test.describe('Authentication & Session Persistence', () => {
     await page.click('button[type="submit"]');
     await expect(page.locator('.hdr')).toBeVisible({ timeout: 15000 });
 
-    page.on('dialog', dialog => dialog.accept());
     await page.locator('button', { hasText: 'خروج' }).click();
+    await page.locator('.confirm-ok').click();
     await expect(page.locator('.auth-wrapper')).toBeVisible();
   });
 
@@ -47,8 +47,8 @@ test.describe('Authentication & Session Persistence', () => {
     await page.click('button[type="submit"]');
     await expect(page.locator('.hdr')).toBeVisible({ timeout: 15000 });
     
-    page.on('dialog', dialog => dialog.accept());
     await page.locator('button', { hasText: 'خروج' }).click();
+    await page.locator('.confirm-ok').click();
     await expect(page.locator('.auth-wrapper')).toBeVisible();
 
     await page.locator('text=Log in').click();

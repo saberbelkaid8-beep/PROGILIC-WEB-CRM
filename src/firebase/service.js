@@ -147,17 +147,51 @@ export async function addClientTransaction(userId, clientData, globalStats) {
       const userRef = doc(db, userPath);
       const clientRef = doc(db, clientPath);
 
+      const progs = Array.isArray(clientData.programs) ? clientData.programs : [];
+      const openIssues = Array.isArray(clientData.issues) ? clientData.issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')) : [];
+      const reqs = Array.isArray(clientData.requirements) ? clientData.requirements : [];
+      const totalInstalls = progs.reduce((acc, p) => acc + (Number(p?.installationsCount) || 1), 0);
+
       // Verify and set user metadata update
       tx.set(clientRef, {
         ...clientData,
         version: 1, // OCC: Initial version
-        openIssuesCount: 0,
-        requirementsCount: 0,
-        programsCount: 0,
-        installationsCount: 0,
+        openIssuesCount: openIssues.length,
+        requirementsCount: reqs.length,
+        programsCount: progs.length,
+        installationsCount: totalInstalls,
+        programNames: progs.map(p => p.programName),
         score: clientData.score || 100,
         updatedAt: new Date().toISOString()
       });
+
+      // Write initial program subdocuments if created with new client
+      progs.forEach(prog => {
+        if (prog && prog.id) {
+          const progRef = doc(db, `${clientPath}/programs/${prog.id}`);
+          tx.set(progRef, prog, { merge: true });
+        }
+      });
+
+      // Write initial issue subdocuments if created with new client
+      if (Array.isArray(clientData.issues)) {
+        clientData.issues.forEach(iss => {
+          if (iss && iss.id) {
+            const issRef = doc(db, `${clientPath}/issues/${iss.id}`);
+            tx.set(issRef, iss, { merge: true });
+          }
+        });
+      }
+
+      // Write initial requirement subdocuments if created with new client
+      if (Array.isArray(clientData.requirements)) {
+        clientData.requirements.forEach(req => {
+          if (req && req.id) {
+            const reqRef = doc(db, `${clientPath}/requirements/${req.id}`);
+            tx.set(reqRef, req, { merge: true });
+          }
+        });
+      }
 
       // Update pre-aggregated user stats
       const nextStats = { ...globalStats };
@@ -165,6 +199,11 @@ export async function addClientTransaction(userId, clientData, globalStats) {
       if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
       else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
       else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+
+      if (progs.length > 0) {
+        nextStats.totalPrograms = (nextStats.totalPrograms || 0) + progs.length;
+        nextStats.totalLicensedDevices = (nextStats.totalLicensedDevices || 0) + totalInstalls;
+      }
 
       tx.update(userRef, {
         stats: nextStats,

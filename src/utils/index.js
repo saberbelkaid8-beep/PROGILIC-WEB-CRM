@@ -347,3 +347,5 @@ export function countAdvFil() { return [S.fWilaya, S.fCommune, S.fActivity, S.fA
 export function gv(id) { const el = document.getElementById(id); return el ? (el.value || '') : '' }
 export function gc2(id) { const el = document.getElementById(id); return el ? el.checked : false }
 export function gn(id, def = 0) { const el = document.getElementById(id); return el ? Number(el.value) || def : def }
+
+export { formatCsvCell } from './csv.js';

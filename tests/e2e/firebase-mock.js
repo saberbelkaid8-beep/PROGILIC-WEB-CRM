@@ -1,4 +1,7 @@
 export async function mockFirebase(page, testEmail, testName = 'Test User', mockUid = 'mock-uid-123', mockIdToken = 'mock-id-token') {
+  await page.addInitScript(() => {
+    window.__PLAYWRIGHT_TEST__ = true;
+  });
   const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   const generateMockIdToken = (uid, email) => {
     const header = { alg: "RS256", kid: "mock-key", typ: "JWT" };
@@ -13,7 +16,7 @@ export async function mockFirebase(page, testEmail, testName = 'Test User', mock
       iat: now,
       exp: now + 3600,
       email: email,
-      email_verified: false,
+      email_verified: true,
       firebase: {
         identities: { email: [email] },
         sign_in_provider: "password"
@@ -80,7 +83,7 @@ export async function mockFirebase(page, testEmail, testName = 'Test User', mock
           users: [{
             localId: mockUid,
             email: testEmail,
-            emailVerified: false,
+            emailVerified: true,
             displayName: testName,
             validSince: '123456789'
           }]

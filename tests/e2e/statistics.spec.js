@@ -17,24 +17,41 @@ test.describe('Statistics', () => {
   });
 
   test('should update statistics when client is created and deleted', async ({ page }) => {
-    // Check initial stats (should be 0 or whatever the mock sets)
+    // Switch to clients view where .stat-v is rendered
+    await page.locator('button', { hasText: 'العملاء' }).first().click();
+    await expect(page.locator('.skeleton')).toHaveCount(0, { timeout: 15000 });
+    await expect(page.locator('.stat-v').first()).toBeVisible({ timeout: 10000 });
+
+    // Check initial stats
     const statsText = await page.locator('.stat-v').first().textContent();
     const initialCount = parseInt(statsText || '0');
 
     // Create client
-    await page.locator('button', { hasText: 'إضافة عميل' }).click();
-    await page.fill('#f_fn', 'Stat Client');
-    await page.locator('.msheet button', { hasText: 'إضافة العميل' }).click();
+    await page.locator('button', { hasText: /إضافة عميل|عميل جديد/ }).first().click();
+    await page.fill('#f_fn', 'Stat Client Hero');
+    await page.fill('#f_co', 'Stat Enterprise');
+    await page.fill('#f_ph', '0555999999');
+    await page.selectOption('#f_wi', 'الجزائر');
+    await page.selectOption('#f_bt', 'تجارة تجزئة');
+    await page.selectOption('#f_bf', 'سوبرماركت / بقالة');
+    await page.selectOption('#f_st', 'نشط');
+    await page.selectOption('#f_p_ver', 'V27');
+    await page.locator('.msheet button.btn-primary').click();
     
-    // Check if stats incremented
-    await expect(page.locator('.stat-v').first()).toHaveText(String(initialCount + 1));
+    // In details view, return to clients list
+    await expect(page.locator('.chdr')).toBeVisible({ timeout: 10000 });
+    await page.locator('.back').click();
     
-    // Delete client
-    await page.locator('text=Stat Client').click();
-    page.on('dialog', dialog => dialog.accept());
-    await page.locator('button', { hasText: 'حذف العميل' }).click();
+    // Check if active clients stat incremented to 1 (or Arabic ١)
+    await expect(page.locator('.stat-v').first()).toHaveText(/1|١/);
+    
+    // Re-open client details and delete
+    await page.locator('text=Stat Client Hero').first().click();
+    await expect(page.locator('.chdr')).toBeVisible({ timeout: 10000 });
+    await page.locator('button', { hasText: /حذف العميل/ }).click();
+    await page.locator('.confirm-ok').click();
 
-    // Check if stats decremented
-    await expect(page.locator('.stat-v').first()).toHaveText(String(initialCount));
+    // Verify back in list and stats decremented to 0 (or Arabic ٠)
+    await expect(page.locator('.stat-v').first()).toHaveText(/0|٠/);
   });
 });

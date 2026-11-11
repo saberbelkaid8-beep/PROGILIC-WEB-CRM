@@ -338,7 +338,13 @@ export function setStaffUsers(users, tenantId) {
   const tid = tenantId || getActiveTenantId();
   const safeUsers = Array.isArray(users) ? users : [];
   staffUsers = safeUsers;
-  // Strictly Online: No local staff list updates
+  if (typeof localStorage !== 'undefined' && tid) {
+    try {
+      localStorage.setItem(getTenantStaffStorageKey(tid), JSON.stringify(safeUsers));
+    } catch (e) {
+      // Ignore quota errors
+    }
+  }
   updateState({ staffUsers });
 }
 

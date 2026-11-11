@@ -923,3 +923,196 @@ body.dark .hb .t {
     transform: none !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Licenses Explorer Modal (Apple Liquid Glass Architecture)
+   ───────────────────────────────────────────────────────────── */
+.lic-kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  transition: transform var(--d-fast) var(--ease), border-color var(--d-fast) var(--ease);
+}
+.lic-kpi-card:hover {
+  border-color: rgba(0, 122, 255, 0.35);
+  transform: translateY(-1px);
+}
+.lic-kpi-lbl {
+  font-size: 12px;
+  color: var(--t2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lic-kpi-val {
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui;
+}
+
+.lic-table-wrap {
+  max-height: 480px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+  margin-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.lic-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  text-align: start;
+  min-width: 780px;
+}
+.lic-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
+  padding: 11px 14px;
+  font-weight: 700;
+  color: var(--t2);
+  border-bottom: 1.5px solid var(--border);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+body.dark .lic-table thead th {
+  background: #111827;
+}
+.lic-table tbody tr {
+  transition: background 0.12s ease;
+  border-bottom: 1px solid var(--border-soft);
+}
+.lic-table tbody tr:hover {
+  background: rgba(0, 122, 255, 0.05);
+}
+.lic-table tbody td {
+  padding: 11px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-soft);
+  line-height: 1.5;
+  white-space: normal;
+}
+
+/* Licenses Cards Layout */
+.lic-card-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform var(--d-fast) var(--ease), border-color var(--d-fast) var(--ease), box-shadow var(--d-fast) var(--ease);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+.lic-card-item:hover {
+  border-color: rgba(0, 122, 255, 0.4);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+}
+.lic-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lic-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--t2);
+  flex-wrap: wrap;
+  line-height: 1.6;
+}
+.lic-card-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* Apple System Color Pills */
+.lic-pill-desktop {
+  background: rgba(0, 122, 255, 0.12);
+  color: #007AFF;
+  border: 1px solid rgba(0, 122, 255, 0.28);
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.lic-pill-mobile {
+  background: rgba(52, 199, 89, 0.12);
+  color: #34C759;
+  border: 1px solid rgba(52, 199, 89, 0.28);
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.lic-pill-web {
+  background: rgba(255, 149, 0, 0.12);
+  color: #FF9500;
+  border: 1px solid rgba(255, 149, 0, 0.28);
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.lic-pill-ver {
+  background: #007AFF;
+  color: #FFFFFF;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  display: inline-block;
+}
+.lic-pill-dev {
+  background: var(--border-soft);
+  color: var(--t1);
+  border: 1px solid var(--border);
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+

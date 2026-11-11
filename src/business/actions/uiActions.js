@@ -7,7 +7,7 @@ import { getBackups, deleteBackup } from '../idbStorage.js';
 import { createSnapshotBackup, restoreFromBackup, downloadBackupJSON } from '../backupService.js';
 import { auth, googleProvider, facebookProvider, appleProvider } from '../../firebase/config.js';
 import { signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile } from 'firebase/auth';
-import { gv, gc2, gc, gn, td } from '../../utils/index.js';
+import { gv, gc2, gc, gn, td, formatCsvCell } from '../../utils/index.js';
 import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
@@ -211,7 +211,15 @@ export function exportDashboardReport() {
     const progs = (c.programs || []).map(p => p.programName).join(' + ') || c.programNames?.join(' + ') || '';
     const inst = (c.programs || []).reduce((a, p) => a + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 1;
     const iss = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-    csvContent += `"${(c.fullName || '').replace(/"/g, '""')}","${c.wilaya || ''}","${c.status || ''}",${c.score || 100},"${progs}",${inst},${iss}\n`;
+    csvContent += [
+      formatCsvCell(c.fullName || ''),
+      formatCsvCell(c.wilaya || ''),
+      formatCsvCell(c.status || ''),
+      formatCsvCell(c.score !== undefined ? c.score : 100),
+      formatCsvCell(progs),
+      formatCsvCell(inst),
+      formatCsvCell(iss)
+    ].join(',') + '\n';
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -268,7 +276,18 @@ export function exportLicensesCSV() {
   csv += 'اسم العميل,المؤسسة,الولاية,الهاتف,الحالة,المنصة,نوع البرنامج,الإصدار,الأجهزة المرخصة,تاريخ البدء\n';
 
   allLicenses.forEach(l => {
-    csv += `"${(l.clientName).replace(/"/g, '""')}","${(l.company).replace(/"/g, '""')}","${l.wilaya}","${l.phone}","${l.status}","${l.platform}","${l.type}","${l.version}",${l.devices},"${l.startDate}"\n`;
+    csv += [
+      formatCsvCell(l.clientName),
+      formatCsvCell(l.company),
+      formatCsvCell(l.wilaya),
+      formatCsvCell(l.phone),
+      formatCsvCell(l.status),
+      formatCsvCell(l.platform),
+      formatCsvCell(l.type),
+      formatCsvCell(l.version),
+      l.devices,
+      formatCsvCell(l.startDate)
+    ].join(',') + '\n';
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -304,7 +323,16 @@ export function exportGeoReport() {
 
   Object.entries(wilayaCounts).sort((a,b) => b[1].total - a[1].total).forEach(([w, d]) => {
     const avg = d.total ? Math.round(d.scoreSum / d.total) : 100;
-    csv += `"${w}",${d.total},${d.active},${d.prospective},${d.stopped},${d.progs},${d.issues},${avg}\n`;
+    csv += [
+      formatCsvCell(w),
+      d.total,
+      d.active,
+      d.prospective,
+      d.stopped,
+      d.progs,
+      d.issues,
+      avg
+    ].join(',') + '\n';
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

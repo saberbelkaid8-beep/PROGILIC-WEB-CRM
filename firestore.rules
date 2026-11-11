@@ -17,12 +17,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Enforce trusted identity verification with legitimate provider exceptions and owner protection
+    // Enforce trusted identity verification with strict verified email requirement and owner protection
     function isVerified(userId) {
       return isOwner(userId) && (
         request.auth.token.email_verified == true ||
-        request.auth.token.firebase.sign_in_provider in ['google.com', 'apple.com', 'facebook.com', 'password', 'custom'] ||
-        isSignedIn()
+        (request.auth.token.firebase.sign_in_provider == 'custom' && request.auth.token.email_verified == true)
       );
     }
 
@@ -171,6 +170,37 @@ service cloud.firestore {
           && (!data.keys().contains('meta') || data.meta is map);
     }
 
+    function isValidTrelloSync(data) {
+      return data.keys().hasAll(['itemId', 'status', 'updatedAt'])
+          && data.keys().hasOnly([
+            'itemId', 'cardId', 'boardId', 'rawText', 'trelloState', 'status',
+            'targetCollection', 'targetRecordId', 'clientId', 'wasClientCreatedByTrello',
+            'beforeSnapshot', 'actionType', 'leaseExpiresAt', 'leaseToken', 'syncedAt',
+            'updatedAt', 'reviewReason', 'reviewDetails', 'error', 'deletedAtSource',
+            'rolledBackAt', 'rolledBackBy'
+          ])
+          && data.itemId is string && data.itemId.size() <= 128
+          && data.status is string && data.status.size() <= 50
+          && (data.updatedAt is string || data.updatedAt is timestamp)
+          && (!data.keys().contains('targetCollection') || data.targetCollection is string)
+          && (!data.keys().contains('rawText') || data.rawText is string && data.rawText.size() <= 2000)
+          && (!data.keys().contains('leaseToken') || data.leaseToken is string && data.leaseToken.size() <= 128)
+          && (!data.keys().contains('leaseExpiresAt') || data.leaseExpiresAt is number);
+    }
+
+    function isValidTrelloReview(data) {
+      return data.keys().hasAll(['id', 'checklistItemId', 'rawText', 'createdAt'])
+          && data.keys().hasOnly([
+            'id', 'checklistItemId', 'cardId', 'rawText', 'trelloState', 'extracted',
+            'customerResolution', 'reviewReason', 'reviewDetails', 'createdAt',
+            'resolvedAt', 'resolvedBy'
+          ])
+          && data.id is string && data.id.size() <= 128
+          && data.checklistItemId is string && data.checklistItemId.size() <= 128
+          && data.rawText is string && data.rawText.size() <= 2000
+          && (data.createdAt is string || data.createdAt is timestamp);
+    }
+
     // --- COLLECTION ROUTES ---
 
     // 1. Users profile metadata & global pre-aggregated stats
@@ -182,12 +212,37 @@ service cloud.firestore {
 
     // 2. Clients subcollection
     match /users/{userId}/clients/{clientId} {
-      allow read, write: if isOwner(userId);
-    }
+      allow get, list: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidClient(incoming());
+      allow delete: if isOwner(userId);
 
-    // 3. Client Subcollections (programs, issues, requirements, contacts)
-    match /users/{userId}/clients/{clientId}/{subcollection=**} {
-      allow read, write: if isOwner(userId);
+      // Subcollection: programs
+      match /programs/{programId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidProgram(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Subcollection: issues
+      match /issues/{issueId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidIssue(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Subcollection: requirements
+      match /requirements/{reqId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidRequirement(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Subcollection: contacts
+      match /contacts/{contactId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidContact(incoming());
+        allow delete: if isOwner(userId);
+      }
     }
 
     // 4. Employees Subcollection (Tenant-Isolated PROGILIC Departments & RBAC)
@@ -205,7 +260,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // 6. Connectivity verification test doc (Ping endpoint)
+    // 6. Trello integration sync mapping & review queue subcollections
+    match /users/{userId}/trello_sync/{itemId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidTrelloSync(incoming());
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/trello_review/{itemId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidTrelloReview(incoming());
+      allow delete: if isOwner(userId);
+    }
+
+    // 7. Connectivity verification test doc (Ping endpoint)
     match /test/{docId} {
       allow get: if isSignedIn();
     }

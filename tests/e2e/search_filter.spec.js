@@ -4,8 +4,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Search and Filters', () => {
   const testEmail = `search_${Date.now()}@example.com`;
   const testPassword = 'Password123!';
-  const clientName1 = `Alpha Client ${Date.now()}`;
-  const clientName2 = `Beta Client ${Date.now()}`;
+  const clientName1 = `Alpha Client One`;
+  const clientName2 = `Beta Client Two`;
 
   test.beforeEach(async ({ page }) => {
     await mockFirebase(page, testEmail);
@@ -21,16 +21,32 @@ test.describe('Search and Filters', () => {
     await expect(page.locator('.skeleton')).toHaveCount(0, { timeout: 15000 });
 
     // Create client 1
-    await page.locator('button', { hasText: 'عميل جديد' }).first().click();
+    await page.locator('button', { hasText: /إضافة عميل|عميل جديد/ }).first().click();
     await page.fill('#f_fn', clientName1);
+    await page.fill('#f_co', 'Alpha Co');
+    await page.fill('#f_ph', '0555111111');
     await page.selectOption('#f_wi', 'الجزائر');
-    await page.locator('.msheet button', { hasText: 'إضافة العميل' }).click();
+    await page.selectOption('#f_bt', 'تجارة تجزئة');
+    await page.selectOption('#f_bf', 'سوبرماركت / بقالة');
+    await page.selectOption('#f_st', 'نشط');
+    await page.selectOption('#f_p_ver', 'V27');
+    await page.locator('.msheet button.btn-primary').click();
+    await expect(page.locator('.chdr')).toBeVisible({ timeout: 10000 });
+    await page.locator('.back').click(); // Return to list
 
     // Create client 2
-    await page.locator('button', { hasText: 'عميل جديد' }).first().click();
+    await page.locator('button', { hasText: /إضافة عميل|عميل جديد/ }).first().click();
     await page.fill('#f_fn', clientName2);
+    await page.fill('#f_co', 'Beta Co');
+    await page.fill('#f_ph', '0555222222');
     await page.selectOption('#f_wi', 'وهران');
-    await page.locator('.msheet button', { hasText: 'إضافة العميل' }).click();
+    await page.selectOption('#f_bt', 'تجارة تجزئة');
+    await page.selectOption('#f_bf', 'سوبرماركت / بقالة');
+    await page.selectOption('#f_st', 'نشط');
+    await page.selectOption('#f_p_ver', 'V27');
+    await page.locator('.msheet button.btn-primary').click();
+    await expect(page.locator('.chdr')).toBeVisible({ timeout: 10000 });
+    await page.locator('.back').click(); // Return to list
 
     await expect(page.locator(`text=${clientName1}`)).toBeVisible();
     await expect(page.locator(`text=${clientName2}`)).toBeVisible();

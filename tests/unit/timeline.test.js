@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const cloudMocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn() }));
 vi.mock('../../src/firebase/service.js', () => ({
   getTenantActivities: cloudMocks.get,
@@ -17,6 +17,13 @@ const activities = [
 ];
 
 describe('Global timeline filters and report', () => {
+  beforeEach(() => {
+    updateState({
+      globalActivities: [], timelineUserFilter: 'all', timelineDatePreset: 'all',
+      timelineDateFrom: '', timelineDateTo: '', timelineCategoryFilter: 'all', timelineSearch: ''
+    });
+  });
+
   afterEach(() => {
     setCurrentStaffUser(null);
     setCurrentUser(null);

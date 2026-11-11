@@ -46,7 +46,7 @@ export function validateProgram(p) {
     programName: (p.programName || p.product || 'غير محدد').substring(0, 100) || 'غير محدد',
     platform: ["Desktop", "Mobile", "Web", "Hybrid"].includes(p.platform) ? p.platform : "Desktop",
     type: ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"].includes(p.type) ? p.type : (p.type || "أخرى"),
-    version: isMobile ? "" : (allowedVersions.includes(p.version) ? p.version : (p.version || "")),
+    version: isMobile ? "" : (allowedVersions.includes(p.version) ? p.version : ""),
     installationsCount: Number(p.installationsCount) || 1,
     startDate: (p.startDate || '').substring(0, 20),
     endDate: (p.endDate || '').substring(0, 20)

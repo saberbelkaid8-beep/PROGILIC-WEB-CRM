@@ -369,6 +369,9 @@ export async function saveClient(editId) {
         endDate: gv('f_ed') || ''
       };
       newClient.programs = [pProg];
+      newClient.programsCount = 1;
+      newClient.installationsCount = pProg.installationsCount;
+      newClient.programNames = [pProg.programName];
       stats.totalPrograms = (stats.totalPrograms || 0) + 1;
       stats.totalLicensedDevices = (stats.totalLicensedDevices || 0) + pProg.installationsCount;
     }

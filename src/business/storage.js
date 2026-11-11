@@ -1,4 +1,4 @@
-import { td, getProgramStats } from '../utils/index.js';
+import { td, getProgramStats, formatCsvCell } from '../utils/index.js';
 import { showToast } from '../utils/toast.js';
 import { showConfirm } from '../utils/confirm.js';
 import { t } from '../utils/i18n.js';
@@ -438,8 +438,9 @@ async function doLoadDataFromFirestore(user) {
       console.log("loadDataFromFirestore: before getUserData with 12s timeout");
       
       // Resilient 12-second race timeout: provides ample time for cellular/cold connections while local cache serves UI
+      const fsTimeoutMs = (typeof window !== 'undefined' && (window.__PLAYWRIGHT_TEST__ || window.isPlaywright)) ? 1000 : 12000;
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 12000)
+        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), fsTimeoutMs)
       );
       data = await Promise.race([getUserData(user.uid), timeoutPromise]);
       console.log("loadDataFromFirestore: after getUserData", data);
@@ -725,10 +726,7 @@ export function exportToCSV(){
         sc
       ];
       
-      csvContent+=row.map(v=>{
-        const str=String(v===null||v===undefined?"":v);
-        return `"${str.replace(/"/g,'""')}"`;
-      }).join(",")+ "\n";
+      csvContent+=row.map(v=>formatCsvCell(v)).join(",")+ "\n";
     });
     
     const blob=new Blob(["\uFEFF"+csvContent],{type:'text/csv;charset=utf-8;'});

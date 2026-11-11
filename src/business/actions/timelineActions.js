@@ -3,6 +3,7 @@ import { R } from '../../presentation/render-core.js';
 import { loadGlobalActivities, ActivityType, getActivityVisuals, logActivity, syncCrmServicesToTimeline } from '../timelineService.js';
 import { showToast } from '../../utils/toast.js';
 import { t } from '../../utils/i18n.js';
+import { buildTimelineCSV } from './timelineCsv.js';
 
 export { loadGlobalActivities, syncCrmServicesToTimeline };
 
@@ -87,38 +88,8 @@ export function exportGlobalTimelineCSV() {
     return;
   }
 
-  const headers = [
-    t("المعرف"),
-    t("التاريخ والوقت"),
-    t("اسم المستخدم"),
-    t("القسم / المنصب"),
-    t("نوع العملية"),
-    t("القسم"),
-    t("العميل"),
-    t("عنوان الإجراء"),
-    t("تفاصيل العملية")
-  ];
   const locale = S.lang === 'fr' ? 'fr-FR' : S.lang === 'en' ? 'en-US' : 'ar-DZ';
-
-  const escapeCSV = (str) => {
-    if (str === null || str === undefined) return '""';
-    const s = String(str).replace(/"/g, '""');
-    return `"${s}"`;
-  };
-
-  const rows = activities.map(a => [
-    escapeCSV(a.id || ''),
-    escapeCSV(a.timestamp ? new Date(a.timestamp).toLocaleString(locale) : ''),
-    escapeCSV(a.userName || 'المسؤول العام'),
-    escapeCSV(a.userRole || ''),
-    escapeCSV(a.title || a.type || ''),
-    escapeCSV(a.category || ''),
-    escapeCSV(a.clientName || (a.clientId ? `عميل #${a.clientId}` : '')),
-    escapeCSV(a.title || ''),
-    escapeCSV(a.description || '')
-  ]);
-
-  const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
+  const csvContent = buildTimelineCSV(activities, locale);
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

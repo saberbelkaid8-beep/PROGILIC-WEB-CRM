@@ -1,4 +1,4 @@
-import { S, clients } from '../state/store.js';
+import { S, clients, currentUser } from '../state/store.js';
 import { BUSINESS_TYPES, PLATFORMS, PROGRAM_TYPES, PROGRAM_VERSIONS, ISSUE_TYPES, PRIORITY_LEVELS, ISSUE_STATUSES, ISSUE_SOURCES, REQ_STATUSES, IMPACT_LEVELS, WILAYAS } from '../constants/index.js';
 import { gc, selOpts, td, wOpts, actTypeOpts, esc, isClientAtRisk } from '../utils/index.js';
 import { getPurgeAuditLogs } from '../business/purgeService.js';
@@ -21,6 +21,7 @@ import {
   renderViewEmployeeTasksModal, 
   renderAdminPasswordModal 
 } from './render-employees.js';
+import { renderTrelloIntegrationModal } from './render-trello-modal.js';
 
 export function renderModal(){
   const m=S.modal;
@@ -42,7 +43,14 @@ export function renderModal(){
   if(m==='ticketsAndReqs')html=renderTicketsAndReqsModal();
   if(m==='healthScoreExplainer')html=renderHealthScoreExplainerModal();
   if(m==='licensesExplorer')html=renderLicensesExplorerModal();
-  const isSuperWide = m === 'licensesExplorer';
+  if(m==='trelloIntegration') {
+    if (currentUser && currentUser.email === 'progilicservice@gmail.com') {
+      html = renderTrelloIntegrationModal();
+    } else {
+      html = `<div class="mhdr"><div class="mtitle">${t('غير مصرح')}</div></div><p style="padding:16px; color:var(--r);">${t('عذراً، هذا القسم مخصص حصرياً للحساب المصرح له بتكامل Trello.')}</p>`;
+    }
+  }
+  const isSuperWide = m === 'licensesExplorer' || m === 'trelloIntegration';
   const isWide = m === 'geoReport' || m === 'ticketsAndReqs' || m === 'healthScoreExplainer' || m === 'dbPurge' || isSuperWide;
   return`<div class="mbk"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'}; ${isSuperWide ? 'max-width:1080px; width:96vw; max-height:94vh;' : isWide ? 'max-width:920px; width:95vw;' : ''}">${html}</div></div>`;
 }
@@ -1167,18 +1175,47 @@ export function renderLicensesExplorerModal() {
   // Aggregate all licenses across all clients
   const allLicenses = [];
   clients.forEach(c => {
-    const progs = c.programs || [];
-    progs.forEach(p => {
-      allLicenses.push({
-        ...p,
-        clientId: c.id,
-        clientName: c.fullName || 'عميل غير مسمى',
-        clientCompany: c.company || '—',
-        clientWilaya: c.wilaya || '—',
-        clientPhone: c.phone || '—',
-        clientStatus: c.status || 'نشط'
+    const progs = Array.isArray(c.programs) && c.programs.length > 0 ? c.programs : [];
+    if (progs.length > 0) {
+      progs.forEach(p => {
+        allLicenses.push({
+          ...p,
+          clientId: c.id,
+          clientName: c.fullName || 'عميل غير مسمى',
+          clientCompany: c.company || '—',
+          clientWilaya: c.wilaya || '—',
+          clientPhone: c.phone || '—',
+          clientStatus: c.status || 'نشط'
+        });
       });
-    });
+    } else if (Array.isArray(c.programNames) && c.programNames.length > 0) {
+      c.programNames.forEach((pName, idx) => {
+        const pNameStr = String(pName || '');
+        let plat = 'Desktop';
+        if (pNameStr.toLowerCase().includes('mobile')) plat = 'Mobile';
+        else if (pNameStr.toLowerCase().includes('web')) plat = 'Web';
+
+        const match = pNameStr.match(/V\d+/i);
+        const ver = match ? match[0].toUpperCase() : '';
+
+        allLicenses.push({
+          id: `summary_prog_${c.id}_${idx}`,
+          programName: pNameStr,
+          platform: plat,
+          type: 'تجاري',
+          version: ver,
+          installationsCount: Number(c.installationsCount) || 1,
+          startDate: c.startDate || '',
+          endDate: c.endDate || '',
+          clientId: c.id,
+          clientName: c.fullName || 'عميل غير مسمى',
+          clientCompany: c.company || '—',
+          clientWilaya: c.wilaya || '—',
+          clientPhone: c.phone || '—',
+          clientStatus: c.status || 'نشط'
+        });
+      });
+    }
   });
 
   // Calculate high-level stats

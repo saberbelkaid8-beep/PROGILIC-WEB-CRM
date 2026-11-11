@@ -52,16 +52,22 @@ describe('Validation Logic', () => {
 
     await saveClient(null);
 
-    expect(utilsToast.showToast).toHaveBeenCalledWith('الرجاء إدخال اسم العميل', 'error');
+    expect(utilsToast.showToast).toHaveBeenCalledWith('الرجاء إدخال الاسم الكامل للعميل *', 'error');
   });
 
   it('saveClient should proceed if fullName is provided', async () => {
     // Mock gv to return valid data
-    utilsIndex.gv.mockImplementation((id) => {
-      if (id === 'f_fn') return 'Test Client';
-      if (id === 'f_st') return 'نشط';
-      return 'test';
-    });
+    utilsIndex.gv.mockImplementation((id) => ({
+      f_fn: 'Test Client',
+      f_co: 'Test Enterprise',
+      f_ph: '0550112233',
+      f_wi: 'وهران',
+      f_bt: 'تجارة تجزئة',
+      f_bf: 'سوبرماركت',
+      f_st: 'نشط',
+      f_sd: '2026-11-01',
+      f_lc: '2026-11-01'
+    })[id] || '');
     
     await saveClient(null);
     
@@ -71,9 +77,18 @@ describe('Validation Logic', () => {
   it('saveClient should retain the Gmail account and initial program version', async () => {
     utilsIndex.gv.mockImplementation((id) => ({
       f_fn: 'Test Client',
-      f_gmail: 'client@gmail.com',
+      f_co: 'Test Enterprise',
+      f_ph: '0550112233',
+      f_wi: 'وهران',
+      f_bt: 'تجارة تجزئة',
+      f_bf: 'سوبرماركت',
       f_st: 'نشط',
+      f_sd: '2026-11-01',
+      f_lc: '2026-11-01',
+      f_gmail: 'client@gmail.com',
       f_p_nm: 'PROGILIC POS',
+      f_p_pl: 'Desktop',
+      f_p_ty: 'تجاري',
       f_p_ver: 'V24'
     })[id] || '');
 

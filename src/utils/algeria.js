@@ -1,4 +1,4 @@
-import locationData from '../data/algeria-locations.json';
+import locationData from '../data/algeria-locations.json' with { type: 'json' };
 
 export function getWilayasList() {
   return locationData.map(wilaya => ({

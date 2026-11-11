@@ -121,6 +121,53 @@ export default defineConfig({
             }
           });
         });
+
+        // Trello Webhook and Integration Routes
+        server.middlewares.use('/api/trello', async (req, res) => {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', async () => {
+            res.setHeader('Content-Type', 'application/json');
+            const url = req.url || '/';
+
+            // HEAD request for Trello Webhook registration validation
+            if (req.method === 'HEAD') {
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+
+            try {
+              const parsed = body ? JSON.parse(body) : {};
+              if (url.includes('/classify')) {
+                const apiKey = process.env.GEMINI_API_KEY;
+                const { handleTrelloAiClassify } = await import('./src/server/trelloRoutes.js');
+                const classification = await handleTrelloAiClassify(parsed, apiKey);
+                res.end(JSON.stringify(classification));
+                return;
+              }
+
+              if (url.includes('/webhook')) {
+                const { handleTrelloWebhookRequest } = await import('./src/server/trelloRoutes.js');
+                const result = await handleTrelloWebhookRequest(body, req.headers, req.method, process.env);
+                res.statusCode = result.status;
+                if (result.headers) {
+                  for (const [k, v] of Object.entries(result.headers)) {
+                    res.setHeader(k, v);
+                  }
+                }
+                res.end(result.body);
+                return;
+              }
+
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Endpoint not found' }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+        });
       }
     }
   ],
@@ -140,6 +187,9 @@ export default defineConfig({
           }
           if (id.includes('node_modules/minisearch')) {
             return 'search-engine';
+          }
+          if (id.includes('src/utils/i18n.js')) {
+            return 'crm-i18n';
           }
         }
       }

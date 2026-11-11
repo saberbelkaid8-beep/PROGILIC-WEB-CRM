@@ -4,8 +4,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Client Management', () => {
   const testEmail = `client_test_${Date.now()}@example.com`;
   const testPassword = 'Password123!';
-  const clientName = `Acme Corp ${Date.now()}`;
-  const editedClientName = `${clientName} - Edited`;
+  const clientName = `Acme Corp Alpha`;
+  const editedClientName = `Acme Corp Alpha Edited`;
 
   test.beforeEach(async ({ page }) => {
     await mockFirebase(page, testEmail);
@@ -25,46 +25,39 @@ test.describe('Client Management', () => {
 
   test('should create, edit and delete a client', async ({ page }) => {
     // --- 1. Create Client ---
-    await page.locator('button', { hasText: '+ عميل جديد' }).click(); // 'Add Client' button
+    await page.locator('button', { hasText: /إضافة عميل|عميل جديد/ }).first().click(); // 'Add Client' button
     await expect(page.locator('.msheet')).toBeVisible();
 
     await page.fill('#f_fn', clientName); // Full name
+    await page.fill('#f_co', 'Acme Enterprise'); // Company
     await page.fill('#f_ph', '0555123456'); // Phone
     await page.selectOption('#f_wi', 'الجزائر'); // Wilaya
+    await page.selectOption('#f_bt', 'تجارة تجزئة'); // Business type
+    await page.selectOption('#f_bf', 'سوبرماركت / بقالة'); // Field
     await page.selectOption('#f_st', 'نشط'); // Status: Active
+    await page.selectOption('#f_p_ver', 'V27'); // Program version
 
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('.msheet button')).find(b => b.textContent.includes('إضافة العميل'));
-      if (btn) btn.click();
-      else console.error("Could not find 'إضافة العميل' button inside .msheet!");
-    });
+    await page.locator('.msheet button.btn-primary').click();
     
-    // Verify client appears in the list
-    await expect(page.locator(`text=${clientName}`)).toBeVisible();
+    // Verify client appears in details or list view
+    await expect(page.locator('.chdr')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.ch-name')).toContainText(clientName);
 
     // --- 2. Edit Client ---
-    // Click on the client row to go to details
-    await page.locator(`text=${clientName}`).click();
-    await expect(page.locator('.chdr')).toBeVisible();
-
-    // Click Edit button
+    // In details view, click Edit button
     await page.locator('button', { hasText: 'تعديل' }).click(); // 'Edit' button
     await expect(page.locator('.msheet')).toBeVisible();
 
     await page.fill('#f_fn', editedClientName);
     
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('.msheet button')).find(b => b.textContent.includes('حفظ التغييرات'));
-      if (btn) btn.click();
-      else console.error("Could not find 'حفظ التغييرات' button inside .msheet!");
-    });
+    await page.locator('.msheet button.btn-primary').click();
 
     // Verify name changed in details view
     await expect(page.locator('.chdr')).toContainText(editedClientName);
     
     // --- 3. Delete Client ---
-    page.on('dialog', dialog => dialog.accept()); // Accept confirm dialog
-    await page.locator('button', { hasText: 'حذف العميل' }).click(); // 'Delete Client'
+    await page.locator('button', { hasText: /حذف العميل/ }).click(); // 'Delete Client'
+    await page.locator('.confirm-ok').click(); // Custom confirm modal OK button
 
     // Verify returning to list and client is deleted
     await expect(page.locator('div.hdr')).toBeVisible();

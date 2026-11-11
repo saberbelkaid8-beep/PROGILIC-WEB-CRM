@@ -1,5 +1,5 @@
 import { S } from '../state/store.js';
-import locationsData from '../data/algeria-locations.json';
+import locationsData from '../data/algeria-locations.json' with { type: 'json' };
 
 export const SUPPORTED_LANGUAGES = ['ar', 'fr', 'en'];
 
@@ -205,7 +205,6 @@ export const frDict = {
   "إجمالي البرامج": "Total programmes",
   "إجمالي الأجهزة": "Total appareils",
   "نشط /": "Actif /",
-  "منتهي": "Expiré",
   "قائمة البرامج": "Liste des programmes",
   "+ برنامج جديد": "+ Nouveau programme",
   "لا توجد برامج مرتبطة بهذا العميل": "Aucun programme associé à ce client",
@@ -284,7 +283,6 @@ export const frDict = {
   "تحليل مؤشر الصحة التشغيلية": "Analyse de la santé opérationnelle",
   "قائمة المتابعة الاستباقية للعملاء": "Liste de surveillance proactive",
   "العميل والمؤسسة": "Client & Entreprise",
-  "البرامج والتراخيص": "Programmes & Licences",
   "الطلبات": "Tickets",
   "الصحة": "Santé",
   "الإجراء": "Action",
@@ -376,11 +374,8 @@ export const frDict = {
   // Priorities & Issue Statuses
   "أولوية": "Priorité",
   "عاجل": "Urgent",
-  "عالية": "Haute",
   "عالي": "Élevé",
-  "متوسطة": "Moyenne",
   "متوسط": "Moyen",
-  "منخفضة": "Basse",
   "منخفض": "Faible",
   "مفتوح": "Ouvert",
   "قيد المعالجة": "En cours",
@@ -437,7 +432,6 @@ export const frDict = {
   "سجل بياناتك للانضمام إلى منصة PROGILIC CRM.": "Inscrivez vos informations pour rejoindre la plateforme PROGILIC CRM.",
   "البريد الإلكتروني للشركة": "Adresse email professionnelle",
   "البريد الإلكتروني": "Adresse email",
-  "الاسم الكامل": "Nom complet",
   "كلمة المرور": "Mot de passe",
   "كلمة المرور الجديدة": "Nouveau mot de passe",
   "تأكيد كلمة المرور الجديدة": "Confirmer le nouveau mot de passe",
@@ -448,7 +442,6 @@ export const frDict = {
   "قوة كلمة المرور:": "Force du mot de passe :",
   "قصيرة جداً": "Très court",
   "ضعيفة": "Faible",
-  "متوسطة": "Moyenne",
   "قوية": "Fort",
   "قوية جداً": "Très fort",
   "إنشاء الحساب وتفعيل البريد": "Créer le compte et envoyer l'email de validation",
@@ -710,7 +703,6 @@ export const enDict = {
   "إجمالي البرامج": "Total Programs",
   "إجمالي الأجهزة": "Total Devices",
   "نشط /": "Active /",
-  "منتهي": "Expired",
   "قائمة البرامج": "Software List",
   "+ برنامج جديد": "+ New Software",
   "لا توجد برامج مرتبطة بهذا العميل": "No software associated with this client",
@@ -789,7 +781,6 @@ export const enDict = {
   "تحليل مؤشر الصحة التشغيلية": "Operational Health Index Analysis",
   "قائمة المتابعة الاستباقية للعملاء": "Proactive Client Watchlist",
   "العميل والمؤسسة": "Client & Company",
-  "البرامج والتراخيص": "Programs & Licenses",
   "الطلبات": "Tickets",
   "الصحة": "Health",
   "الإجراء": "Action",
@@ -881,11 +872,8 @@ export const enDict = {
   // Priorities & Issue Statuses
   "أولوية": "Priority",
   "عاجل": "Urgent",
-  "عالية": "High",
   "عالي": "High",
-  "متوسطة": "Medium",
   "متوسط": "Medium",
-  "منخفضة": "Low",
   "منخفض": "Low",
   "مفتوح": "Open",
   "قيد المعالجة": "In Progress",
@@ -942,7 +930,6 @@ export const enDict = {
   "سجل بياناتك للانضمام إلى منصة PROGILIC CRM.": "Register your details to join the PROGILIC CRM platform.",
   "البريد الإلكتروني للشركة": "Work email address",
   "البريد الإلكتروني": "Email address",
-  "الاسم الكامل": "Full name",
   "كلمة المرور": "Password",
   "كلمة المرور الجديدة": "New password",
   "تأكيد كلمة المرور الجديدة": "Confirm new password",
@@ -953,7 +940,6 @@ export const enDict = {
   "قوة كلمة المرور:": "Password Strength:",
   "قصيرة جداً": "Too short",
   "ضعيفة": "Weak",
-  "متوسطة": "Medium",
   "قوية": "Strong",
   "قوية جداً": "Very strong",
   "إنشاء الحساب وتفعيل البريد": "Create Account & Send Verification",
@@ -1241,14 +1227,12 @@ const extraTranslations = {
   "المدير العام": ["Administrateur général", "General Administrator"],
   "عودة لحساب المدير": ["Retour au compte administrateur", "Return to Administrator Account"],
   "عرض جميع الأقسام": ["Afficher tous les départements", "Show All Departments"],
-  "القسم": ["Département", "Department"],
   "موظف": ["employé", "employee"],
   "موظفين": ["employés", "employees"],
   "المسؤول الافتراضي:": ["Responsable par défaut :", "Default Manager:"],
   "محدد": ["Sélectionné", "Selected"],
   "عرض الموظفين": ["Afficher les employés", "View Employees"],
   "جميع الأقسام": ["Tous les départements", "All Departments"],
-  "الحالة:": ["Statut :", "Status:"],
   "إلغاء التصفية": ["Effacer les filtres", "Clear Filters"],
   "المنصب": ["Poste", "Position"],
   "المسؤول المباشر": ["Responsable direct", "Direct Manager"],
@@ -1355,7 +1339,6 @@ const extraTranslations = {
   "لم يتم العثور على الموظف.": ["Employé introuvable.", "Employee not found."],
   "👑 هذه الصلاحيات يتحكم بها المسؤول العام (Gérant) حصرياً.": ["👑 Ces autorisations sont exclusivement gérées par le gérant.", "👑 These permissions are managed exclusively by the administrator."],
   "كلمة المرور الجديدة *": ["Nouveau mot de passe *", "New Password *"],
-  "بطاقة الموظف والمسؤوليات": ["Fiche de l'employé et responsabilités", "Employee Profile and Responsibilities"],
   "المهام والمسؤوليات التفصيلية:": ["Tâches et responsabilités détaillées :", "Detailed Tasks and Responsibilities:"],
   "التثبيت على حساب الرئيس لإدخال كلمة المرور": ["Sélectionner le compte du gérant pour saisir le mot de passe", "Select the administrator account to enter its password"],
   "تأكيد حذف حساب الموظف نهائياً وحظر وصوله للنظام": ["Confirmer la suppression définitive du compte et le blocage de son accès.", "Confirm permanent deletion of the employee account and revoke system access."],
@@ -1408,13 +1391,9 @@ const extraTranslations = {
   "من إجمالي": ["sur un total de", "out of"],
   "الترخيص:": ["Licence :", "License:"],
   "تحكم كامل ومباشر من طرف الرئيس في منح وسحب وتوزيع الصلاحيات الدقيقة على جميع مستخدمي وموظفي النظام": ["Le gérant contrôle directement l'attribution et le retrait des autorisations de tous les utilisateurs et employés.", "The administrator directly controls permissions for all system users and employees."],
-  "اسم المستخدم:": ["Nom d'utilisateur :", "Username:"],
   "مجموع الصلاحيات الممنوحة:": ["Total des autorisations accordées :", "Total Permissions Granted:"],
-  "المسؤول الافتراضي:": ["Responsable par défaut :", "Default Manager:"],
   "الرئيس:": ["Gérant :", "Administrator:"],
   "حساب موظف:": ["Compte employé :", "Employee Account:"],
-  "تحديد وضبط الصلاحيات": ["Définir et configurer les autorisations", "Set and Configure Permissions"],
-  "تغيير كلمة المرور": ["Modifier le mot de passe", "Change Password"],
   "اختصاصات القسم في PROGILIC:": ["Fonctions du département dans PROGILIC :", "Department Responsibilities in PROGILIC:"],
   "التحقق من كلمة مرور المسؤول العام (Admin Verification)": ["Vérification du mot de passe du gérant", "Administrator Password Verification"],
   "مستخدم": ["Utilisateur", "User"],
@@ -2016,6 +1995,12 @@ function translateDynamicText(str, lang) {
   return '';
 }
 
+const protectedTextSelector = [
+  'input', 'textarea', '[contenteditable="true"]',
+  'code', 'pre', '.client-name',
+  '[data-no-translate="true"]', '[translate="no"]', '[data-user-content="true"]'
+].join(',');
+
 const protectedContentSelector = [
   'input:focus', 'textarea:focus', '[contenteditable="true"]:focus',
   'code', 'pre',
@@ -2185,12 +2170,27 @@ export function localizeRenderedDom(root) {
     const element = node.parentElement;
     if (!element) continue;
     if (element.closest('style, script, code, pre')) continue;
-    if (element.closest(protectedContentSelector)) continue;
+    if (element.closest(protectedTextSelector)) continue;
 
     if (lang === 'ar') {
-      // Lossless restoration of original Arabic text
-      if (node.__crm_orig !== undefined) {
-        node.nodeValue = node.__crm_orig;
+      // If original pristine value was cached from an initial Arabic state, restore it first
+      let currentText = node.__crm_orig !== undefined ? node.__crm_orig : node.nodeValue;
+      if (node.__crm_orig === undefined) {
+        node.__crm_orig = node.nodeValue;
+      }
+
+      const trimmed = currentText.trim();
+      if (!trimmed) continue;
+
+      // Translate any foreign UI text to Arabic, or localize digits in Arabic text
+      const translated = translateRenderedText(trimmed, dictionary, 'ar');
+      const localized = localizeDigits(translated, 'ar');
+
+      if (localized !== trimmed) {
+        const start = currentText.indexOf(trimmed);
+        node.nodeValue = currentText.slice(0, start) + localized + currentText.slice(start + trimmed.length);
+      } else {
+        node.nodeValue = currentText;
       }
       continue;
     }

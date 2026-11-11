@@ -7,7 +7,7 @@ describe('State Management', () => {
   });
 
   it('should initialize with default state', () => {
-    expect(S.view).toBe('list');
+    expect(S.view).toBe('dashboard');
     expect(S.clients).toEqual([]);
   });
 

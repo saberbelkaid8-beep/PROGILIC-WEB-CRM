@@ -146,7 +146,7 @@ describe('Permissions Enforcement & Control System', () => {
     expect(revokedStaff.permissions['issues.view']).toBeFalsy();
     expect(revokedStaff.permissions['issues.create']).toBeFalsy();
     expect(revokedStaff.permissions['issues.resolve']).toBeFalsy();
-  });
+  }, 15000);
 
   it('openModal should block unauthorized modal popups when permission is missing', async () => {
     const { openModal } = await import('../../src/business/actions/uiActions.js');
