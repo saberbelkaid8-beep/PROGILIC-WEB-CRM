@@ -56,7 +56,9 @@ service cloud.firestore {
             'id', 'fullName', 'status', 'phone', 'gmailAccount', 'company', 'wilaya', 'commune', 'location',
             'businessType', 'businessField', 'startDate', 'endDate', 'lastContact', 'notes',
             'gps', 'score', 'openIssuesCount', 'requirementsCount', 'programsCount',
-            'installationsCount', 'updatedAt', '_subcollectionsLoaded'
+            'installationsCount', 'updatedAt', '_subcollectionsLoaded', 'version',
+            'programNames', 'programs', 'issues', 'requirements', 'contactHistory',
+            'firestoreId', 'category', 'registrationChannel', 'deviceType', 'creatorRole', 'creatorEmail'
           ])
           && data.id is number
           && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
@@ -79,17 +81,23 @@ service cloud.firestore {
           && (!data.keys().contains('requirementsCount') || data.requirementsCount is number)
           && (!data.keys().contains('programsCount') || data.programsCount is number)
           && (!data.keys().contains('installationsCount') || data.installationsCount is number)
+          && (!data.keys().contains('version') || data.version is number)
+          && (!data.keys().contains('programNames') || data.programNames is list)
+          && (!data.keys().contains('programs') || data.programs is list)
+          && (!data.keys().contains('issues') || data.issues is list)
+          && (!data.keys().contains('requirements') || data.requirements is list)
+          && (!data.keys().contains('contactHistory') || data.contactHistory is list)
           && (!data.keys().contains('updatedAt') || (data.updatedAt is string || data.updatedAt is timestamp));
     }
 
     function isValidProgram(data) {
       return data.keys().hasAll(['id', 'programName', 'platform', 'type'])
-          && data.keys().hasOnly(['id', 'programName', 'platform', 'type', 'version', 'installationsCount', 'startDate', 'endDate'])
+          && data.keys().hasOnly(['id', 'programName', 'platform', 'type', 'version', 'installationsCount', 'startDate', 'endDate', 'clientId', 'notes', 'createdAt', 'updatedAt'])
           && data.id is number
-          && data.programName is string && data.programName.size() >= 1 && data.programName.size() <= 100
+          && data.programName is string && data.programName.size() >= 1 && data.programName.size() <= 200
           && data.platform is string && data.platform in ["Desktop", "Mobile", "Web", "Hybrid"]
-          && data.type is string && data.type in ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"]
-          && (!data.keys().contains('version') || data.version is string && data.version in ["", "V21", "V23", "V24", "V26", "V27"])
+          && data.type is string && data.type.size() >= 1 && data.type.size() <= 100
+          && (!data.keys().contains('version') || data.version is string && data.version.size() <= 50)
           && (!data.keys().contains('installationsCount') || data.installationsCount is number)
           && (!data.keys().contains('startDate') || data.startDate is string && data.startDate.size() <= 20)
           && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20);

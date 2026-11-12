@@ -231,16 +231,100 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
   const c = clients.find(x => x.id === clientId || String(x.id) === String(clientId));
   if (!c) return;
 
-  if (c._subcollectionsLoaded) return;
+  if (c._subcollectionsLoaded && Array.isArray(c.programs) && c.programs.length > 0) return;
 
   try {
     setSyncing(true);
 
     const sub = await getClientSubcollections(currentUser.uid, String(clientId));
-    c.programs = sub.programs || [];
-    c.issues = sub.issues || [];
-    c.requirements = sub.requirements || [];
-    c.contactHistory = sub.contactHistory || [];
+    const remoteProgs = sub?.programs || [];
+
+    if (remoteProgs.length > 0) {
+      c.programs = remoteProgs;
+    } else if (!c.programs || c.programs.length === 0) {
+      // If Firestore subcollection had 0 programs, recover from programNames or timeline traces
+      const { extractProgramFromActivity } = await import('./programReconciliationService.js');
+      const allActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
+      const trace = allActivities.find(act => {
+        if (!act) return false;
+        const isTarget = act.clientId === c.id || String(act.clientId) === String(c.id) ||
+                         (act.clientName && c.fullName && act.clientName.trim() === c.fullName.trim());
+        if (!isTarget) return false;
+        return act.type === 'PROGRAM_ADDED' || (act.title || '').includes('برنامج') || (act.description || '').includes('خدمة برمجية');
+      });
+
+      if (trace) {
+        const recovered = extractProgramFromActivity(trace, c);
+        if (recovered) {
+          c.programs = [recovered];
+          c.programNames = [recovered.programName];
+          c.programsCount = 1;
+          c.installationsCount = recovered.installationsCount;
+          saveClientSubItemTransaction(currentUser.uid, c.id, 'programs', recovered, {
+            programsCount: 1,
+            installationsCount: recovered.installationsCount,
+            programNames: [recovered.programName]
+          }).catch(console.warn);
+        }
+      } else if (c.programNames && c.programNames.length > 0) {
+        const pName = c.programNames[0];
+        const isMobile = pName.toLowerCase().includes('mobile');
+        const isWeb = pName.toLowerCase().includes('web');
+        const platform = isMobile ? 'Mobile' : (isWeb ? 'Web' : 'Desktop');
+        const verMatch = pName.match(/(V\d+|v\d+|R\+|arabe)/i);
+        const version = verMatch ? verMatch[1] : (platform === 'Mobile' ? '' : 'V27');
+        const recovered = {
+          id: Date.now() + Math.floor(Math.random() * 1000),
+          programName: pName,
+          platform,
+          type: platform === 'Mobile' ? 'تطبيق لوحة القيادة (Tableau de bord)' : 'تجاري (Commercial)',
+          version,
+          installationsCount: Math.max(1, c.installationsCount || 1),
+          startDate: c.startDate || td(),
+          endDate: c.endDate || ''
+        };
+        c.programs = [recovered];
+        c.programsCount = 1;
+        c.installationsCount = recovered.installationsCount;
+        saveClientSubItemTransaction(currentUser.uid, c.id, 'programs', recovered, {
+          programsCount: 1,
+          installationsCount: recovered.installationsCount,
+          programNames: [recovered.programName]
+        }).catch(console.warn);
+      } else if (c.status === 'نشط' || (c.programsCount && c.programsCount > 0)) {
+        const recovered = {
+          id: Date.now() + Math.floor(Math.random() * 1000),
+          programName: 'Desktop - تجاري V27',
+          platform: 'Desktop',
+          type: 'تجاري (Commercial)',
+          version: 'V27',
+          installationsCount: Math.max(1, c.installationsCount || 1),
+          startDate: c.startDate || td(),
+          endDate: ''
+        };
+        c.programs = [recovered];
+        c.programsCount = 1;
+        c.installationsCount = recovered.installationsCount;
+        c.programNames = [recovered.programName];
+        saveClientSubItemTransaction(currentUser.uid, c.id, 'programs', recovered, {
+          programsCount: 1,
+          installationsCount: recovered.installationsCount,
+          programNames: [recovered.programName]
+        }).catch(console.warn);
+      } else {
+        c.programs = [];
+      }
+    }
+
+    if (sub?.issues && sub.issues.length > 0) c.issues = sub.issues;
+    else if (!c.issues) c.issues = [];
+
+    if (sub?.requirements && sub.requirements.length > 0) c.requirements = sub.requirements;
+    else if (!c.requirements) c.requirements = [];
+
+    if (sub?.contactHistory && sub.contactHistory.length > 0) c.contactHistory = sub.contactHistory;
+    else if (!c.contactHistory) c.contactHistory = [];
+
     c._subcollectionsLoaded = true;
 
     setClients([...clients]);
@@ -298,14 +382,18 @@ export function startRealtimeSync(userId) {
     // Merge summaries with existing clients to preserve already loaded details in memory
     let mergedClients = summaries.map(newC => {
       const existingC = clients.find(x => String(x.id) === String(newC.id));
-      if (existingC && existingC._subcollectionsLoaded) {
+      if (existingC) {
+        const hasExistingProgs = Array.isArray(existingC.programs) && existingC.programs.length > 0;
+        const hasNewProgs = Array.isArray(newC.programs) && newC.programs.length > 0;
+        const finalProgs = hasExistingProgs ? existingC.programs : (hasNewProgs ? newC.programs : []);
+
         return {
           ...newC,
-          programs: existingC.programs,
-          issues: existingC.issues,
-          requirements: existingC.requirements,
-          contactHistory: existingC.contactHistory,
-          _subcollectionsLoaded: true
+          programs: finalProgs,
+          issues: (Array.isArray(existingC.issues) && existingC.issues.length > 0) ? existingC.issues : (newC.issues || []),
+          requirements: (Array.isArray(existingC.requirements) && existingC.requirements.length > 0) ? existingC.requirements : (newC.requirements || []),
+          contactHistory: (Array.isArray(existingC.contactHistory) && existingC.contactHistory.length > 0) ? existingC.contactHistory : (newC.contactHistory || []),
+          _subcollectionsLoaded: Boolean(existingC._subcollectionsLoaded || hasExistingProgs || hasNewProgs)
         };
       }
       return newC;
@@ -491,7 +579,11 @@ async function doLoadDataFromFirestore(user) {
       });
 
       // Strictly Online: No local persistence.
-      import('./timelineService.js').then(m => m.syncCrmServicesToTimeline(user.uid)).catch(console.warn);
+      import('./timelineService.js')
+        .then(m => m.syncCrmServicesToTimeline(user.uid))
+        .then(() => import('./programReconciliationService.js'))
+        .then(m => m.reconcileMissingPrograms(user.uid))
+        .catch(console.warn);
 
       // If user doc didn't exist or had older schema or fewer clients, commit to Cloud Firestore
       if (!data || data.v === undefined || Number(data.v) < 3 || (data.clients && data.clients.length < mergedClients.length)) {

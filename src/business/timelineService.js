@@ -374,6 +374,9 @@ export async function loadGlobalActivities() {
         merged = mergeActivities(generated, merged);
         S.globalActivities = merged;
       }
+      import('./programReconciliationService.js')
+        .then(m => m.reconcileMissingPrograms(tenantId))
+        .catch(console.warn);
     }
 
     return merged;

@@ -114,8 +114,7 @@ function renderClientModal(){
         <div class="fgroup" id="f_p_ver_group">
           <label class="flbl">${t('إصدار البرنامج')} *</label>
           <select class="fctl" id="f_p_ver">
-            <option value="">${t('اختر الإصدار')}</option>
-            ${PROGRAM_VERSIONS.map(v => `<option value="${v}">${v}</option>`).join('')}
+            ${PROGRAM_VERSIONS.map(v => `<option value="${v}"${v === 'V27' ? ' selected' : ''}>${v}</option>`).join('')}
           </select>
         </div>
         <div class="fgroup">

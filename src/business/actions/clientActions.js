@@ -346,24 +346,19 @@ export async function saveClient(editId) {
     const pTy = (gv('f_p_ty') || '').trim();
     const hasInitialProg = (pPl === 'Mobile' && (pTy || d.status === 'نشط')) || pVer || (d.status === 'نشط' && pPl);
     if (hasInitialProg) {
-      if (pPl !== 'Mobile' && !pVer) {
-        showToast(t('الرجاء اختيار إصدار البرنامج المرخص (مثال: V27, V26...) *'), 'error');
-        return;
-      }
-      if (pPl !== 'Web' && !pTy) {
-        showToast(t('الرجاء اختيار نوع البرنامج المرخص *'), 'error');
-        return;
-      }
-      const typeDisplay = pTy ? pTy.split(' ')[0] : (pPl === 'Web' ? 'الويب' : '');
-      const derivedName = pPl === 'Mobile'
-        ? `${pPl} - ${typeDisplay}`.trim()
-        : `${pPl || 'Desktop'} - ${typeDisplay} ${pVer}`.trim();
+      const cleanPl = pPl || 'Desktop';
+      const cleanVer = cleanPl === 'Mobile' ? '' : (pVer || 'V27');
+      const cleanTy = pTy || (cleanPl === 'Mobile' ? 'تطبيق لوحة القيادة (Tableau de bord)' : (cleanPl === 'Web' ? 'الويب' : 'تجاري (Commercial)'));
+      const typeDisplay = cleanTy.split(' ')[0];
+      const derivedName = cleanPl === 'Mobile'
+        ? `${cleanPl} - ${typeDisplay}`.trim()
+        : `${cleanPl} - ${typeDisplay} ${cleanVer}`.trim();
       const pProg = {
         id: Date.now() + 1,
         programName: derivedName,
-        platform: pPl || 'Desktop',
-        type: pTy || 'الويب',
-        version: pPl === 'Mobile' ? '' : pVer,
+        platform: cleanPl,
+        type: cleanTy,
+        version: cleanVer,
         installationsCount: Math.max(1, gn('f_p_ic', 1)),
         startDate: startDateVal || td(),
         endDate: gv('f_ed') || ''
@@ -372,6 +367,7 @@ export async function saveClient(editId) {
       newClient.programsCount = 1;
       newClient.installationsCount = pProg.installationsCount;
       newClient.programNames = [pProg.programName];
+      newClient._subcollectionsLoaded = true;
       stats.totalPrograms = (stats.totalPrograms || 0) + 1;
       stats.totalLicensedDevices = (stats.totalLicensedDevices || 0) + pProg.installationsCount;
     }
@@ -393,9 +389,23 @@ export async function saveClient(editId) {
       clientData: newClient,
       stats
     });
-    // Log timeline activity
+    // Log timeline activity for client creation
     logActivity(nextId, ActivityType.CLIENT_CREATED, "إنشاء العميل", `تم تسجيل العميل بنظام CRM بنجاح: ${newClient.fullName}.`)
       .catch(err => console.error(err));
+
+    // Log timeline activity for initial program if created
+    if (newClient.programs && newClient.programs.length > 0) {
+      const prg = newClient.programs[0];
+      logActivity(
+        nextId,
+        ActivityType.PROGRAM_ADDED,
+        `خدمة ترخيص برنامج: ${prg.programName}`,
+        `تقديم وتثبيت خدمة برمجية "${prg.programName}" للعميل ${newClient.fullName} - المنصة: ${prg.platform} - نوع الخدمة: ${prg.type} - أجهزة مرخصة: ${prg.installationsCount} محطة (البداية: ${prg.startDate}).`,
+        'local',
+        { clientName: newClient.fullName, program: prg }
+      ).catch(err => console.error(err));
+    }
+
     showToast(t('تم إضافة العميل بنجاح'));
   }
   

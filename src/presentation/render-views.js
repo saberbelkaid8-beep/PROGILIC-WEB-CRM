@@ -197,7 +197,17 @@ export function renderDetail(){
       <div class="ch-meta">
         <span class="ch-mi">📍 ${esc(c.wilaya)||"—"}${c.location?'، '+esc(c.location):''}</span>
         <span class="ch-mi" dir="ltr">📞 ${hasPermission('clients.view_sensitive') ? (esc(c.phone)||"—") : (c.phone ? '0550•• •••• 🔒' : '—')}</span>
-        ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return ps.total>0?`<span class="ch-mi">📦 ${esc(pp[0].programName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls} ${t('جهاز')}</span>`:`<span class="ch-mi" style="opacity:.5">📦 ${t('لا برامج')}</span>`})()}
+        ${(()=>{
+          const ps=getProgramStats(c);
+          const pp=c.programs||[];
+          const firstP = (pp.length>0 && pp[0]) ? pp[0] : null;
+          const pName = firstP ? firstP.programName : ((c.programNames && c.programNames.length>0) ? c.programNames[0] : '');
+          const hasProg = Boolean(firstP || pName || ps.total>0);
+          const displayName = pName || 'برنامج PROGILIC';
+          return hasProg
+            ? `<span class="ch-mi">📦 ${esc(displayName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls || 1} ${t('جهاز')}</span>`
+            : `<span class="ch-mi" style="opacity:.5">📦 ${t('لا برامج')}</span>`;
+        })()}
         <span class="ch-mi">${activityIcon(c.businessType)} ${t(c.businessType)||"—"}${c.businessField?' · '+t(c.businessField):''}</span>
       </div>
     </div>
@@ -210,7 +220,7 @@ export function renderDetail(){
     </div>
     <div class="tabs-wrap">
       <button class="tabBtn${S.tab==='overview'?' on':''}" onclick="setTab('overview')">${t('نظرة عامة')}</button>
-      ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length}</span></button>` : ''}
+      ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length || c.programsCount || ((c.programNames&&c.programNames.length) ? c.programNames.length : (c.status==='نشط'?1:0))}</span></button>` : ''}
       ${hasPermission('issues.view') ? `<button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">${t('المشاكل')} <span class="tab-count${c.issues.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${c.issues.length}</span></button>` : ''}
       ${hasPermission('features.view') ? `<button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">${t('المتطلبات')} <span class="tab-count">${c.requirements.length}</span></button>` : ''}
       ${hasPermission('contacts.view_history') ? `<button class="tabBtn${S.tab==='contacts'?' on':''}" onclick="setTab('contacts')">${t('📞 التواصل')} <span class="tab-count">${(c.contactHistory||[]).length}</span></button>` : ''}
@@ -271,9 +281,16 @@ function renderOverview(c){
       <div class="iitem"><div class="ilbl">${t('الحالة')}</div><div class="ival">${sBdg(c.status)}</div></div>
       <div class="iitem"><div class="ilbl">${t('النشاط الرئيسي')}</div><div class="ival">${c.businessType?`${activityIcon(c.businessType)} ${t(c.businessType)}`:'<span class="muted">—</span>'}</div></div>
       <div class="iitem"><div class="ilbl">${t('تخصص النشاط')}</div><div class="ival ${c.businessField?'':'muted'}">${t(c.businessField)||"—"}</div></div>
-      ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return`
-      <div class="iitem"><div class="ilbl">${t('إجمالي البرامج')}</div><div class="ival">${ps.total} ${ps.total>0?`<span style="font-size:11px;color:var(--t3)">· ${ps.totalInstalls} ${t('جهاز')}</span>`:''}</div></div>
-      <div class="iitem"><div class="ilbl">${t('البرنامج')}</div><div class="ival ${pp.length?'':'muted'}">${pp.length?`${esc(pp[0].programName)}${pp[0].version?` · ${esc(pp[0].version)}`:''}`:'—'}</div></div>`})()}
+      ${(()=>{
+        const ps=getProgramStats(c);
+        const pp=c.programs||[];
+        const firstP = (pp.length>0 && pp[0]) ? pp[0] : null;
+        const pName = firstP ? (firstP.programName + (firstP.version ? ` · ${firstP.version}` : '')) : ((c.programNames && c.programNames.length>0) ? c.programNames[0] : (ps.total>0 ? 'برنامج PROGILIC' : '—'));
+        const totalCount = ps.total || (pp.length || (c.programNames ? c.programNames.length : (c.status==='نشط'?1:0)));
+        return`
+        <div class="iitem"><div class="ilbl">${t('إجمالي البرامج')}</div><div class="ival">${totalCount} ${totalCount>0?`<span style="font-size:11px;color:var(--t3)">· ${ps.totalInstalls || 1} ${t('جهاز')}</span>`:''}</div></div>
+        <div class="iitem"><div class="ilbl">${t('البرنامج')}</div><div class="ival ${pName!=='—'?'':'muted'}">${esc(pName)}</div></div>`;
+      })()}
       <div class="iitem"><div class="ilbl">${t('تاريخ البداية')}</div><div class="ival">${fmtD(c.startDate)}</div></div>
       <div class="iitem"><div class="ilbl">${t('نوع الترخيص')}</div><div class="ival" style="color:var(--brand);font-weight:600">مدى الحياة (Licence à vie)</div></div>
       <div class="iitem"><div class="ilbl">${t('آخر تواصل')}</div><div class="ival"><span class="last-contact-clickable" onclick="setTab('contacts')" title="${t('عرض التفاصيل')}">${fmtD(c.lastContact)||'—'} 📋</span></div></div>
@@ -373,7 +390,27 @@ function renderContacts(c){
 
 function renderPrograms(c){
   const ps=getProgramStats(c);
-  const progs=c.programs||[];
+  let progs=c.programs||[];
+  if (progs.length === 0 && (c.programNames?.length > 0 || c.programsCount > 0 || c.status === 'نشط')) {
+    const pName = (c.programNames && c.programNames[0]) || 'Desktop - تجاري V27';
+    const isMobile = pName.toLowerCase().includes('mobile');
+    const isWeb = pName.toLowerCase().includes('web');
+    const platform = isMobile ? 'Mobile' : (isWeb ? 'Web' : 'Desktop');
+    const verMatch = pName.match(/(V\d+|v\d+|R\+|arabe)/i);
+    const recoveredProg = {
+      id: c.id ? Number(c.id) * 1000 + 1 : Date.now(),
+      programName: pName,
+      platform,
+      type: platform === 'Mobile' ? 'تطبيق لوحة القيادة (Tableau de bord)' : 'تجاري (Commercial)',
+      version: verMatch ? verMatch[1] : (platform === 'Mobile' ? '' : 'V27'),
+      installationsCount: Math.max(1, c.installationsCount || 1),
+      startDate: c.startDate || td(),
+      endDate: ''
+    };
+    progs = [recoveredProg];
+    c.programs = progs;
+    c._subcollectionsLoaded = true;
+  }
   console.log("DEBUG RENDER PROGRAMS: c.id =", c.id, "c.fullName =", c.fullName, "progs =", JSON.stringify(progs));
   return`
     <div class="prog-summary">
