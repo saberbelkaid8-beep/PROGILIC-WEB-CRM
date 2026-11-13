@@ -77,21 +77,35 @@ export function determineOperationRoute(extractedData, customerMatch, trelloItem
 
   // A. Software License Provisioning / Installation
   if (nature === 'installation' || nature === 'software_license') {
-    const programName = extractedData.programName || 'PROGILIC ERP';
-    const platform = extractedData.platform || 'Desktop';
-    const type = extractedData.programType || 'تجاري';
-    const version = extractedData.version || '';
+    const programName = typeof extractedData.programName === 'string' ? extractedData.programName.trim() : '';
+    const platform = extractedData.platform;
+    const type = extractedData.programType;
+    const installationsCount = Number(extractedData.installationsCount);
+    if (!programName
+      || !['Desktop', 'Mobile', 'Web', 'Hybrid'].includes(platform)
+      || typeof type !== 'string'
+      || !type.trim()
+      || type.length > 100
+      || !Number.isSafeInteger(installationsCount)
+      || installationsCount < 1) {
+      return {
+        destination: OPERATION_DESTINATION.REVIEW_QUEUE,
+        reason: REVIEW_REASONS.UNSUPPORTED_DATA_SHAPE,
+        details: 'License registration is missing an explicit name, platform, type, or valid installation count.',
+        payload: null
+      };
+    }
 
     return {
       destination: OPERATION_DESTINATION.PROGRAMS,
       targetAction: 'REGISTER_PROGRAM',
       payload: {
         programName: String(programName).slice(0, 100),
-        platform: ['Desktop', 'Mobile', 'Web', 'Hybrid'].includes(platform) ? platform : 'Desktop',
-        type: ['تجاري', 'إنتاجي', 'لوحة تحكم', 'خدمي', 'أخرى'].includes(type) ? type : 'تجاري',
-        version: String(version).slice(0, 20),
-        installationsCount: Number(extractedData.installationsCount) || 1,
-        startDate: extractedData.date || new Date().toISOString().split('T')[0],
+        platform,
+        type,
+        version: typeof extractedData.version === 'string' ? extractedData.version.slice(0, 20) : '',
+        installationsCount,
+        startDate: typeof extractedData.date === 'string' ? extractedData.date : '',
         endDate: ''
       },
       auditTitle: 'تسجيل / تحديث ترخيص برنامج',

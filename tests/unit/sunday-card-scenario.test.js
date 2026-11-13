@@ -50,7 +50,7 @@ describe('Sunday Trello Card Sandbox Scenario (Phase 8 Isolation Test)', () => {
     setServerAdminRepo(testRepo);
   });
 
-  // Checklist Item 1: Software Installation (Programs)
+  // Checklist Item 1: Software Installation with details insufficient to create a license
   const item1 = {
     id: 'chk_sunday_item_1',
     name: 'صيدلية الأمل 0551223344 - تثبيت برنامج v27 تجاري',
@@ -71,12 +71,12 @@ describe('Sunday Trello Card Sandbox Scenario (Phase 8 Isolation Test)', () => {
     state: 'incomplete'
   };
 
-  it('processes Sunday card items independently into appropriate CRM destinations', async () => {
+  it('routes incomplete licenses to review and processes supported operations independently', async () => {
     // 1. Process Installation Item
     const res1 = await syncTrelloChecklistItem(tenantId, item1, card, board);
-    expect(res1.status).toBe(TRELLO_SYNC_STATUS.SYNCED);
-    expect(res1.destination).toBe(OPERATION_DESTINATION.PROGRAMS);
-    expect(res1.targetRecordId).toBeDefined();
+    expect(res1.status).toBe(TRELLO_SYNC_STATUS.REVIEW_REQUIRED);
+    expect(inMemoryReviewQueue.has(`${tenantId}:${item1.id}`)).toBe(true);
+    expect(clients.find(client => client.id === 201).programs).toHaveLength(0);
 
     // 2. Process Technical Issue Item
     const res2 = await syncTrelloChecklistItem(tenantId, item2, card, board);
@@ -91,19 +91,18 @@ describe('Sunday Trello Card Sandbox Scenario (Phase 8 Isolation Test)', () => {
     expect(inMemoryReviewQueue.size).toBeGreaterThanOrEqual(1);
   });
 
-  it('proves idempotency: replaying identical items creates zero duplicate records', async () => {
+  it('keeps repeated incomplete license items in review without creating duplicate records', async () => {
     const resA = await syncTrelloChecklistItem(tenantId, item1, card, board);
-    expect(resA.status).toBe(TRELLO_SYNC_STATUS.SYNCED);
-    const initialRecordId = resA.targetRecordId;
+    expect(resA.status).toBe(TRELLO_SYNC_STATUS.REVIEW_REQUIRED);
 
     // Second sync of identical item
     const resB = await syncTrelloChecklistItem(tenantId, item1, card, board);
-    expect(resB.status).toBe(TRELLO_SYNC_STATUS.SYNCED);
-    expect(resB.skipped).toBe(true);
-    expect(resB.targetRecordId).toBe(initialRecordId);
+    expect(resB.status).toBe(TRELLO_SYNC_STATUS.REVIEW_REQUIRED);
+    expect(clients.find(client => client.id === 201).programs).toHaveLength(0);
+    expect(inMemoryReviewQueue.has(`${tenantId}:${item1.id}`)).toBe(true);
   });
 
-  it('proves in-place update when checklist item is modified at source', async () => {
+  it('updates the review item when an incomplete license changes at source', async () => {
     await syncTrelloChecklistItem(tenantId, item1, card, board);
 
     // Modified version of item 1 with client and updated installation details
@@ -113,7 +112,8 @@ describe('Sunday Trello Card Sandbox Scenario (Phase 8 Isolation Test)', () => {
     };
 
     const resUpdate = await syncTrelloChecklistItem(tenantId, modifiedItem1, card, board);
-    expect(resUpdate.status).toBe(TRELLO_SYNC_STATUS.SYNCED);
-    expect(resUpdate.actionType).toBe('RECORD_UPDATED');
+    expect(resUpdate.status).toBe(TRELLO_SYNC_STATUS.REVIEW_REQUIRED);
+    expect(inMemoryReviewQueue.get(`${tenantId}:${item1.id}`).rawText).toBe(modifiedItem1.name);
+    expect(clients.find(client => client.id === 201).programs).toHaveLength(0);
   });
 });

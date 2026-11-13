@@ -7,7 +7,7 @@ import { getBackups, deleteBackup } from '../idbStorage.js';
 import { createSnapshotBackup, restoreFromBackup, downloadBackupJSON } from '../backupService.js';
 import { auth, googleProvider, facebookProvider, appleProvider } from '../../firebase/config.js';
 import { signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile } from 'firebase/auth';
-import { gv, gc2, gc, gn, td, formatCsvCell } from '../../utils/index.js';
+import { gv, gc2, gc, gn, td, formatCsvCell, getProgramStats } from '../../utils/index.js';
 import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
@@ -196,7 +196,7 @@ export function exportDashboardReport() {
   const totalClients = clients.length;
   const activeClients = clients.filter(c => c.status === 'نشط').length;
   const totalPrograms = clients.reduce((acc, c) => acc + (c.programs?.length || Number(c.programsCount) || 0), 0);
-  const totalDevices = clients.reduce((acc, c) => acc + (c.programs?.reduce((pacc, p) => pacc + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 0), 0);
+  const totalDevices = clients.reduce((total, client) => total + getProgramStats(client).totalInstalls, 0);
   const openIssues = clients.flatMap(c => c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
   
   let csvContent = '\uFEFF';
@@ -209,7 +209,12 @@ export function exportDashboardReport() {
   
   clients.forEach(c => {
     const progs = (c.programs || []).map(p => p.programName).join(' + ') || c.programNames?.join(' + ') || '';
-    const inst = (c.programs || []).reduce((a, p) => a + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 1;
+    const knownInstallations = getProgramStats(c).totalInstalls;
+    const hasKnownInstallations = (Array.isArray(c.programs) && c.programs.some(program => {
+      const count = Number(program.installationsCount);
+      return Number.isSafeInteger(count) && count > 0;
+    })) || (Number.isSafeInteger(Number(c.installationsCount)) && Number(c.installationsCount) >= 0);
+    const inst = hasKnownInstallations ? knownInstallations : '';
     const iss = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
     csvContent += [
       formatCsvCell(c.fullName || ''),
@@ -260,12 +265,14 @@ export function exportLicensesCSV() {
         company: c.company || '',
         wilaya: c.wilaya || '',
         phone: c.phone || '',
-        status: c.status || 'نشط',
-        platform: p.platform || 'Desktop',
-        type: p.type || 'تجاري',
+        status: c.status || '',
+        platform: p.platform || '',
+        type: p.type || '',
         version: p.version || '',
-        devices: Number(p.installationsCount) || 1,
-        startDate: p.startDate || c.startDate || ''
+        devices: Number.isSafeInteger(Number(p.installationsCount)) && Number(p.installationsCount) > 0
+          ? Number(p.installationsCount)
+          : '',
+        startDate: p.startDate || ''
       });
     });
   });

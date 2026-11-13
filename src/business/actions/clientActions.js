@@ -21,6 +21,23 @@ import {
   deleteClientSubItemTransaction 
 } from '../../firebase/service.js';
 
+function getProgramEditEventId(clientId, program) {
+  const revision = JSON.stringify({
+    programName: program.programName || '',
+    platform: program.platform || '',
+    type: program.type || '',
+    version: program.version || '',
+    installationsCount: program.installationsCount ?? null,
+    startDate: program.startDate || '',
+    endDate: program.endDate || ''
+  });
+  let hash = 2166136261;
+  for (let index = 0; index < revision.length; index += 1) {
+    hash = Math.imul(hash ^ revision.charCodeAt(index), 16777619);
+  }
+  return `act_prog_edit_${clientId}_${encodeURIComponent(String(program.id))}_${(hash >>> 0).toString(36)}`;
+}
+
 
 
 export async function selClient(id) {
@@ -57,35 +74,54 @@ export async function delProgram(cid, pid) {
   const nextProgs = (c.programs || []).filter(p => p.id !== pid);
   const activeProg = nextProgs.filter(p => p.endDate).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
   const nextEndDate = activeProg.length > 0 ? activeProg[0].endDate : '';
-  const nextInstalls = nextProgs.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
+  const nextInstalls = nextProgs.reduce((total, program) => {
+    const count = Number(program.installationsCount);
+    return Number.isFinite(count) && count > 0 ? total + count : total;
+  }, 0);
 
   const stats = { ...(S.stats || {}) };
   stats.totalPrograms = Math.max(0, (stats.totalPrograms || 0) - 1);
-  stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) - (Number(progToDelete.installationsCount) || 1));
+  const deletedInstallations = Number(progToDelete.installationsCount);
+  if (Number.isFinite(deletedInstallations) && deletedInstallations > 0) {
+    stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) - deletedInstallations);
+  }
+
+  const tenantId = auth.currentUser?.uid || currentUser?.tenantId || currentUser?.uid;
+  if (!tenantId || !S.isOnline) {
+    showToast(t('تعذر حذف الترخيص دون اتصال موثوق بقاعدة البيانات.'), 'error');
+    return;
+  }
+  try {
+    await deleteClientSubItemTransaction(
+      tenantId,
+      String(cid),
+      'programs',
+      String(pid),
+      {
+        programsCount: nextProgs.length,
+        installationsCount: nextInstalls,
+        endDate: nextEndDate,
+        programNames: nextProgs.map(p => p.programName).filter(Boolean)
+      },
+      stats
+    );
+  } catch (error) {
+    console.error('[Programs] Failed to delete license:', error);
+    showToast(t('تعذر حفظ حذف الترخيص. لم يتم تغيير البيانات.'), 'error');
+    return;
+  }
 
   // Optimistic Local Update
   c.programs = nextProgs;
   c.endDate = nextEndDate;
-  c.programNames = nextProgs.map(p => p.programName);
+  c.programNames = nextProgs.map(p => p.programName).filter(Boolean);
   S.stats = stats;
   setClients([...clients]);
 
-  // Enqueue Sync Action
-  enqueueSyncAction('DELETE_SUB_ITEM', {
-    clientId: String(cid),
-    collectionName: 'programs',
-    itemId: String(pid),
-    counterUpdates: { 
-      programsCount: nextProgs.length, 
-      installationsCount: nextInstalls, 
-      endDate: nextEndDate,
-      programNames: nextProgs.map(p => p.programName)
-    },
-    stats
-  });
-
-  // Log timeline activity
-  logActivity(cid, ActivityType.PROGRAM_DELETED, "حذف برنامج ترخيص", `تم إزالة ترخيص البرنامج "${progToDelete.programName}" من حساب العميل.`)
+  logActivity(cid, ActivityType.PROGRAM_DELETED, "حذف برنامج ترخيص", `تم إزالة ترخيص البرنامج "${progToDelete.programName}" من حساب العميل.`, 'local', {
+    programId: String(pid),
+    idempotencyKey: `act_prog_deleted_${cid}_${pid}`
+  })
     .catch(err => console.error(err));
 
   R();
@@ -102,57 +138,88 @@ export async function saveProgram(editId) {
     return;
   }
   
-  const platform = (gv('fp_pl') || 'Desktop').trim();
-  if (!platform) {
+  const c = gc(); if (!c) return;
+
+  let nextProgs = Array.isArray(c.programs) ? [...c.programs] : [];
+  const stats = { ...(S.stats || {}) };
+  const oldP = programEditId !== null ? nextProgs.find(program => program.id === programEditId) : null;
+  if (programEditId !== null && !oldP) {
+    showToast(t('تعذر العثور على الترخيص المراد تعديله.'), 'error');
+    return;
+  }
+
+  const inputPlatform = (gv('fp_pl') || '').trim();
+  const platform = inputPlatform || oldP?.platform || '';
+  const platformChanged = Boolean(oldP && inputPlatform && inputPlatform !== oldP.platform);
+  if (programEditId === null && !platform) {
     showToast(t('الرجاء اختيار المنصة (Desktop / Mobile / Web) *'), 'error');
     return;
   }
 
-  const type = (gv('fp_ty') || '').trim();
-  if (platform !== 'Web' && !type) {
+  const type = (gv('fp_ty') || '').trim() || (!platformChanged ? oldP?.type : '') || '';
+  if ((programEditId === null || platformChanged) && !type) {
     showToast(t('الرجاء اختيار نوع البرنامج المرخص *'), 'error');
     return;
   }
 
-  const version = (gv('fp_ver') || '').trim();
-  if (platform !== 'Mobile' && !version) {
+  const versionInput = (gv('fp_ver') || '').trim();
+  const version = versionInput || (!platformChanged ? oldP?.version : '') || '';
+  if ((programEditId === null || platformChanged) && platform !== 'Mobile' && !version) {
     showToast(t('الرجاء اختيار إصدار البرنامج (مثال: V27, V26...) *'), 'error');
     return;
   }
 
-  const installationsCount = Math.max(1, gn('fp_ic', 1));
-  const c = gc(); if (!c) return;
-
-  const typeDisplay = type ? type.split(' ')[0] : (platform === 'Web' ? 'الويب' : '');
-  const derivedProgramName = platform === 'Mobile'
-    ? `${platform} - ${typeDisplay}`.trim()
-    : `${platform} - ${typeDisplay} ${version}`.trim();
-  
-  const d = {
-    programName: derivedProgramName,
-    platform: platform,
-    type: type || 'الويب',
-    version: platform === 'Mobile' ? '' : version,
-    installationsCount: installationsCount,
-    startDate: gv('fp_sd') || td(),
-    endDate: gv('fp_ed') || ''
-  };
-
-  if (!Array.isArray(c.programs)) c.programs = [];
-
-  let nextProgs = [...c.programs];
-  const stats = { ...(S.stats || {}) };
+  const installationInput = (gv('fp_ic') || '').trim();
+  let installationsCount;
+  if (installationInput) {
+    const parsedInstallationsCount = Number(installationInput);
+    if (!Number.isSafeInteger(parsedInstallationsCount) || parsedInstallationsCount < 1) {
+      showToast(t('الرجاء إدخال عدد صحيح موجب للأجهزة المرخصة.'), 'error');
+      return;
+    }
+    installationsCount = parsedInstallationsCount;
+  } else if (oldP?.installationsCount !== undefined && oldP.installationsCount !== null) {
+    installationsCount = oldP.installationsCount;
+  } else if (programEditId === null) {
+    showToast(t('الرجاء إدخال عدد الأجهزة المرخصة.'), 'error');
+    return;
+  }
+  const startDateInput = (gv('fp_sd') || '').trim();
+  const endDateInput = (gv('fp_ed') || '').trim();
+  const typeDisplay = type ? type.split(' ')[0] : '';
+  const canDeriveProgramName = Boolean(platform && (platform === 'Web' || type) && (platform === 'Mobile' || version));
+  const derivedProgramName = canDeriveProgramName
+    ? (platform === 'Mobile'
+      ? `${platform} - ${typeDisplay}`.trim()
+      : `${platform} - ${typeDisplay} ${version}`.trim())
+    : '';
+  const d = {};
+  if (derivedProgramName) d.programName = derivedProgramName;
+  else if (oldP?.programName) d.programName = oldP.programName;
+  if (platform) d.platform = platform;
+  if (type) d.type = type;
+  if (platform === 'Mobile') {
+    if (!oldP || platformChanged || Object.hasOwn(oldP, 'version')) d.version = platformChanged ? '' : (oldP ? oldP.version : '');
+  }
+  else if (version) d.version = version;
+  if (installationsCount !== undefined) d.installationsCount = installationsCount;
+  if (startDateInput) d.startDate = startDateInput;
+  if (endDateInput) d.endDate = endDateInput;
+  else if (oldP && Object.hasOwn(oldP, 'endDate')) d.endDate = oldP.endDate;
+  else if (!oldP) d.endDate = '';
 
   if (programEditId !== null) {
     const i = nextProgs.findIndex(p => p.id === programEditId);
-    if (i > -1) {
-      const oldP = nextProgs[i];
-      const diffInstalls = d.installationsCount - (Number(oldP.installationsCount) || 1);
-      stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) + diffInstalls);
-      
-      d.id = programEditId;
-      nextProgs[i] = { ...nextProgs[i], ...d };
-    }
+    const knownInstallations = count => {
+      const value = Number(count);
+      return Number.isFinite(value) && value > 0 ? value : 0;
+    };
+    const diffInstalls = knownInstallations(d.installationsCount ?? oldP.installationsCount)
+      - knownInstallations(oldP.installationsCount);
+    stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) + diffInstalls);
+
+    d.id = programEditId;
+    nextProgs[i] = { ...nextProgs[i], ...d };
   } else {
     d.id = Date.now();
     nextProgs.push(d);
@@ -161,37 +228,60 @@ export async function saveProgram(editId) {
   }
 
   const activeProg = nextProgs.filter(p => p.endDate).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
-  const nextEndDate = activeProg.length > 0 ? activeProg[0].endDate : '';
-  const nextInstalls = nextProgs.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
+  const nextEndDate = activeProg.length > 0 ? activeProg[0].endDate : (c.endDate || '');
+  const nextInstalls = nextProgs.reduce((total, program) => {
+    const count = Number(program.installationsCount);
+    return Number.isFinite(count) && count > 0 ? total + count : total;
+  }, 0);
+
+  const tenantId = auth.currentUser?.uid || currentUser?.tenantId || currentUser?.uid;
+  if (!tenantId || !S.isOnline) {
+    showToast(t('تعذر حفظ الترخيص دون اتصال موثوق بقاعدة البيانات.'), 'error');
+    return;
+  }
+  try {
+    await saveClientSubItemTransaction(
+      tenantId,
+      String(c.id),
+      'programs',
+      String(d.id),
+      d,
+      {
+        programsCount: nextProgs.length,
+        installationsCount: nextInstalls,
+        endDate: nextEndDate,
+        programNames: nextProgs.map(p => p.programName).filter(Boolean)
+      },
+      stats
+    );
+  } catch (error) {
+    console.error('[Programs] Failed to save license:', error);
+    showToast(t('تعذر حفظ الترخيص. لم يتم تسجيل العملية.'), 'error');
+    return;
+  }
 
   // Optimistic Local Update
   c.programs = nextProgs;
   c.endDate = nextEndDate;
-  c.programNames = nextProgs.map(p => p.programName);
+  c.programNames = nextProgs.map(p => p.programName).filter(Boolean);
   S.stats = stats;
   setClients([...clients]);
-
-  // Enqueue Sync Action
-  enqueueSyncAction('SAVE_SUB_ITEM', {
-    clientId: String(c.id),
-    collectionName: 'programs',
-    itemId: String(d.id),
-    itemData: d,
-    counterUpdates: { 
-      programsCount: nextProgs.length, 
-      installationsCount: nextInstalls, 
-      endDate: nextEndDate,
-      programNames: nextProgs.map(p => p.programName)
-    },
-    stats
-  });
+  const savedProgram = nextProgs.find(program => String(program.id) === String(d.id)) || d;
 
   // Log timeline activity
   if (programEditId !== null) {
-    logActivity(c.id, ActivityType.PROGRAM_EDITED, "تعديل ترخيص برنامج", `تم تعديل بيانات ترخيص البرنامج "${d.programName}". الأجهزة المرخصة: ${d.installationsCount}.`)
+    logActivity(c.id, ActivityType.PROGRAM_EDITED, "تعديل ترخيص برنامج", `تم تعديل بيانات ترخيص البرنامج "${savedProgram.programName || 'غير محدد'}". الأجهزة المرخصة: ${savedProgram.installationsCount ?? 'غير محدد'}.`, 'local', {
+      programId: String(d.id),
+      program: savedProgram,
+      idempotencyKey: getProgramEditEventId(c.id, savedProgram)
+    })
       .catch(err => console.error(err));
   } else {
-    logActivity(c.id, ActivityType.PROGRAM_ADDED, "إضافة برنامج ترخيص", `تم تسجيل ترخيص جديد للبرنامج "${d.programName}" مع ${d.installationsCount} أجهزة مرخصة.`)
+    logActivity(c.id, ActivityType.PROGRAM_ADDED, "إضافة برنامج ترخيص", `تم تسجيل ترخيص جديد للبرنامج "${savedProgram.programName}" مع ${savedProgram.installationsCount} أجهزة مرخصة.`, 'local', {
+      programId: String(d.id),
+      program: savedProgram,
+      idempotencyKey: `act_prog_${c.id}_${d.id}`
+    })
       .catch(err => console.error(err));
   }
 
@@ -222,7 +312,7 @@ export async function saveClient(editId) {
   const bf = (gv('f_bf') || '').trim();
   if (!bf) { showToast(t('الرجاء اختيار تخصص النشاط *'), 'error'); return; }
 
-  const st = (gv('f_st') || 'نشط').trim();
+  const st = (gv('f_st') || '').trim();
   if (!st) { showToast(t('الرجاء تحديد حالة العميل (نشط / محتمل / متوقف) *'), 'error'); return; }
 
   const lc = (gv('f_lc') || '').trim();
@@ -344,11 +434,17 @@ export async function saveClient(editId) {
     const pPl = (gv('f_p_pl') || '').trim();
     const pVer = (gv('f_p_ver') || '').trim();
     const pTy = (gv('f_p_ty') || '').trim();
-    const hasInitialProg = (pPl === 'Mobile' && (pTy || d.status === 'نشط')) || pVer || (d.status === 'نشط' && pPl);
+    const hasInitialProg = Boolean(document.getElementById('f_p_enabled')?.checked);
     if (hasInitialProg) {
-      const cleanPl = pPl || 'Desktop';
-      const cleanVer = cleanPl === 'Mobile' ? '' : (pVer || 'V27');
-      const cleanTy = pTy || (cleanPl === 'Mobile' ? 'تطبيق لوحة القيادة (Tableau de bord)' : (cleanPl === 'Web' ? 'الويب' : 'تجاري (Commercial)'));
+      const cleanPl = pPl;
+      const cleanVer = cleanPl === 'Mobile' ? '' : pVer;
+      const cleanTy = pTy;
+      const initialInstallationsCount = Number((gv('f_p_ic') || '').trim());
+      if (!cleanPl || !cleanTy || (cleanPl !== 'Mobile' && !cleanVer)
+        || !Number.isSafeInteger(initialInstallationsCount) || initialInstallationsCount < 1) {
+        showToast(t('يرجى استكمال بيانات الترخيص والتحقق من عدد الأجهزة قبل حفظ العميل.'), 'error');
+        return;
+      }
       const typeDisplay = cleanTy.split(' ')[0];
       const derivedName = cleanPl === 'Mobile'
         ? `${cleanPl} - ${typeDisplay}`.trim()
@@ -359,9 +455,9 @@ export async function saveClient(editId) {
         platform: cleanPl,
         type: cleanTy,
         version: cleanVer,
-        installationsCount: Math.max(1, gn('f_p_ic', 1)),
-        startDate: startDateVal || td(),
-        endDate: gv('f_ed') || ''
+        installationsCount: initialInstallationsCount,
+        startDate: '',
+        endDate: ''
       };
       newClient.programs = [pProg];
       newClient.programsCount = 1;
@@ -380,17 +476,26 @@ export async function saveClient(editId) {
     else if (d.status === 'محتمل') stats.prospectiveClients = (stats.prospectiveClients || 0) + 1;
     else if (d.status === 'متوقف') stats.stoppedClients = (stats.stoppedClients || 0) + 1;
     
-    // Optimistic Update
+    const tenantId = auth.currentUser?.uid || currentUser?.tenantId || currentUser?.uid;
+    if (!tenantId || !S.isOnline) {
+      showToast(t('تعذر حفظ العميل دون اتصال موثوق بقاعدة البيانات.'), 'error');
+      return;
+    }
+    try {
+      await addClientTransaction(tenantId, newClient, stats);
+    } catch (error) {
+      console.error('[Customers] Failed to save customer and initial license:', error);
+      showToast(t('تعذر حفظ العميل والترخيص. لم يتم تسجيل العملية.'), 'error');
+      return;
+    }
+
     setClients([...clients, newClient]);
     S.stats = stats;
-    
-    // Enqueue Sync Action
-    enqueueSyncAction('ADD_CLIENT', {
-      clientData: newClient,
-      stats
-    });
+
     // Log timeline activity for client creation
-    logActivity(nextId, ActivityType.CLIENT_CREATED, "إنشاء العميل", `تم تسجيل العميل بنظام CRM بنجاح: ${newClient.fullName}.`)
+    logActivity(nextId, ActivityType.CLIENT_CREATED, "إنشاء العميل", `تم تسجيل العميل بنظام CRM بنجاح: ${newClient.fullName}.`, 'local', {
+      idempotencyKey: `act_client_${nextId}`
+    })
       .catch(err => console.error(err));
 
     // Log timeline activity for initial program if created
@@ -402,7 +507,12 @@ export async function saveClient(editId) {
         `خدمة ترخيص برنامج: ${prg.programName}`,
         `تقديم وتثبيت خدمة برمجية "${prg.programName}" للعميل ${newClient.fullName} - المنصة: ${prg.platform} - نوع الخدمة: ${prg.type} - أجهزة مرخصة: ${prg.installationsCount} محطة (البداية: ${prg.startDate}).`,
         'local',
-        { clientName: newClient.fullName, program: prg }
+        {
+          clientName: newClient.fullName,
+          programId: String(prg.id),
+          program: prg,
+          idempotencyKey: `act_prog_${nextId}_${prg.id}`
+        }
       ).catch(err => console.error(err));
     }
 
@@ -441,8 +551,25 @@ export async function delClient(id) {
   else if (c.status === 'محتمل') stats.prospectiveClients = Math.max(0, (stats.prospectiveClients || 0) - 1);
   else if (c.status === 'متوقف') stats.stoppedClients = Math.max(0, (stats.stoppedClients || 0) - 1);
 
-  stats.totalPrograms = Math.max(0, (stats.totalPrograms || 0) - (c.programsCount || (c.programs || []).length));
-  stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) - (c.installationsCount || (c.programs || []).reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0)));
+  const canonicalPrograms = Array.isArray(c.programs) ? c.programs : [];
+  const knownProgramCount = c.programsCount !== undefined && c.programsCount !== null && c.programsCount !== ''
+    && Number.isSafeInteger(Number(c.programsCount)) && Number(c.programsCount) >= 0
+    ? Number(c.programsCount)
+    : (c._subcollectionsLoaded ? canonicalPrograms.length : null);
+  if (knownProgramCount !== null) {
+    stats.totalPrograms = Math.max(0, (stats.totalPrograms || 0) - knownProgramCount);
+  }
+  const canonicalInstallations = canonicalPrograms.reduce((total, program) => {
+    const count = Number(program.installationsCount);
+    return Number.isSafeInteger(count) && count > 0 ? total + count : total;
+  }, 0);
+  const knownInstallations = c.installationsCount !== undefined && c.installationsCount !== null && c.installationsCount !== ''
+    && Number.isSafeInteger(Number(c.installationsCount)) && Number(c.installationsCount) >= 0
+    ? Number(c.installationsCount)
+    : (c._subcollectionsLoaded ? canonicalInstallations : null);
+  if (knownInstallations !== null) {
+    stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) - knownInstallations);
+  }
   stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) - (c.openIssuesCount || c.issues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length));
 
   // Optimistic Local Update
@@ -454,8 +581,8 @@ export async function delClient(id) {
     clientId: String(id),
     clientData: {
       ...c,
-      programsCount: c.programsCount || (c.programs || []).length,
-      installationsCount: c.installationsCount || (c.programs || []).reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0),
+      ...(knownProgramCount !== null ? { programsCount: knownProgramCount } : {}),
+      ...(knownInstallations !== null ? { installationsCount: knownInstallations } : {}),
       openIssuesCount: c.openIssuesCount || c.issues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length
     },
     stats

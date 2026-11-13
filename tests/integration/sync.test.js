@@ -2,6 +2,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { enqueueSyncAction, flushSyncQueue, resolveConflict } from '../../src/business/storage.js';
 import { S, updateState, setClients, setCurrentUser } from '../../src/state/store.js';
 import * as firebaseService from '../../src/firebase/service.js';
+import * as idbStorage from '../../src/business/idbStorage.js';
+
+vi.mock('../../src/business/idbStorage.js', () => ({
+  getClients: vi.fn(async () => []),
+  getSyncQueue: vi.fn(async () => []),
+  saveClients: vi.fn(async () => true),
+  setMeta: vi.fn(async () => true),
+  saveSyncQueue: vi.fn(async () => true)
+}));
 
 vi.mock('../../src/firebase/service.js', () => ({
   addClientTransaction: vi.fn(),
@@ -25,6 +34,23 @@ describe('Sync Queue Lifecycle', () => {
     
     expect(S.syncQueue.length).toBe(1);
     expect(S.syncQueue[0].type).toBe('UPDATE_CLIENT');
+  });
+
+  it('should not send an operation when local queue persistence fails', async () => {
+    S.isOnline = true;
+    idbStorage.saveSyncQueue.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
+
+    await expect(enqueueSyncAction('ADD_CLIENT', {
+      clientData: { id: 2 },
+      stats: {}
+    })).resolves.toBe(false);
+
+    expect(firebaseService.addClientTransaction).not.toHaveBeenCalled();
+    expect(S.syncQueue[0]).toMatchObject({
+      type: 'ADD_CLIENT',
+      state: 'failed',
+      lastError: expect.stringContaining('Failed to persist locally')
+    });
   });
 
   it('should not flush queue if offline', async () => {
@@ -68,6 +94,48 @@ describe('Sync Queue Lifecycle', () => {
     expect(S.conflictItem).toBeDefined();
     expect(S.conflictServerData).toEqual({ fullName: 'Server Edit', version: 2 });
     expect(S.syncQueue.length).toBe(1); // item stays in queue
+    expect(S.syncQueue[0].state).toBe('requires-attention');
+  });
+
+  it('should retain permanent failures for attention instead of dropping operations', async () => {
+    S.isOnline = true;
+    S.syncQueue = [
+      { id: 'perm-1', type: 'UPDATE_CLIENT', payload: { clientId: 1, clientData: {}, oldStatus: 'نشط', stats: {} } }
+    ];
+    firebaseService.updateClientTransaction.mockRejectedValueOnce(
+      Object.assign(new Error('permission denied'), { code: 'permission-denied' })
+    );
+
+    await flushSyncQueue();
+
+    expect(S.syncQueue).toHaveLength(1);
+    expect(S.syncQueue[0]).toMatchObject({
+      id: 'perm-1',
+      state: 'failed',
+      attempts: 1,
+      errorCode: 'permission-denied'
+    });
+  });
+
+  it('should release the queue when persisting a permanent failure state fails', async () => {
+    S.isOnline = true;
+    S.syncQueue = [
+      { id: 'perm-storage-fail', type: 'UPDATE_CLIENT', payload: { clientId: 1, clientData: {}, oldStatus: 'نشط', stats: {} } }
+    ];
+    firebaseService.updateClientTransaction.mockRejectedValueOnce(
+      Object.assign(new Error('permission denied'), { code: 'permission-denied' })
+    );
+    idbStorage.saveSyncQueue
+      .mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new Error('IndexedDB unavailable'));
+
+    await expect(flushSyncQueue()).resolves.toBeUndefined();
+
+    expect(S.syncQueue[0]).toMatchObject({
+      id: 'perm-storage-fail',
+      state: 'failed',
+      lastError: expect.stringContaining('failed to persist recovery state')
+    });
   });
 
   it('should handle resolveConflict(server)', () => {

@@ -69,7 +69,7 @@ export function renderList(){
       <div class="stat-c sg" style="cursor:pointer" onclick="setFil('نشط')" title="${t('تصفية وتحديد')}"><div class="stat-v">${ac}</div><div class="stat-l">${t('نشط')}</div></div>
       <div class="stat-c sb" style="cursor:pointer" onclick="setFil('محتمل')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pr}</div><div class="stat-l">${t('محتمل')}</div></div>
       <div class="stat-c so" style="cursor:pointer" onclick="setFil('متوقف')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pa}</div><div class="stat-l">${t('متوقف')}</div></div>
-      <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+(c.programs||[]).length,0)}</div><div class="stat-l">${t('برامج')} · ${clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0)} ${t('جهاز')}</div></div>
+      <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+(c.programs||[]).length,0)}</div><div class="stat-l">${t('برامج')} · ${clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number.isFinite(Number(p.installationsCount))?Number(p.installationsCount):0),0),0)} ${t('جهاز')}</div></div>
     </div>
     <div class="search-row">
       ${hasPermission('search.global') || hasPermission('search.clients') ? `
@@ -203,9 +203,9 @@ export function renderDetail(){
           const firstP = (pp.length>0 && pp[0]) ? pp[0] : null;
           const pName = firstP ? firstP.programName : ((c.programNames && c.programNames.length>0) ? c.programNames[0] : '');
           const hasProg = Boolean(firstP || pName || ps.total>0);
-          const displayName = pName || 'برنامج PROGILIC';
+          const displayName = pName || t('بيانات الترخيص التفصيلية غير متاحة');
           return hasProg
-            ? `<span class="ch-mi">📦 ${esc(displayName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls || 1} ${t('جهاز')}</span>`
+            ? `<span class="ch-mi">📦 ${esc(displayName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls} ${t('جهاز')}</span>`
             : `<span class="ch-mi" style="opacity:.5">📦 ${t('لا برامج')}</span>`;
         })()}
         <span class="ch-mi">${activityIcon(c.businessType)} ${t(c.businessType)||"—"}${c.businessField?' · '+t(c.businessField):''}</span>
@@ -220,7 +220,7 @@ export function renderDetail(){
     </div>
     <div class="tabs-wrap">
       <button class="tabBtn${S.tab==='overview'?' on':''}" onclick="setTab('overview')">${t('نظرة عامة')}</button>
-      ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length || c.programsCount || ((c.programNames&&c.programNames.length) ? c.programNames.length : (c.status==='نشط'?1:0))}</span></button>` : ''}
+      ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length || c.programsCount || (c.programNames?.length || 0)}</span></button>` : ''}
       ${hasPermission('issues.view') ? `<button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">${t('المشاكل')} <span class="tab-count${c.issues.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${c.issues.length}</span></button>` : ''}
       ${hasPermission('features.view') ? `<button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">${t('المتطلبات')} <span class="tab-count">${c.requirements.length}</span></button>` : ''}
       ${hasPermission('contacts.view_history') ? `<button class="tabBtn${S.tab==='contacts'?' on':''}" onclick="setTab('contacts')">${t('📞 التواصل')} <span class="tab-count">${(c.contactHistory||[]).length}</span></button>` : ''}
@@ -285,14 +285,14 @@ function renderOverview(c){
         const ps=getProgramStats(c);
         const pp=c.programs||[];
         const firstP = (pp.length>0 && pp[0]) ? pp[0] : null;
-        const pName = firstP ? (firstP.programName + (firstP.version ? ` · ${firstP.version}` : '')) : ((c.programNames && c.programNames.length>0) ? c.programNames[0] : (ps.total>0 ? 'برنامج PROGILIC' : '—'));
-        const totalCount = ps.total || (pp.length || (c.programNames ? c.programNames.length : (c.status==='نشط'?1:0)));
+        const pName = firstP ? (firstP.programName + (firstP.version ? ` · ${firstP.version}` : '')) : ((c.programNames && c.programNames.length>0) ? c.programNames[0] : '—');
+        const totalCount = ps.total || pp.length || c.programNames?.length || 0;
         return`
-        <div class="iitem"><div class="ilbl">${t('إجمالي البرامج')}</div><div class="ival">${totalCount} ${totalCount>0?`<span style="font-size:11px;color:var(--t3)">· ${ps.totalInstalls || 1} ${t('جهاز')}</span>`:''}</div></div>
+        <div class="iitem"><div class="ilbl">${t('إجمالي البرامج')}</div><div class="ival">${totalCount} ${totalCount>0?`<span style="font-size:11px;color:var(--t3)">· ${ps.totalInstalls} ${t('جهاز')}</span>`:''}</div></div>
         <div class="iitem"><div class="ilbl">${t('البرنامج')}</div><div class="ival ${pName!=='—'?'':'muted'}">${esc(pName)}</div></div>`;
       })()}
       <div class="iitem"><div class="ilbl">${t('تاريخ البداية')}</div><div class="ival">${fmtD(c.startDate)}</div></div>
-      <div class="iitem"><div class="ilbl">${t('نوع الترخيص')}</div><div class="ival" style="color:var(--brand);font-weight:600">مدى الحياة (Licence à vie)</div></div>
+      <div class="iitem"><div class="ilbl">${t('نوع الترخيص')}</div><div class="ival">${esc(c.programs?.[0]?.licenseType || c.programs?.[0]?.licenseTerm || t('غير محدد'))}</div></div>
       <div class="iitem"><div class="ilbl">${t('آخر تواصل')}</div><div class="ival"><span class="last-contact-clickable" onclick="setTab('contacts')" title="${t('عرض التفاصيل')}">${fmtD(c.lastContact)||'—'} 📋</span></div></div>
     </div>
     ${gpsSection}
@@ -390,33 +390,13 @@ function renderContacts(c){
 
 function renderPrograms(c){
   const ps=getProgramStats(c);
-  let progs=c.programs||[];
-  if (progs.length === 0 && (c.programNames?.length > 0 || c.programsCount > 0 || c.status === 'نشط')) {
-    const pName = (c.programNames && c.programNames[0]) || 'Desktop - تجاري V27';
-    const isMobile = pName.toLowerCase().includes('mobile');
-    const isWeb = pName.toLowerCase().includes('web');
-    const platform = isMobile ? 'Mobile' : (isWeb ? 'Web' : 'Desktop');
-    const verMatch = pName.match(/(V\d+|v\d+|R\+|arabe)/i);
-    const recoveredProg = {
-      id: c.id ? Number(c.id) * 1000 + 1 : Date.now(),
-      programName: pName,
-      platform,
-      type: platform === 'Mobile' ? 'تطبيق لوحة القيادة (Tableau de bord)' : 'تجاري (Commercial)',
-      version: verMatch ? verMatch[1] : (platform === 'Mobile' ? '' : 'V27'),
-      installationsCount: Math.max(1, c.installationsCount || 1),
-      startDate: c.startDate || td(),
-      endDate: ''
-    };
-    progs = [recoveredProg];
-    c.programs = progs;
-    c._subcollectionsLoaded = true;
-  }
+  const progs=Array.isArray(c.programs)?c.programs:[];
   console.log("DEBUG RENDER PROGRAMS: c.id =", c.id, "c.fullName =", c.fullName, "progs =", JSON.stringify(progs));
   return`
     <div class="prog-summary">
       <div class="ps-item ps-active"><div class="ps-val">${ps.total}</div><div class="ps-lbl">${t('إجمالي البرامج')}</div></div>
       <div class="ps-item"><div class="ps-val">${ps.totalInstalls}</div><div class="ps-lbl">${t('إجمالي الأجهزة')}</div></div>
-      <div class="ps-item ${ps.expired>0?'ps-expired':'ps-active'}"><div class="ps-val">${ps.active}</div><div class="ps-lbl">${t('نشط /')} ${ps.expired} ${t('منتهي')}</div></div>
+      <div class="ps-item ${ps.expired>0?'ps-expired':'ps-active'}"><div class="ps-val">${ps.active}</div><div class="ps-lbl">${t('نشط /')} ${ps.expired} ${t('منتهي')} / ${ps.unknown} ${t('غير محدد')}</div></div>
     </div>
     <div class="pane-hdr">
       <span class="pane-title">${t('قائمة البرامج')}</span>
@@ -425,7 +405,9 @@ function renderPrograms(c){
     ${progs.length===0
       ?`<div class="empty">
           <div class="empty-icon">📦</div>
-          <div class="empty-text">${t('لا توجد برامج مرتبطة بهذا العميل')}</div>
+          <div class="empty-text">${c.programsCount > 0 || c.programNames?.length > 0
+            ? t('بيانات الترخيص التفصيلية غير متاحة وتحتاج إلى مراجعة')
+            : t('لا توجد برامج مرتبطة بهذا العميل')}</div>
           ${hasPermission('programs.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('إضافة أول برنامج')}</button>` : ''}
         </div>`
       :progs.map(p=>`
@@ -446,7 +428,7 @@ function renderPrograms(c){
             </div>
             <div class="prog-date-item" style="flex:1">
               <div class="prog-date-lbl">${t('نوع الترخيص')}</div>
-              <div class="prog-date-val" style="color:var(--brand);font-weight:600">مدى الحياة</div>
+              <div class="prog-date-val">${esc(p.licenseType || p.licenseTerm || t('غير محدد'))}</div>
             </div>
           </div>
           <div class="prog-acts">

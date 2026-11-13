@@ -401,7 +401,9 @@ function renderAlertBanner(alerts) {
 // Helper to render Storage & Sync Status Bar
 function renderStorageBar() {
   const isOnline = S.isOnline;
-  const queueCount = (S.syncQueue || []).length;
+  const queue = S.syncQueue || [];
+  const queueCount = queue.length;
+  const attentionCount = queue.filter(item => item.state === 'failed' || item.state === 'requires-attention').length;
   const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
   
   let statusHTML = '';
@@ -410,6 +412,13 @@ function renderStorageBar() {
       <span style="color:#ef4444; font-weight:700; display:flex; align-items:center; gap:6px;">
         <span class="pulse-offline" style="width:10px; height:10px; border-radius:50%; background:#ef4444; display:inline-block; animation: pulse 1s infinite;"></span>
         ⚠️ ${t('غير متصل - مطلوب اتصال بالإنترنت (نظام سحابي أونلاين فقط)')}
+      </span>
+    `;
+  } else if (attentionCount > 0) {
+    statusHTML = `
+      <span style="color:#ff4d4f; font-weight:700; display:flex; align-items:center; gap:6px;">
+        ⚠️ ${attentionCount} ${t('عملية مزامنة تحتاج إلى مراجعة')}
+        <button class="btn btn-xs" onclick="retrySyncQueue()" style="margin-inline-start:8px">${t('إعادة المحاولة')}</button>
       </span>
     `;
   } else if (queueCount > 0) {

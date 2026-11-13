@@ -1,12 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const cloudMocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn() }));
+const activityStorageMocks = vi.hoisted(() => ({
+  items: [],
+  get: vi.fn(),
+  add: vi.fn(),
+  delete: vi.fn()
+}));
 vi.mock('../../src/firebase/service.js', () => ({
   getTenantActivities: cloudMocks.get,
   saveTenantActivity: cloudMocks.save
 }));
+vi.mock('../../src/business/idbStorage.js', () => ({
+  getActivities: activityStorageMocks.get,
+  addActivity: activityStorageMocks.add,
+  deleteActivity: activityStorageMocks.delete
+}));
 import { buildTimelineReport, getFilteredTimelineList } from '../../src/business/actions/timelineActions.js';
 import { ActivityType } from '../../src/business/timelineService.js';
-import { loadGlobalActivities, logActivity, syncCrmServicesToTimeline } from '../../src/business/timelineService.js';
+import { loadGlobalActivities, logActivity, syncCrmServicesToTimeline, syncPendingActivities, retryFailedTimelineActivities } from '../../src/business/timelineService.js';
 import { S, setCurrentStaffUser, setCurrentUser, updateState, setClients } from '../../src/state/store.js';
 
 const activities = [
@@ -18,6 +29,16 @@ const activities = [
 
 describe('Global timeline filters and report', () => {
   beforeEach(() => {
+    activityStorageMocks.items = [];
+    activityStorageMocks.get.mockImplementation(async () => [...activityStorageMocks.items]);
+    activityStorageMocks.add.mockImplementation(async (_uid, activity) => {
+      activityStorageMocks.items = activityStorageMocks.items.filter(item => item.id !== activity.id);
+      activityStorageMocks.items.push(activity);
+      return activity.id;
+    });
+    activityStorageMocks.delete.mockImplementation(async (_uid, id) => {
+      activityStorageMocks.items = activityStorageMocks.items.filter(activity => activity.id !== id);
+    });
     updateState({
       globalActivities: [], timelineUserFilter: 'all', timelineDatePreset: 'all',
       timelineDateFrom: '', timelineDateTo: '', timelineCategoryFilter: 'all', timelineSearch: ''
@@ -144,6 +165,50 @@ describe('Global timeline filters and report', () => {
     expect(localStorage.getItem('progilic_crm_activity_migration_timeline-tenant')).toBe('complete');
   });
 
+  it('durably queues a Timeline event after a cloud write failure and retries it once online', async () => {
+    setCurrentUser({ uid: 'timeline-tenant', role: 'gerant' });
+    cloudMocks.save.mockRejectedValueOnce(new Error('network unavailable'));
+
+    const savedId = await logActivity(
+      401,
+      ActivityType.ISSUE_ADDED,
+      'تسجيل تذكرة عطل تقني',
+      'تم تسجيل تذكرة لطابعة الفواتير'
+    );
+
+    expect(savedId).toBeTruthy();
+    expect(activityStorageMocks.items).toHaveLength(1);
+    expect(S.timelineCloudStatus).toBe('pending');
+
+    cloudMocks.save.mockImplementationOnce(async (_uid, activity) => activity.id);
+    await expect(syncPendingActivities('timeline-tenant')).resolves.toBe(true);
+
+    expect(activityStorageMocks.items).toHaveLength(0);
+    expect(S.timelineCloudStatus).toBe('synced');
+  });
+
+  it('retains permanent Timeline failures for explicit review and retry', async () => {
+    setCurrentUser({ uid: 'timeline-tenant', role: 'gerant' });
+    cloudMocks.save.mockRejectedValueOnce(
+      Object.assign(new Error('permission denied'), { code: 'permission-denied' })
+    );
+
+    await logActivity(401, ActivityType.ISSUE_ADDED, 'تذكرة', 'حدث');
+
+    expect(activityStorageMocks.items[0]).toMatchObject({
+      syncState: 'requires-attention',
+      attempts: 1,
+      errorCode: 'permission-denied'
+    });
+    expect(S.timelineCloudStatus).toBe('requires-attention');
+
+    cloudMocks.save.mockImplementationOnce(async (_uid, activity) => activity.id);
+    await expect(retryFailedTimelineActivities('timeline-tenant')).resolves.toBe(true);
+
+    expect(activityStorageMocks.items).toHaveLength(0);
+    expect(S.timelineCloudStatus).toBe('synced');
+  });
+
   it('filters day_before_yesterday preset correctly', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 9, 25, 12));
@@ -183,6 +248,31 @@ describe('Global timeline filters and report', () => {
     const progAct = S.globalActivities.find(a => a.id === 'act_prog_991_101');
     expect(progAct).toBeDefined();
     expect(progAct.title).toContain('PROGILIC POS');
+    expect(progAct.meta).toMatchObject({
+      programId: '101',
+      program: { id: 101, platform: 'Desktop', installationsCount: 2 }
+    });
     expect(progAct.category).toBe('programs');
+  });
+
+  it('does not invent missing license fields or timestamps in generated timeline events', async () => {
+    setCurrentUser({ uid: 'timeline-tenant', role: 'gerant' });
+    setClients([{
+      id: 992,
+      fullName: 'Legacy License Customer',
+      programs: [
+        { id: 102, programName: 'Recorded Program', startDate: '2024-01-02' },
+        { id: 103, programName: 'Undated Program' }
+      ]
+    }]);
+
+    await syncCrmServicesToTimeline('timeline-tenant');
+
+    const recordedEvent = S.globalActivities.find(activity => activity.id === 'act_prog_992_102');
+    expect(recordedEvent.description).not.toContain('Desktop');
+    expect(recordedEvent.description).not.toContain('تجاري');
+    expect(recordedEvent.description).not.toContain('1 محطة');
+    expect(recordedEvent.meta.program).toEqual({ id: 102, programName: 'Recorded Program', startDate: '2024-01-02' });
+    expect(S.globalActivities.some(activity => activity.id === 'act_prog_992_103')).toBe(false);
   });
 });

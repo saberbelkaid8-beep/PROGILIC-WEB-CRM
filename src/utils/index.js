@@ -103,11 +103,10 @@ export function getProgramTypesForPlatform(platform) {
 }
 
 export function programTypeOpts(platform, cur) {
-  const types = getProgramTypesForPlatform(platform || 'Desktop');
-  if (!types || types.length === 0) {
-    return `<option value="">(${t('لا توجد برامج ويب حالياً — قيد التطوير')})</option>`;
-  }
-  return types.map(ty => {
+  const types = platform === 'Web' ? ['الويب'] : getProgramTypesForPlatform(platform);
+  const placeholder = `<option value=""${cur ? '' : ' selected'}>${t(platform ? 'اختر نوع البرنامج' : 'اختر المنصة أولاً')}</option>`;
+  if (!platform) return placeholder;
+  return placeholder + types.map(ty => {
     const isSelected = cur === ty || (cur && ty.startsWith(cur)) || (cur && cur.startsWith(ty.split(' ')[0]));
     return `<option value="${ty}"${isSelected ? ' selected' : ''}>${t(ty)}</option>`;
   }).join('');
@@ -136,14 +135,10 @@ export function updateProgramTypeSelect(platform, targetId = 'fp_ty') {
 export function onClientStatusChange() {
   const st = document.getElementById('f_st')?.value;
   const sdInput = document.getElementById('f_sd');
-  const progSec = document.getElementById('active_client_prog_sec');
   if (st === 'نشط') {
     if (sdInput && !sdInput.value) {
       sdInput.value = new Date().toISOString().split('T')[0];
     }
-    if (progSec) progSec.style.display = 'block';
-  } else {
-    if (progSec) progSec.style.display = 'none';
   }
 }
 
@@ -166,36 +161,61 @@ export function activityIcon(act) {
   return m[act] || '🏪';
 }
 
-const progStatsCache = new WeakMap();
-
 export function getProgramStats(c) {
   if (!c) return { total: 0, totalInstalls: 0, active: 0, expired: 0 };
-  if (progStatsCache.has(c)) {
-    return progStatsCache.get(c);
-  }
+  const progs = Array.isArray(c.programs) ? c.programs : [];
   let res;
-  if (!c._subcollectionsLoaded && c.programsCount !== undefined) {
+  if (!c._subcollectionsLoaded && progs.length === 0 && c.programsCount !== undefined) {
+    const total = Number(c.programsCount) || 0;
+    const knownInstallations = Number(c.installationsCount);
     res = {
-      total: c.programsCount || 0,
-      totalInstalls: c.installationsCount || 0,
-      active: c.programsCount || 0,
-      expired: 0
+      total,
+      totalInstalls: Number.isFinite(knownInstallations) && knownInstallations >= 0 ? knownInstallations : 0,
+      active: 0,
+      expired: 0,
+      unknown: total
     };
   } else {
-    const progs = c.programs || [];
-    const totalInstalls = progs.reduce((s, p) => s + (Number(p.installationsCount) || 1), 0);
-    res = { total: progs.length, totalInstalls, active: progs.length, expired: 0 };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const totalInstalls = progs.reduce((sum, program) => {
+      const count = Number(program.installationsCount);
+      return Number.isFinite(count) && count > 0 ? sum + count : sum;
+    }, 0);
+    const expired = progs.filter(program => {
+      if (!program.endDate) return false;
+      const endDate = new Date(`${program.endDate}T00:00:00`);
+      return Number.isFinite(endDate.getTime()) && endDate < today;
+    }).length;
+    const active = progs.filter(program => {
+      if (!program.endDate) return false;
+      const endDate = new Date(`${program.endDate}T00:00:00`);
+      return Number.isFinite(endDate.getTime()) && endDate >= today;
+    }).length;
+    res = { total: progs.length, totalInstalls, active, expired, unknown: progs.length - active - expired };
   }
-  progStatsCache.set(c, res);
   return res;
 }
 
 export function progStatusCls(p) {
-  return 'active-prog';
+  const status = progStatus(p);
+  return status === 'active' ? 'active-prog' : (status === 'expired' ? 'expired-prog' : '');
 }
 
 export function progStatusLabel(p) {
-  return `<span class="bdg bdg-g">${t('نشط (مدى الحياة)')}</span>`;
+  const status = progStatus(p);
+  const label = status === 'active' ? t('نشط') : (status === 'expired' ? t('منتهي') : t('غير محدد'));
+  const badgeClass = status === 'active' ? 'bdg-g' : (status === 'expired' ? 'bdg-r' : 'bdg-gr');
+  return `<span class="bdg ${badgeClass}">${label}</span>`;
+}
+
+function progStatus(p) {
+  if (!p?.endDate) return 'unknown';
+  const endDate = new Date(`${p.endDate}T00:00:00`);
+  if (!Number.isFinite(endDate.getTime())) return 'unknown';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return endDate < today ? 'expired' : 'active';
 }
 
 export function platformIcon(pl) { const m = { 'Desktop': '🖥', 'Mobile': '📱', 'Web': '🌐', 'Hybrid': '⚡' }; return m[pl] || '💻'; }

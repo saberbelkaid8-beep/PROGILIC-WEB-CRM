@@ -21,6 +21,7 @@ export function renderGlobalTimeline() {
   const cloudStatus = {
     synced: { label: 'سجل السحابة أونلاين متزامن فورياً مع كافة المستخدمين', color: '#059669' },
     pending: { label: 'أنشطة جديدة قيد الرفع والمزامنة أونلاين', color: '#D97706' },
+    'requires-attention': { label: 'توجد أنشطة فشل رفعها وتحتاج إلى إعادة المحاولة أو مراجعة الصلاحيات', color: '#DC2626' },
     partial: { label: 'مطلوب اتصال بالإنترنت للمزامنة السحابية', color: '#DC2626' },
     'local-only': { label: 'مطلوب تسجيل الدخول بالإنترنت للمزامنة السحابية', color: '#DC2626' }
   }[S.timelineCloudStatus] || { label: 'مزامنة سحابية حية نشطة أونلاين', color: '#059669' };
@@ -118,6 +119,7 @@ export function renderGlobalTimeline() {
 
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
           <span role="status" style="font-size:11px; color:${cloudStatus.color}; font-weight:700">${t(cloudStatus.label)}</span>
+          ${S.timelineCloudStatus === 'requires-attention' ? `<button class="btn btn-outline btn-sm" onclick="retryFailedTimelineActivities()" style="font-size:11px">${t('إعادة محاولة الأنشطة المتعثرة')}</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="syncAllCrmServicesAction()" title="${t('مزامنة ورفع كافة خدمات وتراخيص الـ CRM الحالية إلى المخطط الزمني السحابي')}" style="font-size:11.5px; padding:6px 12px; color:#059669; border-color:#059669; font-weight:700">
             ⚡ ${t('مزامنة كل خدمات الـ CRM')}
           </button>

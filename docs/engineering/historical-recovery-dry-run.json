@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-11-13T20:45:00+01:00",
+  "mode": "repository-only-read-only-audit",
+  "sourceDataAvailable": false,
+  "historicalRecordsScanned": 0,
+  "recoverableCandidates": null,
+  "missingMobileProgramsRecoverable": null,
+  "mobileProgramRestorationStatus": "blocked-no-source-evidence",
+  "productionDataRead": false,
+  "productionDataWritten": false,
+  "productionBackupCreated": false,
+  "recoveryWritesPerformed": 0,
+  "reason": "No historical CRM export or authenticated production/emulator data source was available in the repository session.",
+  "nextRequiredSteps": [
+    "Obtain authorized read-only access to historical source data",
+    "Create and independently verify a production backup",
+    "Run the read-only candidate classifier against supplied client and Timeline snapshots",
+    "Review candidate evidence and obtain explicit approval before any migration"
+  ]
+}

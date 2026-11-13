@@ -5,6 +5,7 @@ import { writeBatch, doc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config.js';
 import { saveUserData } from '../firebase/service.js';
 import { clearAllUserData, getClients, saveClients } from './idbStorage.js';
+import { getProgramStats } from '../utils/index.js';
 
 const AUDIT_LOGS_KEY = 'crm_purge_audit_logs';
 
@@ -255,7 +256,7 @@ export async function executePurge(config, onProgress) {
   const prospectiveCount = updatedClients.filter(c => c.status === 'محتمل').length;
   const stoppedCount = updatedClients.filter(c => c.status === 'متوقف').length;
   const totalProgs = updatedClients.reduce((acc, c) => acc + (c.programs || []).length, 0);
-  const totalInsts = updatedClients.reduce((acc, c) => acc + (c.programs || []).reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0), 0);
+  const totalInsts = updatedClients.reduce((total, c) => total + getProgramStats(c).totalInstalls, 0);
   const totalOpenIss = updatedClients.reduce((acc, c) => acc + (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length, 0);
 
   const newStats = {

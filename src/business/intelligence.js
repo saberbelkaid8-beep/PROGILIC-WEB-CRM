@@ -144,7 +144,7 @@ export function computeRiskProfile(c){
 export function computeGlobalStats(){
   const safeClients = (clients || []).filter(c => c && typeof c === 'object');
   const totalProgsGlobal=safeClients.reduce((s,c)=>s+(c.programs||[]).length,0);
-  const totalInstGlobal=safeClients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0);
+  const totalInstGlobal=safeClients.reduce((total,c)=>total+getProgramStats(c).totalInstalls,0);
   const allIssues=safeClients.flatMap(c=>(c.issues||[]).map(i=>({...i,clientName:c.fullName,clientId:c.id})));
   const allReqs=safeClients.flatMap(c=>(c.requirements||[]).map(r=>({...r,clientName:c.fullName,clientId:c.id})));
   const openIssues=allIssues.filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة');

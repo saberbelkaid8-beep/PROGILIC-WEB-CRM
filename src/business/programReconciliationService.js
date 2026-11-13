@@ -1,234 +1,184 @@
 /**
- * PROGILIC CRM - Program Reconciliation & Recovery Service
- * Recovers missing software licenses for clients by reconciling with
- * historical timeline audit traces, programNames arrays, and CRM records.
+ * Read-only program recovery analysis.
+ *
+ * Historical audit events and denormalized summaries are evidence for review;
+ * they are not permission to create or alter canonical program records.
  */
 
-import { clients, S, setClients } from '../state/store.js';
-import { td } from '../utils/index.js';
-import { saveClientSubItemTransaction } from '../firebase/service.js';
-import { logActivity, ActivityType } from './timelineService.js';
+const PROGRAM_ADDED = 'PROGRAM_ADDED';
 
-/**
- * Extracts a structured program object from an activity audit entry.
- */
-export function extractProgramFromActivity(act, client) {
-  if (!act) return null;
-  const desc = act.description || '';
-  const title = act.title || '';
+function sameId(left, right) {
+  return left !== undefined && left !== null
+    && right !== undefined && right !== null
+    && String(left) === String(right);
+}
 
-  // 1. Program Name
-  let progName = '';
-  const titleMatch = title.match(/خدمة ترخيص برنامج:\s*([^\n\r]+)/);
-  if (titleMatch && titleMatch[1]) {
-    progName = titleMatch[1].trim();
-  }
-  if (!progName) {
-    const descMatch = desc.match(/خدمة برمجية\s*"([^"]+)"/);
-    if (descMatch && descMatch[1]) {
-      progName = descMatch[1].trim();
-    }
-  }
-  if (!progName) {
-    const descMatch2 = desc.match(/للبرنامج\s*"([^"]+)"/);
-    if (descMatch2 && descMatch2[1]) {
-      progName = descMatch2[1].trim();
-    }
-  }
-  if (!progName && client?.programNames && client.programNames.length > 0) {
-    progName = client.programNames[0];
-  }
-  if (!progName) {
-    progName = 'Desktop - تجاري V27';
-  }
+function completeProgram(program) {
+  return Boolean(
+    program
+    && typeof program === 'object'
+    && (typeof program.id === 'string' || typeof program.id === 'number')
+    && String(program.id).length > 0
+    && typeof program.programName === 'string'
+    && program.programName.trim()
+    && typeof program.platform === 'string'
+    && program.platform.trim()
+    && typeof program.type === 'string'
+    && program.type.trim()
+  );
+}
 
-  // 2. Platform
-  let platform = 'Desktop';
-  const platMatch = desc.match(/المنصة:\s*([^\s-]+)/);
-  if (platMatch && platMatch[1]) {
-    platform = platMatch[1].trim();
-  } else if (progName.toLowerCase().includes('mobile')) {
-    platform = 'Mobile';
-  } else if (progName.toLowerCase().includes('web')) {
-    platform = 'Web';
-  }
+export function extractProgramFromActivity(activity) {
+  const program = activity?.meta?.program;
+  return completeProgram(program) ? { ...program } : null;
+}
 
-  // 3. Type
-  let type = 'تجاري (Commercial)';
-  const typeMatch = desc.match(/نوع الخدمة:\s*([^\s-]+)/);
-  if (typeMatch && typeMatch[1]) {
-    const rawType = typeMatch[1].trim();
-    type = rawType.includes('تجاري') ? 'تجاري (Commercial)' :
-           rawType.includes('إنتاجي') ? 'إنتاجي (Production)' :
-           rawType.includes('توزيع') ? 'توزيع (Distribution)' : rawType;
-  } else if (platform === 'Mobile') {
-    type = 'تطبيق لوحة القيادة (Tableau de bord)';
-  }
+function matchesClient(activity, client) {
+  return sameId(activity?.clientId, client?.id);
+}
 
-  // 4. Version
-  let version = 'V27';
-  const verMatch = progName.match(/(V\d+|v\d+|R\+|arabe)/i);
-  if (verMatch) {
-    version = verMatch[1];
-  } else if (platform === 'Mobile') {
-    version = '';
-  }
-
-  // 5. Installations count
-  let installationsCount = 1;
-  const instMatch = desc.match(/أجهزة مرخصة:\s*(\d+)/) || desc.match(/مع\s*(\d+)\s*أجهزة/);
-  if (instMatch && instMatch[1]) {
-    installationsCount = Math.max(1, parseInt(instMatch[1], 10));
-  } else if (client?.installationsCount) {
-    installationsCount = Math.max(1, client.installationsCount);
-  }
-
-  // 6. Dates
-  let startDate = client?.startDate || td();
-  const startMatch = desc.match(/البداية:\s*([\d-]+)/);
-  if (startMatch && startMatch[1]) {
-    startDate = startMatch[1].trim();
-  } else if (act.timestamp) {
-    startDate = act.timestamp.split('T')[0];
-  }
-
-  let endDate = '';
-  const endMatch = desc.match(/النهاية:\s*([\d-]+)/);
-  if (endMatch && endMatch[1]) {
-    endDate = endMatch[1].trim();
-  }
-
-  // Ensure deterministic ID if possible
-  let progId = Date.now() + Math.floor(Math.random() * 1000);
-  if (act.id && act.id.startsWith('act_prog_')) {
-    const parts = act.id.split('_');
-    const lastPart = parts[parts.length - 1];
-    if (/^\d+$/.test(lastPart)) {
-      progId = Number(lastPart);
-    }
-  }
-
+function summarizeCandidate(client, classification, action, evidence, activity, program = null) {
   return {
-    id: progId,
-    programName: progName,
-    platform,
-    type,
-    version,
-    installationsCount,
-    startDate,
-    endDate
+    customerId: client.id,
+    customerDisplayName: client.fullName || null,
+    existingProgramId: program?.id ?? null,
+    program: program ? { ...program } : null,
+    originalTimestamp: program?.createdAt || program?.startDate || activity?.timestamp || null,
+    fieldVerification: {
+      programName: program?.programName ? 'verified' : 'unknown',
+      platform: program?.platform ? 'verified' : 'unknown',
+      version: program?.version ? 'verified' : 'unknown',
+      startDate: program?.startDate ? 'verified' : 'unknown',
+      endDate: program?.endDate ? 'verified' : 'unknown',
+      installationsCount: Number.isFinite(Number(program?.installationsCount)) && Number(program.installationsCount) > 0 ? 'verified' : 'unknown',
+      licenseType: program?.type ? 'verified' : 'unknown'
+    },
+    evidenceSources: evidence,
+    sourceEventId: activity?.id || null,
+    confidence: classification === 'C' ? 'high' : 'low',
+    classification,
+    proposedAction: action
   };
 }
 
 /**
- * Reconciles and restores missing programs for all clients using timeline traces.
- * Safe, idempotent, and non-destructive.
+ * Classifies recovery candidates using only supplied snapshots; it performs no
+ * Firebase reads or writes and never infers missing license values.
  */
-export async function reconcileMissingPrograms(userId) {
-  if (!userId || !Array.isArray(clients) || clients.length === 0) return { reconciledCount: 0 };
+export function buildProgramRecoveryDryRun({ clients = [], activities = [] } = {}) {
+  const candidates = [];
 
-  const allActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
-  let reconciledCount = 0;
-  let hasChanges = false;
+  for (const client of clients.filter(Boolean)) {
+    const programs = Array.isArray(client.programs) ? client.programs.filter(Boolean) : [];
+    const clientActivities = activities.filter(activity => matchesClient(activity, client));
+    const addedEvents = clientActivities.filter(activity => activity?.type === PROGRAM_ADDED);
 
-  console.log(`[Reconciliation] Auditing ${clients.length} clients against ${allActivities.length} timeline traces...`);
-
-  for (const client of clients) {
-    // Only reconcile if programs array is completely empty or missing
-    const hasPrograms = Array.isArray(client.programs) && client.programs.length > 0;
-    if (hasPrograms) continue;
-
-    // Search for any timeline activity for this client related to programs
-    const clientTrace = allActivities.find(act => {
-      if (!act) return false;
-      const isTargetClient = act.clientId === client.id ||
-                             String(act.clientId) === String(client.id) ||
-                             (act.clientName && client.fullName && act.clientName.trim() === client.fullName.trim());
-      if (!isTargetClient) return false;
-
-      const isProgramType = act.type === ActivityType.PROGRAM_ADDED || act.type === 'PROGRAM_ADDED';
-      const hasProgramTitle = (act.title || '').includes('برنامج') || (act.title || '').includes('ترخيص');
-      const hasProgramDesc = (act.description || '').includes('خدمة برمجية') || (act.description || '').includes('أجهزة مرخصة');
-
-      return isProgramType || hasProgramTitle || hasProgramDesc;
-    });
-
-    let recoveredProgram = null;
-
-    if (clientTrace) {
-      console.log(`[Reconciliation] Found timeline trace for client "${client.fullName}":`, clientTrace.title);
-      recoveredProgram = extractProgramFromActivity(clientTrace, client);
-    } else if (client.programNames && client.programNames.length > 0) {
-      const pName = client.programNames[0];
-      console.log(`[Reconciliation] Recovering program from programNames for client "${client.fullName}":`, pName);
-      const isMobile = pName.toLowerCase().includes('mobile');
-      const isWeb = pName.toLowerCase().includes('web');
-      const platform = isMobile ? 'Mobile' : (isWeb ? 'Web' : 'Desktop');
-      const verMatch = pName.match(/(V\d+|v\d+|R\+|arabe)/i);
-      const version = verMatch ? verMatch[1] : (platform === 'Mobile' ? '' : 'V27');
-      const type = platform === 'Mobile' ? 'تطبيق لوحة القيادة (Tableau de bord)' : 'تجاري (Commercial)';
-      
-      recoveredProgram = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        programName: pName,
-        platform,
-        type,
-        version,
-        installationsCount: Math.max(1, client.installationsCount || 1),
-        startDate: client.startDate || td(),
-        endDate: client.endDate || ''
-      };
-    } else if (client.status === 'نشط' || (client.programsCount && client.programsCount > 0)) {
-      // Active client with missing program record: restore standard commercial Desktop license
-      console.log(`[Reconciliation] Restoring standard license for active client "${client.fullName}"`);
-      recoveredProgram = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        programName: 'Desktop - تجاري V27',
-        platform: 'Desktop',
-        type: 'تجاري (Commercial)',
-        version: 'V27',
-        installationsCount: Math.max(1, client.installationsCount || 1),
-        startDate: client.startDate || td(),
-        endDate: ''
-      };
-    }
-
-    if (recoveredProgram) {
-      client.programs = [recoveredProgram];
-      client.programsCount = 1;
-      client.installationsCount = recoveredProgram.installationsCount;
-      client.programNames = [recoveredProgram.programName];
-      client._subcollectionsLoaded = true;
-
-      // Persist to Cloud Firestore subcollection & denormalized counters
-      try {
-        await saveClientSubItemTransaction(
-          userId,
-          client.id,
-          'programs',
-          recoveredProgram,
-          {
-            programsCount: 1,
-            installationsCount: recoveredProgram.installationsCount,
-            programNames: [recoveredProgram.programName]
-          }
-        );
-        console.log(`[Reconciliation] Successfully saved recovered program to Firestore for client ${client.fullName}`);
-      } catch (saveErr) {
-        console.warn(`[Reconciliation] Notice while saving recovered program to Firestore:`, saveErr);
+    if (programs.length > 0) {
+      const actualNames = programs.map(program => program.programName).filter(Boolean);
+      const projectionMatches = Number(client.programsCount || 0) === programs.length
+        && JSON.stringify(client.programNames || []) === JSON.stringify(actualNames);
+      if (!projectionMatches) {
+        candidates.push(summarizeCandidate(
+          client,
+          'B',
+          'repair_projection',
+          ['canonical_program_records', 'customer_summary']
+        ));
       }
 
-      reconciledCount++;
-      hasChanges = true;
+      for (const activity of addedEvents) {
+        const eventProgramId = activity?.meta?.programId ?? activity?.meta?.program?.id;
+        if (eventProgramId !== undefined && programs.some(program => sameId(program.id, eventProgramId))) {
+          candidates.push(summarizeCandidate(
+            client,
+            'E',
+            'no_change_duplicate_event',
+            ['canonical_program_records', 'timeline_event'],
+            activity,
+            programs.find(program => sameId(program.id, eventProgramId))
+          ));
+        }
+      }
+      continue;
+    }
+
+    const completeEvents = addedEvents
+      .map(activity => ({ activity, program: extractProgramFromActivity(activity) }))
+      .filter(candidate => candidate.program);
+
+    if (completeEvents.length > 0) {
+      const byProgramId = new Map();
+      for (const item of completeEvents) {
+        const key = String(item.program.id);
+        const matches = byProgramId.get(key) || [];
+        matches.push(item);
+        byProgramId.set(key, matches);
+      }
+      for (const matches of byProgramId.values()) {
+        const [first, ...duplicates] = matches;
+        candidates.push(summarizeCandidate(
+          client,
+          'C',
+          'recover_record_after_backup_and_approval',
+          ['timeline_event_meta.program'],
+          first.activity,
+          first.program
+        ));
+        for (const duplicate of duplicates) {
+          candidates.push(summarizeCandidate(
+            client,
+            'E',
+            'manual_review_duplicate_evidence',
+            ['timeline_event_meta.program', 'duplicate_program_id'],
+            duplicate.activity,
+            duplicate.program
+          ));
+        }
+      }
+      continue;
+    }
+
+    const summaryHasPrograms = Number(client.programsCount) > 0
+      || (Array.isArray(client.programNames) && client.programNames.length > 0);
+    if (summaryHasPrograms) {
+      candidates.push(summarizeCandidate(
+        client,
+        'F',
+        'manual_review',
+        ['customer_summary', ...(addedEvents.length ? ['incomplete_timeline_event'] : [])],
+        addedEvents[0] || null
+      ));
+    } else if (addedEvents.length > 0) {
+      candidates.push(summarizeCandidate(
+        client,
+        'D',
+        'manual_review_incomplete_registration',
+        ['timeline_event_without_complete_program_metadata'],
+        addedEvents[0]
+      ));
     }
   }
 
-  if (hasChanges) {
-    setClients([...clients]);
-    if (typeof window !== 'undefined' && window.R) {
-      window.R();
-    }
-  }
+  return {
+    generatedAt: new Date().toISOString(),
+    mode: 'read-only-dry-run',
+    writesPerformed: 0,
+    candidates,
+    totals: candidates.reduce((totals, candidate) => {
+      totals[candidate.classification] = (totals[candidate.classification] || 0) + 1;
+      return totals;
+    }, {})
+  };
+}
 
-  return { reconciledCount };
+/**
+ * Compatibility entry point retained for callers from older builds. Despite
+ * its historical name, this function is deliberately read-only.
+ */
+export async function reconcileMissingPrograms() {
+  const { clients, S } = await import('../state/store.js');
+  return buildProgramRecoveryDryRun({
+    clients,
+    activities: Array.isArray(S.globalActivities) ? S.globalActivities : []
+  });
 }

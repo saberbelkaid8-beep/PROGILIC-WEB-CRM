@@ -5,7 +5,7 @@
 
 import { S, clients, staffUsers, isGerant, hasPermission } from '../state/store.js';
 import { computeScore, computeRiskProfile, computeAlerts } from '../business/intelligence.js';
-import { esc, isClientAtRisk } from '../utils/index.js';
+import { esc, isClientAtRisk, getProgramStats } from '../utils/index.js';
 import { t } from '../utils/i18n.js';
 import { DEPARTMENTS } from '../business/employeeService.js';
 
@@ -214,11 +214,7 @@ export function renderDashboard() {
 
     if (S.dbFilterProg && S.dbFilterProg !== 'all') {
       if (S.dbFilterProg === 'multi_device') {
-        dirClients = dirClients.filter(c => {
-          const directCount = Number(c.installationsCount) || 0;
-          const progsCount = (c.programs || []).reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
-          return Math.max(directCount, progsCount) > 1;
-        });
+        dirClients = dirClients.filter(c => getProgramStats(c).totalInstalls > 1);
       } else if (S.dbFilterProg === 'v15_v16') {
         dirClients = dirClients.filter(c => {
           const names = [
@@ -341,28 +337,22 @@ export function renderDashboard() {
     totalPrograms += progs.length || Number(c.programsCount) || (c.programNames?.length || 0);
     
     progs.forEach(p => {
-      const inst = Number(p.installationsCount) || 1;
-      totalLicensedDevices += inst;
+      const inst = Number(p.installationsCount);
+      if (Number.isFinite(inst) && inst > 0) totalLicensedDevices += inst;
       
       // Determine version or clean program name
-      let vName = (p.version || '').trim().toUpperCase();
-      if (!vName) {
-        const match = (p.programName || '').match(/V\d+/i);
-        vName = match ? match[0].toUpperCase() : (p.programName || 'PROGILIC');
-      }
-      programVersions[vName] = (programVersions[vName] || 0) + 1;
+      const vName = (p.version || '').trim().toUpperCase();
+      if (vName) programVersions[vName] = (programVersions[vName] || 0) + 1;
 
-      const rawPlat = p.platform || 'Desktop';
-      const plat = rawPlat === 'Hybrid' ? 'Desktop' : rawPlat;
+      const plat = p.platform;
       if (platformCounts[plat] !== undefined) {
         platformCounts[plat] += 1;
-      } else {
-        platformCounts.Desktop += 1;
       }
 
       if (p.endDate) {
-        try {
-          const dl = Math.floor((new Date(p.endDate + 'T00:00').getTime() - now) / DAY);
+        const endTimestamp = new Date(p.endDate + 'T00:00').getTime();
+        if (Number.isFinite(endTimestamp)) {
+          const dl = Math.floor((endTimestamp - now) / DAY);
           if (dl < 0) {
             expiredProgramsCount++;
           } else if (dl <= 30) {
@@ -372,40 +362,13 @@ export function renderDashboard() {
           } else {
             activeProgramsCount++;
           }
-        } catch (e) {
-          activeProgramsCount++;
         }
-      } else {
-        activeProgramsCount++;
       }
     });
 
     if (progs.length === 0) {
-      totalLicensedDevices += Number(c.installationsCount) || 1;
-      const names = Array.isArray(c.programNames) ? c.programNames : [];
-      names.forEach(pName => {
-        const pNameStr = String(pName || '');
-        let plat = 'Desktop';
-        if (pNameStr.toLowerCase().includes('mobile')) plat = 'Mobile';
-        else if (pNameStr.toLowerCase().includes('web')) plat = 'Web';
-        platformCounts[plat] = (platformCounts[plat] || 0) + 1;
-
-        const match = pNameStr.match(/V\d+/i);
-        const vName = match ? match[0].toUpperCase() : pNameStr;
-        if (vName) programVersions[vName] = (programVersions[vName] || 0) + 1;
-      });
-
-      if (c.endDate) {
-        try {
-          const dl = Math.floor((new Date(c.endDate + 'T00:00').getTime() - now) / DAY);
-          if (dl < 0) {
-            expiredProgramsCount++;
-          } else if (dl <= 30) {
-            expiringContracts30.push({ client: c, daysLeft: dl });
-            if (dl <= 7) expiringContracts7.push({ client: c, daysLeft: dl });
-          }
-        } catch (e) {}
-      }
+      const summaryInstallations = Number(c.installationsCount);
+      if (Number.isFinite(summaryInstallations) && summaryInstallations > 0) totalLicensedDevices += summaryInstallations;
     }
   });
 

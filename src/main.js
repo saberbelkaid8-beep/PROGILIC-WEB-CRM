@@ -78,7 +78,7 @@ import { createDefaultGerant } from './constants/index.js';
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
 import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState, loadStaffUsersForTenant } from './state/store.js';
-import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache } from './business/storage.js';
+import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache, retryFailedSyncActions } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
@@ -111,6 +111,7 @@ if (typeof window !== 'undefined') {
   window.getClients = getClients;
   window.resolveConflict = resolveConflict;
   window.mergeDatabase = actions.mergeWithSessionAndUser;
+  window.retrySyncQueue = retryFailedSyncActions;
 }
 
   // Boot application
@@ -231,7 +232,9 @@ if (typeof window !== 'undefined') {
       // Trigger initial render immediately with cached or empty state so screen never stays white
       R();
       try {
+        await loadCache();
         await loadDataFromFirestore(user);
+        await flushSyncQueue();
         actions.loadGlobalActivities().catch(console.warn);
       } catch (loadErr) {
         console.error("loadDataFromFirestore caught gracefully:", loadErr);

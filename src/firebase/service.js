@@ -31,22 +31,16 @@ export const OperationType = {
 
 export function handleFirestoreError(error, operationType, path) {
   const errInfo = {
+    code: error?.code || 'unknown',
     error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth?.currentUser?.uid,
-      email: auth?.currentUser?.email,
-      emailVerified: auth?.currentUser?.emailVerified,
-      isAnonymous: auth?.currentUser?.isAnonymous,
-    },
     operationType,
     path
   };
-  console.warn('Firestore Notice: ', JSON.stringify(errInfo));
-  // If user signed out, don't crash with an unhandled exception
-  if (!auth?.currentUser || error?.code === 'permission-denied' || (error?.message && error.message.includes('permissions'))) {
-    return null;
-  }
-  throw new Error(JSON.stringify(errInfo));
+  console.error('Firestore operation failed:', JSON.stringify(errInfo));
+  const wrappedError = new Error(`Firestore ${operationType} failed at ${path}: ${errInfo.error}`);
+  wrappedError.code = errInfo.code;
+  wrappedError.cause = error;
+  throw wrappedError;
 }
 
 function sanitizeUserId(userId) {
@@ -150,7 +144,10 @@ export async function addClientTransaction(userId, clientData, globalStats) {
       const progs = Array.isArray(clientData.programs) ? clientData.programs : [];
       const openIssues = Array.isArray(clientData.issues) ? clientData.issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')) : [];
       const reqs = Array.isArray(clientData.requirements) ? clientData.requirements : [];
-      const totalInstalls = progs.reduce((acc, p) => acc + (Number(p?.installationsCount) || 1), 0);
+      const totalInstalls = progs.reduce((total, program) => {
+        const count = Number(program?.installationsCount);
+        return Number.isSafeInteger(count) && count > 0 ? total + count : total;
+      }, 0);
 
       // Verify and set user metadata update
       tx.set(clientRef, {

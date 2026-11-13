@@ -43,6 +43,7 @@ import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
+import { getClients, saveClients, setMeta, getSyncQueue, saveSyncQueue } from './idbStorage.js';
 
 // Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
@@ -92,13 +93,11 @@ export function migrateSchema(d) {
     if (!c || typeof c !== 'object') return null;
     if (!c.id) c.id = Date.now() + idx + Math.floor(Math.random() * 9999);
     if (!c.fullName && c.name) c.fullName = c.name;
-    if (!c.fullName) c.fullName = `عميل ${idx + 1}`;
     if (!c.company) c.company = '';
     if (!c.phone) c.phone = '';
     if (!c.wilaya) c.wilaya = '';
     if (!c.commune) c.commune = '';
     if (!c.location) c.location = '';
-    if (!c.status) c.status = 'نشط';
     if (!c.startDate) c.startDate = '';
     if (!c.endDate) c.endDate = '';
     if (!c.lastContact) c.lastContact = '';
@@ -124,20 +123,6 @@ export function migrateSchema(d) {
     }
     delete c.monthlyValue;
     if (!Array.isArray(c.programs)) { c.programs = []; }
-    if (c.programs.length === 0 && (c.product || c.contractType)) {
-      const typeMap = { 'شهري': 'تجاري', 'سنوي': 'تجاري', 'تجريبي': 'تجاري', 'مرة واحدة': 'تجاري' };
-      c.programs.push({
-        id: Date.now() + Math.floor(Math.random() * 999),
-        programName: c.product || 'غير محدد',
-        platform: 'Desktop',
-        type: typeMap[c.contractType] || 'تجاري',
-        installationsCount: 1,
-        startDate: c.startDate || '',
-        endDate: c.endDate || ''
-      });
-    }
-    delete c.product; delete c.contractType;
-
     c.issues = c.issues.map(i => {
       if (i.confidence === undefined) i.confidence = 50;
       if (i.source === undefined) i.source = 'غير محدد';
@@ -152,15 +137,7 @@ export function migrateSchema(d) {
 
 // Global sanitize functions for export / data integrity
 export function sanitizeProgram(p) {
-  return {
-    id: p.id || Date.now() + Math.floor(Math.random() * 999),
-    programName: p.programName || 'غير محدد',
-    platform: p.platform || 'Desktop',
-    type: p.type || 'تجاري',
-    installationsCount: Number(p.installationsCount) || 1,
-    startDate: p.startDate || '',
-    endDate: p.endDate || ''
-  };
+  return p && typeof p === 'object' ? { ...p } : p;
 }
 
 export function sanitizeIssue(i) {
@@ -203,25 +180,8 @@ export function sanitizeContact(ch) {
 
 export function sanitizeClient(c) {
   return {
-    id: c.id,
-    fullName: c.fullName || '',
-    phone: c.phone || '',
-    company: c.company || '',
-    wilaya: c.wilaya || '',
-    location: c.location || '',
-    businessType: c.businessType || '',
-    businessField: c.businessField || '',
-    status: c.status || 'نشط',
-    startDate: c.startDate || '',
-    endDate: c.endDate || '',
-    lastContact: c.lastContact || '',
-    notes: c.notes || '',
-    gps: c.gps || { lat: null, lng: null },
-    score: c.score || 100,
-    programs: (c.programs || []).map(sanitizeProgram),
-    issues: (c.issues || []).map(sanitizeIssue),
-    requirements: (c.requirements || []).map(sanitizeReq),
-    contactHistory: (c.contactHistory || []).map(sanitizeContact)
+    ...c,
+    ...(Array.isArray(c.programs) ? { programs: c.programs.map(sanitizeProgram) } : {})
   };
 }
 
@@ -231,7 +191,7 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
   const c = clients.find(x => x.id === clientId || String(x.id) === String(clientId));
   if (!c) return;
 
-  if (c._subcollectionsLoaded && Array.isArray(c.programs) && c.programs.length > 0) return;
+  if (c._subcollectionsLoaded) return;
 
   try {
     setSyncing(true);
@@ -241,79 +201,8 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 
     if (remoteProgs.length > 0) {
       c.programs = remoteProgs;
-    } else if (!c.programs || c.programs.length === 0) {
-      // If Firestore subcollection had 0 programs, recover from programNames or timeline traces
-      const { extractProgramFromActivity } = await import('./programReconciliationService.js');
-      const allActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
-      const trace = allActivities.find(act => {
-        if (!act) return false;
-        const isTarget = act.clientId === c.id || String(act.clientId) === String(c.id) ||
-                         (act.clientName && c.fullName && act.clientName.trim() === c.fullName.trim());
-        if (!isTarget) return false;
-        return act.type === 'PROGRAM_ADDED' || (act.title || '').includes('برنامج') || (act.description || '').includes('خدمة برمجية');
-      });
-
-      if (trace) {
-        const recovered = extractProgramFromActivity(trace, c);
-        if (recovered) {
-          c.programs = [recovered];
-          c.programNames = [recovered.programName];
-          c.programsCount = 1;
-          c.installationsCount = recovered.installationsCount;
-          saveClientSubItemTransaction(currentUser.uid, c.id, 'programs', recovered, {
-            programsCount: 1,
-            installationsCount: recovered.installationsCount,
-            programNames: [recovered.programName]
-          }).catch(console.warn);
-        }
-      } else if (c.programNames && c.programNames.length > 0) {
-        const pName = c.programNames[0];
-        const isMobile = pName.toLowerCase().includes('mobile');
-        const isWeb = pName.toLowerCase().includes('web');
-        const platform = isMobile ? 'Mobile' : (isWeb ? 'Web' : 'Desktop');
-        const verMatch = pName.match(/(V\d+|v\d+|R\+|arabe)/i);
-        const version = verMatch ? verMatch[1] : (platform === 'Mobile' ? '' : 'V27');
-        const recovered = {
-          id: Date.now() + Math.floor(Math.random() * 1000),
-          programName: pName,
-          platform,
-          type: platform === 'Mobile' ? 'تطبيق لوحة القيادة (Tableau de bord)' : 'تجاري (Commercial)',
-          version,
-          installationsCount: Math.max(1, c.installationsCount || 1),
-          startDate: c.startDate || td(),
-          endDate: c.endDate || ''
-        };
-        c.programs = [recovered];
-        c.programsCount = 1;
-        c.installationsCount = recovered.installationsCount;
-        saveClientSubItemTransaction(currentUser.uid, c.id, 'programs', recovered, {
-          programsCount: 1,
-          installationsCount: recovered.installationsCount,
-          programNames: [recovered.programName]
-        }).catch(console.warn);
-      } else if (c.status === 'نشط' || (c.programsCount && c.programsCount > 0)) {
-        const recovered = {
-          id: Date.now() + Math.floor(Math.random() * 1000),
-          programName: 'Desktop - تجاري V27',
-          platform: 'Desktop',
-          type: 'تجاري (Commercial)',
-          version: 'V27',
-          installationsCount: Math.max(1, c.installationsCount || 1),
-          startDate: c.startDate || td(),
-          endDate: ''
-        };
-        c.programs = [recovered];
-        c.programsCount = 1;
-        c.installationsCount = recovered.installationsCount;
-        c.programNames = [recovered.programName];
-        saveClientSubItemTransaction(currentUser.uid, c.id, 'programs', recovered, {
-          programsCount: 1,
-          installationsCount: recovered.installationsCount,
-          programNames: [recovered.programName]
-        }).catch(console.warn);
-      } else {
-        c.programs = [];
-      }
+    } else {
+      c.programs = Array.isArray(c.programs) ? c.programs : [];
     }
 
     if (sub?.issues && sub.issues.length > 0) c.issues = sub.issues;
@@ -578,26 +467,13 @@ async function doLoadDataFromFirestore(user) {
         });
       });
 
-      // Strictly Online: No local persistence.
       import('./timelineService.js')
         .then(m => m.syncCrmServicesToTimeline(user.uid))
-        .then(() => import('./programReconciliationService.js'))
-        .then(m => m.reconcileMissingPrograms(user.uid))
         .catch(console.warn);
 
       // If user doc didn't exist or had older schema or fewer clients, commit to Cloud Firestore
       if (!data || data.v === undefined || Number(data.v) < 3 || (data.clients && data.clients.length < mergedClients.length)) {
-        console.log(`[Storage] Syncing merged database (${mergedClients.length} clients) to Cloud Firestore...`);
-        const payload = {
-          v: SCHEMA_VERSION,
-          updatedAt: new Date().toISOString(),
-          nid: computedNid,
-          stats: computedStats
-        };
-        saveUserData(user.uid, payload).catch(console.warn);
-        migrateLegacyDataIfNeeded(user.uid, { clients: mergedClients }, computedNid).catch(err => {
-          console.warn("[Storage] Cloud migration notice:", err);
-        });
+        console.info('[Storage] Legacy schema detected; cloud migration requires explicit approval and a verified backup.');
       }
     } else {
       // Fetch failed or timed out, make sure we fallback to loaded cache states safely
@@ -746,7 +622,7 @@ export function exportToCSV(){
     const pr=clients.filter(c=>c.status==='محتمل').length;
     const pa=clients.filter(c=>c.status==='متوقف').length;
     const totalProgs=clients.reduce((s,c)=>s+(c.programs||[]).length,0);
-    const totalInst=clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0);
+    const totalInst=clients.reduce((total,c)=>total+getProgramStats(c).totalInstalls,0);
     const avgScore=clients.length?Math.round(clients.reduce((s,c)=>s+computeScore(c).total,0)/clients.length):0;
 
     let csvContent="";
@@ -1112,7 +988,11 @@ export function importData(file){
       
       // Perform automated import schema migration onto the subcollections in the background!
       if (currentUser && currentUser.uid) {
-        migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid).catch(err => {
+        migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid).then(result => {
+          if (result?.status === 'blocked') {
+            console.info(`[Import] Cloud migration not run: ${result.reason}`);
+          }
+        }).catch(err => {
           console.warn("Background migration failed (offline), will rely on local persistence:", err);
         });
       }
@@ -1123,7 +1003,7 @@ export function importData(file){
         stoppedClients: d.clients.filter(c => c.status === 'متوقف').length,
         totalClients: d.clients.length,
         totalPrograms: d.clients.reduce((acc, c) => acc + (c.programs || []).length, 0),
-        totalLicensedDevices: d.clients.reduce((acc, c) => acc + (c.programs || []).reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0), 0),
+        totalLicensedDevices: d.clients.reduce((total, c) => total + getProgramStats(c).totalInstalls, 0),
         averageScore: d.clients.length > 0 ? Math.round(d.clients.reduce((acc, c) => acc + (c.score || 100), 0) / d.clients.length) : 100,
         totalOpenIssues: d.clients.reduce((acc, c) => acc + (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length, 0)
       };
@@ -1231,15 +1111,19 @@ let retryTimer = null;
 export async function loadCache() {
   try {
     updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
-    const uid = currentUser?.uid;
+    const uid = auth.currentUser?.uid || currentUser?.tenantId || currentUser?.uid;
     if (!uid) return;
-    const cached = await getClients(uid);
+    const [cached, queuedOperations] = await Promise.all([getClients(uid), getSyncQueue(uid)]);
     const merged = mergeClientLists(cached && cached.length > 0 ? cached : clients);
     const { stats, nid } = computeStats(merged);
+    const resumableQueue = queuedOperations.map(item => ({
+      ...item,
+      state: item.state === 'syncing' ? 'pending' : item.state || 'pending'
+    }));
     
     batch(() => {
       setClients(merged);
-      updateState({ stats, nid });
+      updateState({ stats, nid, syncQueue: resumableQueue });
     });
 
     console.log(`[Offline Cache] Session hydrated with ${merged.length} clients for tenant ${uid}.`);
@@ -1251,10 +1135,55 @@ export async function loadCache() {
   }
 }
 
+let queuePersistence = Promise.resolve();
+
+function activeTenantUid() {
+  return auth.currentUser?.uid
+    || currentUser?.tenantId
+    || (currentUser && !currentUser.isEmployee ? currentUser.uid : null)
+    || getActiveTenantId()
+    || currentUser?.uid;
+}
+
+function persistSyncQueue(uid, queue) {
+  const write = queuePersistence.then(() => saveSyncQueue(uid, queue));
+  queuePersistence = write.catch(error => {
+    setSaveError(true);
+    console.error('[Offline Sync] Could not persist the operation queue:', error);
+  });
+  return write;
+}
+
+async function persistFailureState(uid, queue, item) {
+  try {
+    await persistSyncQueue(uid, queue);
+  } catch (error) {
+    item.lastError = `${item.lastError || 'Sync failed'}; failed to persist recovery state: ${error.message || error}`;
+    setSaveError(true);
+    console.error('[Offline Sync] Could not persist failure state:', error);
+  }
+}
+
+function isRetryableSyncError(error) {
+  const retryableCodes = new Set([
+    'aborted',
+    'deadline-exceeded',
+    'network-request-failed',
+    'resource-exhausted',
+    'unavailable'
+  ]);
+  return (typeof navigator !== 'undefined' && !navigator.onLine)
+    || retryableCodes.has(error?.code)
+    || /network|offline|unavailable|timeout/i.test(error?.message || '');
+}
+
 export async function flushSyncQueue() {
   if (_isFlushing) return;
   if (!S.isOnline || !currentUser) return;
-  
+  const uid = activeTenantUid();
+  if (!uid) return;
+
+  await queuePersistence;
   const queue = S.syncQueue || [];
   if (queue.length === 0) {
     setSyncing(false);
@@ -1266,15 +1195,34 @@ export async function flushSyncQueue() {
   setSaveError(false);
   console.log(`[Offline Sync] Starting to flush ${queue.length} pending operations...`);
 
-  const nextQueue = [...queue];
+  const nextQueue = queue.map(item => ({ ...item }));
   let errorOccurred = false;
+  let retryDelay = 1000;
 
   while (nextQueue.length > 0 && S.isOnline) {
     const item = nextQueue[0];
+    if (item.state === 'failed' || item.state === 'requires-attention') {
+      errorOccurred = true;
+      setSaveError(true);
+      break;
+    }
+
+    item.state = 'syncing';
+    item.attempts = Number(item.attempts) || 0;
+    updateState({ syncQueue: [...nextQueue] });
+    try {
+      await persistSyncQueue(uid, nextQueue);
+    } catch (error) {
+      item.state = 'pending';
+      item.lastError = error.message || String(error);
+      updateState({ syncQueue: [...nextQueue] });
+      setSaveError(true);
+      errorOccurred = true;
+      break;
+    }
     try {
       console.log(`[Offline Sync] Processing action: ${item.type}`, item.payload);
       
-      const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || (currentUser && !currentUser.isEmployee ? currentUser.uid : null) || getActiveTenantId() || currentUser?.uid;
       switch (item.type) {
         case 'ADD_CLIENT':
           await addClientTransaction(uid, item.payload.clientData, item.payload.stats);
@@ -1307,11 +1255,23 @@ export async function flushSyncQueue() {
           );
           break;
         default:
-          console.warn(`[Offline Sync] Unknown action type: ${item.type}`);
+          throw Object.assign(new Error(`Unknown sync operation: ${item.type}`), { code: 'unsupported-operation' });
       }
 
-      // Success! Remove from local queue
       nextQueue.shift();
+      try {
+        await persistSyncQueue(uid, nextQueue);
+      } catch (error) {
+        nextQueue.unshift({
+          ...item,
+          state: 'requires-attention',
+          lastError: `Remote write completed but queue removal could not be saved: ${error.message || error}`
+        });
+        updateState({ syncQueue: [...nextQueue] });
+        setSaveError(true);
+        errorOccurred = true;
+        break;
+      }
       updateState({ syncQueue: nextQueue });
       setLastSyncedTime(new Date());
     } catch (err) {
@@ -1320,6 +1280,9 @@ export async function flushSyncQueue() {
       if (err.code === 'VERSION_CONFLICT' || (err.message && err.message.includes('VERSION_CONFLICT'))) {
         _isFlushing = false;
         errorOccurred = true;
+        item.state = 'requires-attention';
+        item.lastError = err.message;
+        await persistFailureState(uid, nextQueue, item);
         setSaveError(true);
         updateState({ 
           conflictItem: item, 
@@ -1330,21 +1293,25 @@ export async function flushSyncQueue() {
         break; 
       }
       
-      const isNetworkError = !navigator.onLine || 
-                            err.message.includes("network") || 
-                            err.message.includes("failed-precondition") ||
-                            err.message.includes("offline") ||
-                            err.message.includes("Unavailable");
-
-      if (isNetworkError) {
+      item.attempts++;
+      item.lastError = err.message || String(err);
+      item.errorCode = err.code || 'unknown';
+      if (isRetryableSyncError(err)) {
+        item.state = 'pending';
+        retryDelay = Math.min(60000, 1000 * (2 ** Math.min(item.attempts - 1, 6)));
+        await persistFailureState(uid, nextQueue, item);
+        updateState({ syncQueue: [...nextQueue] });
         errorOccurred = true;
         setSaveError(true);
-        break; // Stop loop, keep item in queue
+        break;
       } else {
-        // Discard permanent errors
-        console.warn(`[Offline Sync] Non-retryable error on action ${item.type}. Dropping operation.`, err);
-        nextQueue.shift();
-        updateState({ syncQueue: nextQueue });
+        item.state = 'failed';
+        await persistFailureState(uid, nextQueue, item);
+        updateState({ syncQueue: [...nextQueue] });
+        setSaveError(true);
+        showToast(t('فشلت المزامنة نهائياً. احتُفظ بالعملية لمراجعتها.'), 'error');
+        errorOccurred = true;
+        break;
       }
     }
   }
@@ -1353,7 +1320,7 @@ export async function flushSyncQueue() {
   setSyncing(false);
 
   if (errorOccurred) {
-    scheduleRetry();
+    if (S.isOnline && nextQueue[0]?.state === 'pending') scheduleRetry(retryDelay);
   } else {
     if (retryTimer) {
       clearTimeout(retryTimer);
@@ -1370,7 +1337,7 @@ export async function flushSyncQueue() {
   }
 }
 
-function scheduleRetry() {
+function scheduleRetry(delay = 1000) {
   if (retryTimer) return;
   retryTimer = setTimeout(() => {
     retryTimer = null;
@@ -1379,23 +1346,64 @@ function scheduleRetry() {
     } else {
       scheduleRetry();
     }
-  }, 10000);
+  }, delay);
+}
+
+export function retryFailedSyncActions() {
+  const queue = (S.syncQueue || []).map(item => (
+    item.state === 'failed' || item.state === 'requires-attention'
+      ? { ...item, state: 'pending', lastError: null }
+      : item
+  ));
+  updateState({ syncQueue: queue });
+  const uid = activeTenantUid();
+  if (!uid) {
+    showToast(t('يلزم تسجيل الدخول لإعادة محاولة المزامنة.'), 'error');
+    return Promise.resolve(false);
+  }
+  return persistSyncQueue(uid, queue)
+    .then(() => flushSyncQueue())
+    .catch(error => {
+      console.error('[Offline Sync] Could not requeue failed operations:', error);
+      showToast(t('تعذر حفظ إعادة المحاولة محلياً.'), 'error');
+      return false;
+    });
 }
 
 export function enqueueSyncAction(type, payload) {
   const currentQueue = S.syncQueue || [];
   const newItem = {
-    id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+    id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     type,
     payload,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    state: 'pending',
+    attempts: 0,
+    lastError: null
   };
-  
-  updateState({ syncQueue: [...currentQueue, newItem] });
-  
-  if (S.isOnline) {
-    flushSyncQueue();
+  const nextQueue = [...currentQueue, newItem];
+  updateState({ syncQueue: nextQueue });
+  const uid = activeTenantUid();
+  if (!uid) {
+    setSaveError(true);
+    console.error('[Offline Sync] Cannot persist queued operation without an authenticated tenant.');
+    return Promise.resolve(false);
   }
+  return persistSyncQueue(uid, nextQueue)
+    .then(() => {
+      if (S.isOnline) return flushSyncQueue();
+      return newItem;
+    })
+    .catch(error => {
+      const failedQueue = (S.syncQueue || []).map(item => item.id === newItem.id
+        ? { ...item, state: 'failed', lastError: `Failed to persist locally: ${error.message || error}` }
+        : item);
+      updateState({ syncQueue: failedQueue });
+      setSaveError(true);
+      showToast(t('تعذر حفظ العملية محلياً؛ يرجى إبقاء التطبيق مفتوحاً حتى اكتمال المزامنة.'), 'error');
+      console.error('[Offline Sync] Operation was not sent because local persistence failed:', error);
+      return false;
+    });
 }
 
 // Strict Online Mode: Local IndexedDB disk caching is disabled. All state is maintained online via Cloud Firestore.
@@ -1440,6 +1448,8 @@ export function resolveConflict(decision) {
       if (q.id === item.id) {
         return {
           ...q,
+        state: 'pending',
+        lastError: null,
           payload: {
             ...q.payload,
             baseVersion: serverData.version || 0
@@ -1460,6 +1470,8 @@ export function resolveConflict(decision) {
       if (q.id === item.id) {
         return {
           ...q,
+          state: 'pending',
+          lastError: null,
           payload: {
             ...q.payload,
             clientData: mergedData,
@@ -1473,7 +1485,9 @@ export function resolveConflict(decision) {
   }
   
   R();
-  setTimeout(() => {
-    flushSyncQueue();
-  }, 500);
+  const uid = activeTenantUid();
+  if (uid) persistSyncQueue(uid, S.syncQueue || []).then(() => setTimeout(flushSyncQueue, 500)).catch(error => {
+    console.error('[Offline Sync] Could not persist conflict resolution:', error);
+    showToast(t('تعذر حفظ حل التعارض محلياً.'), 'error');
+  });
 }

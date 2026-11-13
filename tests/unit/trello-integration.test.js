@@ -74,37 +74,32 @@ describe('PROGILIC CRM × Trello Integration - Master Verification Suite', () =>
 
   // --- SPECIFICATION SCENARIOS 1 to 23 ---
 
-  it('Scenario 1: Matches existing CRM customer and attaches operation without duplicate client', async () => {
+  it('Scenario 1: Routes an underspecified license for review without inventing fields', async () => {
     const item = { id: 'chk_101', name: 'أحمد بن علي 0550112233 - تثبيت برنامج v27 تجاري', state: 'complete' };
     const res = await syncTrelloChecklistItem(tenantId, item, { id: 'card_1' }, { id: 'board_1' });
 
-    expect(res.status).toBe('SYNCED');
-    expect(res.clientId).toBe(101);
-    expect(clients.length).toBe(2); // Zero duplicate clients created
-    const client = clients.find(c => c.id === 101);
-    expect(client.programs.length).toBe(1);
-    expect(client.programs[0].programName).toContain('PROGILIC');
+    expect(res.status).toBe('REVIEW_REQUIRED');
+    expect(clients).toHaveLength(2);
+    expect(clients.find(c => c.id === 101).programs).toHaveLength(0);
+    expect(inMemoryReviewQueue.has(`${tenantId}:${item.id}`)).toBe(true);
   });
 
-  it('Scenario 2: Safely creates genuinely new customer with complete details and attaches operation', async () => {
+  it('Scenario 2: Does not create a customer from an underspecified Trello license', async () => {
     const item = { id: 'chk_new_1', name: 'زبون جديد سمير رحماني 0661445566 بوفاريك - تثبيت برنامج', state: 'complete' };
     const res = await syncTrelloChecklistItem(tenantId, item, { id: 'card_1' }, { id: 'board_1' });
 
-    expect(res.status).toBe('SYNCED');
-    expect(clients.length).toBe(3); // New client created
-    const newClient = clients.find(c => c.id === res.clientId);
-    expect(newClient.fullName).toContain('سمير رحماني');
-    expect(newClient.phone).toBe('0661445566');
+    expect(res.status).toBe('REVIEW_REQUIRED');
+    expect(clients).toHaveLength(2);
+    expect(clients.some(c => c.fullName.includes('سمير رحماني'))).toBe(false);
   });
 
-  it('Scenario 3: Existing real-world customer missing from CRM is created without false acquisition tagging', async () => {
+  it('Scenario 3: Routes renewal details for review without synthesizing license information', async () => {
     const item = { id: 'chk_exist_miss', name: 'تجديد رخصة V24 للزبون كريم عيساوي 0555991122 سطيف', state: 'complete' };
     const res = await syncTrelloChecklistItem(tenantId, item, { id: 'card_1' }, { id: 'board_1' });
 
-    expect(res.status).toBe('SYNCED');
-    const client = clients.find(c => c.id === res.clientId);
-    expect(client.status).toBe('نشط');
-    expect(client.notes).toContain('Trello');
+    expect(res.status).toBe('REVIEW_REQUIRED');
+    expect(clients).toHaveLength(2);
+    expect(clients.some(c => c.fullName.includes('كريم عيساوي'))).toBe(false);
   });
 
   it('Scenario 4: Handles multiple customers in one Trello Card independently', async () => {
@@ -157,12 +152,61 @@ describe('PROGILIC CRM × Trello Integration - Master Verification Suite', () =>
       platform: 'Desktop',
       programType: 'تجاري',
       version: 'v27',
+      installationsCount: 2,
       confidence: 0.95,
       uncertainties: []
     };
     const route = determineOperationRoute(extracted, { status: 'MATCHED_EXISTING', client: { id: 101 } }, { state: 'complete' });
     expect(route.destination).toBe('programs');
     expect(route.payload.version).toBe('v27');
+    expect(route.payload.installationsCount).toBe(2);
+    expect(route.payload.startDate).toBe('');
+  });
+
+  it('routes incomplete software license data for review instead of inventing fields', () => {
+    const extracted = {
+      actionNature: 'installation',
+      programName: 'PROGILIC POS',
+      confidence: 0.95,
+      uncertainties: []
+    };
+
+    const route = determineOperationRoute(
+      extracted,
+      { status: 'MATCHED_EXISTING', client: { id: 101 } },
+      { state: 'complete' }
+    );
+
+    expect(route.destination).toBe('review_queue');
+    expect(route.reason).toBe('UNSUPPORTED_DATA_SHAPE');
+    expect(route.payload).toBeNull();
+  });
+
+  it('preserves explicit Mobile platform and application type in license routes', () => {
+    const extracted = {
+      actionNature: 'software_license',
+      programName: 'PROGILIC Mobile VDD',
+      platform: 'Mobile',
+      programType: 'تطبيق VDD (Vendeur Distributeur)',
+      version: 'V24',
+      installationsCount: 2,
+      confidence: 0.95,
+      uncertainties: []
+    };
+
+    const route = determineOperationRoute(
+      extracted,
+      { status: 'MATCHED_EXISTING', client: { id: 101 } },
+      { state: 'complete' }
+    );
+
+    expect(route.destination).toBe('programs');
+    expect(route.payload).toMatchObject({
+      platform: 'Mobile',
+      type: 'تطبيق VDD (Vendeur Distributeur)',
+      version: 'V24',
+      installationsCount: 2
+    });
   });
 
   it('Scenario 8: Technical issue routes to issues collection', () => {
@@ -358,7 +402,8 @@ describe('PROGILIC CRM × Trello Integration - Master Verification Suite', () =>
     const report = await runHistoricalDryRun(tenantId, items, { cardName: 'Card' });
 
     expect(report.totalItemsScanned).toBe(2);
-    expect(report.toCreateCount).toBe(2);
+    expect(report.toCreateCount + report.toReviewCount).toBe(2);
+    expect(report.toReviewCount).toBe(1);
     expect(clients.length).toBe(initialClientsCount); // Zero production client writes!
     const client = clients.find(c => c.id === 101);
     expect(client.issues.length).toBe(0); // Zero production issue writes!
@@ -460,20 +505,20 @@ describe('PROGILIC CRM × Trello Integration - Master Verification Suite', () =>
     expect(S.syncQueue.length).toBeGreaterThan(0); // Enqueued to Firestore sync engine
   });
 
-  it('Remediation 6 (Rollback): Safe item rollback reverts created record and preserves pre-existing customer', async () => {
-    const item = { id: 'chk_roll_1', name: 'أحمد بن علي 0550112233 - تثبيت برنامج تجاري v27', state: 'complete' };
+  it('Remediation 6 (Rollback): Safe item rollback reverts a record and preserves the customer', async () => {
+    const item = { id: 'chk_roll_1', name: 'أحمد بن علي 0550112233 - عطب في الطابعة', state: 'incomplete' };
     
     // Sync operation
     const syncRes = await syncTrelloChecklistItem(tenantId, item, { id: 'c1' }, { id: 'b1' });
     expect(syncRes.status).toBe('SYNCED');
 
     const client = clients.find(c => c.id === 101);
-    expect(client.programs.length).toBe(1);
+    expect(client.issues.length).toBe(1);
 
     // Rollback operation
     const rollRes = await rollbackTrelloItem(tenantId, item.id);
     expect(rollRes.status).toBe('ROLLED_BACK');
-    expect(client.programs.length).toBe(0); // Item rolled back cleanly
+    expect(client.issues.length).toBe(0); // Item rolled back cleanly
     expect(clients.some(c => c.id === 101)).toBe(true); // Customer profile strictly preserved!
   });
 

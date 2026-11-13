@@ -26,6 +26,14 @@ import {
 import { computeScore, computeRiskProfile } from '../../src/business/intelligence.js';
 import { validateClient, validateProgram } from '../../src/firebase/validation.js';
 
+vi.mock('../../src/firebase/service.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    saveTenantActivity: vi.fn(async (_uid, activity) => activity.id)
+  };
+});
+
 describe('Task 7 CRM Core Functional Regression Suite (Scenarios A through P)', () => {
   const TENANT_A = 'tenant_company_alpha';
   const TENANT_B = 'tenant_company_beta';
@@ -396,13 +404,17 @@ describe('Task 7 CRM Core Functional Regression Suite (Scenarios A through P)', 
   });
 
   // Scenario L: Invalid form submission safely rejected
-  it('Scenario L: Client validation logic rejects empty or missing client names and enforces schema', () => {
-    // Schema sanitizer assigns fallback 'بدون اسم' if missing or blank
-    const fallbackClient = validateClient({ fullName: '', phone: '0550112233' });
-    expect(fallbackClient.fullName).toBe('بدون اسم');
+  it('Scenario L: Client validation rejects incomplete records without inventing fields', () => {
+    expect(() => validateClient({
+      id: 999,
+      fullName: '',
+      phone: '0550112233',
+      status: 'نشط'
+    })).toThrow('Client name is missing');
 
     // Valid client is preserved and bound
     const validClient = validateClient({
+      id: 1000,
       fullName: 'عميل صالح ومسجل',
       phone: '0550112233',
       wilaya: 'وهران',
@@ -410,14 +422,25 @@ describe('Task 7 CRM Core Functional Regression Suite (Scenarios A through P)', 
     });
     expect(validClient.fullName).toBe('عميل صالح ومسجل');
     expect(validClient.phone).toBe('0550112233');
+    expect(validClient.id).toBe(1000);
     expect(validClient.status).toBe('نشط');
 
     // Program validation rejects unapproved versions
-    const allowedProg = validateProgram({ programName: 'PROGILIC POS', version: 'V24' });
+    const allowedProg = validateProgram({
+      id: 7001, programName: 'PROGILIC POS', platform: 'Desktop', type: 'تجاري', version: 'V24'
+    });
     expect(allowedProg.version).toBe('V24');
 
-    const invalidProg = validateProgram({ programName: 'PROGILIC POS', version: 'V99_UNKNOWN' });
-    expect(invalidProg.version).toBe('');
+    const mobileApp = {
+      id: 7002,
+      programName: 'PROGILIC Mobile VDD',
+      platform: 'Mobile',
+      type: 'تطبيق VDD',
+      version: 'V99_UNKNOWN',
+      installationsCount: 2,
+      startDate: '2025-03-01'
+    };
+    expect(validateProgram(mobileApp)).toEqual(mobileApp);
   });
 
   // Scenario M: Concurrent updates do not overwrite unrelated data

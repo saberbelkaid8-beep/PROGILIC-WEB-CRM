@@ -50,6 +50,51 @@ describe('Presentation Layer - Views', () => {
     expect(html).toContain('Test Co');
   });
 
+  it('shows actual program records when the client summary count is stale', () => {
+    setClients([{
+      id: 1,
+      fullName: 'Ahmed Test',
+      company: 'Test Co',
+      status: 'نشط',
+      issues: [],
+      requirements: [],
+      programs: [{ id: 9, programName: 'Desktop', installationsCount: 2 }],
+      programsCount: 0,
+      _subcollectionsLoaded: false,
+      wilaya: 'الجزائر'
+    }]);
+
+    const html = renderList();
+    expect(html).toContain('📦 1');
+    expect(html).not.toContain('لا برامج');
+  });
+
+  it('updates the client card program badge after lazy-loaded programs arrive', () => {
+    const client = {
+      id: 1,
+      fullName: 'Ahmed Test',
+      company: 'Test Co',
+      status: 'نشط',
+      issues: [],
+      requirements: [],
+      programs: [],
+      programsCount: 0,
+      _subcollectionsLoaded: false,
+      wilaya: 'الجزائر'
+    };
+    setClients([client]);
+
+    expect(renderList()).toContain('لا برامج');
+
+    client.programs = [{ id: 9, programName: 'Desktop', installationsCount: 2 }];
+    client.programsCount = 1;
+    client._subcollectionsLoaded = true;
+
+    const html = renderList();
+    expect(html).toContain('📦 1');
+    expect(html).not.toContain('لا برامج');
+  });
+
   it('should render client details', () => {
     const clients = [{
       id: 1,
@@ -67,6 +112,82 @@ describe('Presentation Layer - Views', () => {
     expect(html).toContain('Ahmed Test');
     expect(html).toContain('Test Co');
     expect(html).toContain('نظرة عامة');
+  });
+
+  it('does not fabricate or mutate program records when only summary fields exist', () => {
+    const client = {
+      id: 1,
+      fullName: 'Legacy Customer',
+      status: 'نشط',
+      programs: [],
+      programsCount: 1,
+      programNames: ['Desktop - Commercial V24'],
+      issues: [],
+      requirements: [],
+      contactHistory: []
+    };
+    setClients([client]);
+    updateState({ selId: 1, tab: 'programs' });
+
+    const html = renderDetail();
+
+    expect(html).toContain('بيانات الترخيص التفصيلية غير متاحة وتحتاج إلى مراجعة');
+    expect(html).not.toContain('Desktop - تجاري V27');
+    expect(html).not.toContain('برنامج PROGILIC');
+    expect(client.programs).toEqual([]);
+  });
+
+  it('does not preselect an initial program for active customers', () => {
+    updateState({ modal: 'addClient' });
+
+    const html = renderModal();
+
+    expect(html).toMatch(/id="f_p_enabled"(?![^>]*checked)/);
+    expect(html).toMatch(/id="f_p_pl"[\s\S]*?<option value="" selected>/);
+    expect(html).toContain('id="f_p_ic" min="1" value=""');
+  });
+
+  it('does not fill missing status or dates while editing a legacy customer', () => {
+    setClients([{ id: 8, fullName: 'Legacy Customer', company: 'Legacy Co' }]);
+    updateState({ modal: 'editClient', selId: 8 });
+
+    const html = renderModal();
+
+    expect(html).toContain('<option value="" selected>غير محدد</option>');
+    expect(html).toContain('id="f_lc" value=""');
+    expect(html).toContain('id="f_sd" value=""');
+  });
+
+  it('only shows persisted program records as licenses and leaves missing fields unknown', () => {
+    setClients([
+      {
+        id: 1,
+        fullName: 'Legacy Customer',
+        status: 'نشط',
+        programs: [],
+        programsCount: 1,
+        programNames: ['Desktop - Commercial V24']
+      },
+      {
+        id: 2,
+        fullName: 'Recorded Customer',
+        status: 'نشط',
+        programs: [{ id: 'program-1', programName: 'Saved Program' }]
+      }
+    ]);
+    updateState({
+      modal: 'licensesExplorer',
+      form: { platform: 'all', version: 'all', type: 'all', search: '', viewMode: 'table' }
+    });
+
+    const html = renderModal();
+
+    expect(html).toContain('ملخص برامج بلا سجلات ترخيص تفصيلية');
+    expect(html).toContain('Saved Program');
+    expect(html).not.toContain('Desktop - Commercial V24');
+    expect(html).not.toMatch(/class="lic-pill-ver">\s*V27/);
+    expect(html).not.toContain('مدى الحياة');
+    expect(html).toContain('0 + ?');
   });
 
   it('should render dashboard without errors', () => {

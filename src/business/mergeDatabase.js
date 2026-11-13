@@ -4,6 +4,7 @@ import { saveClients, setMeta, getClients } from './idbStorage.js';
 import { saveUserData } from '../firebase/service.js';
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { auth } from '../firebase/config.js';
+import { getProgramStats } from '../utils/index.js';
 
 
 export function computeStats(clientList) {
@@ -11,8 +12,8 @@ export function computeStats(clientList) {
   const active = safeList.filter(c => c && c.status === 'نشط').length;
   const prospective = safeList.filter(c => c && c.status === 'محتمل').length;
   const stopped = safeList.filter(c => c && c.status === 'متوقف').length;
-  const totalPrograms = safeList.reduce((acc, c) => acc + (c?.programs || []).length, 0);
-  const totalInstalls = safeList.reduce((acc, c) => acc + (c?.programs || []).reduce((sum, p) => sum + (Number(p?.installationsCount) || 1), 0), 0);
+  const totalPrograms = safeList.reduce((acc, c) => acc + getProgramStats(c).total, 0);
+  const totalInstalls = safeList.reduce((acc, c) => acc + getProgramStats(c).totalInstalls, 0);
   const totalIssues = safeList.reduce((acc, c) => acc + (c?.issues || []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length, 0);
   const maxId = safeList.reduce((max, c) => Math.max(max, Number(c?.id) || 0), 0);
 
@@ -73,7 +74,11 @@ export async function mergeWithSessionAndUser(user = currentUser) {
         stats
       });
       // Background migration to subcollections
-      migrateLegacyDataIfNeeded(primaryUid, { clients: merged }, nid).then(() => {
+      migrateLegacyDataIfNeeded(primaryUid, { clients: merged }, nid).then(result => {
+        if (result?.status === 'blocked') {
+          console.info(`[Database Merge] Cloud migration not run: ${result.reason}`);
+          return;
+        }
         console.log(`[Database Merge] Cloud migration completed for account ${activeUser.email || 'active_user'}.`);
       }).catch(cloudErr => {
         console.warn("[Database Merge] Cloud migration notice:", cloudErr);
