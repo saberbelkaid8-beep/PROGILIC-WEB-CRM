@@ -21,4 +21,4 @@
 - In accordance with Invariant I-2 and Section 5.4, all Live Trello operations are restricted to GET-only read access.
 - In accordance with Invariant I-3 and Section 5.4, test/sandbox writes target emulator or isolated mock repositories; production Firestore writes are locked.
 - Single-account restriction applies to `progilicservice@gmail.com` with UID resolution as tenant identifier.
-- Server-side fail-closed production safety gate rejects live mutations with HTTP 423 until explicitly approved.
+- Server-side fail-closed production safety gate rejects live mutations with HTTP 423 until explicitly approved.saber
