@@ -1,11 +1,10 @@
-import { S, clients, setClients, updateState, currentUser, isGerant, hasPermission } from '../state/store.js';
+import { S, clients, setClients, updateState, currentUser } from '../state/store.js';
 import { createSnapshotBackup, downloadBackupJSON } from './backupService.js';
 import { showToast } from '../utils/toast.js';
 import { writeBatch, doc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config.js';
 import { saveUserData } from '../firebase/service.js';
 import { clearAllUserData, getClients, saveClients } from './idbStorage.js';
-import { getProgramStats } from '../utils/index.js';
 
 const AUDIT_LOGS_KEY = 'crm_purge_audit_logs';
 
@@ -151,24 +150,10 @@ export async function executePurge(config, onProgress) {
   if (!currentUser) {
     throw new Error("المستخدم غير مسجل الدخول.");
   }
-  if (!isGerant() && !hasPermission('clients.delete')) {
-    throw new Error("غير مصرح: صلاحيات الرئيس (Gérant) مطلوبة لتنفيذ التصفية أو المحو.");
-  }
 
-  const userId = currentUser.tenantId || currentUser.uid;
+  const userId = currentUser.uid;
   const userEmail = currentUser.email || 'operator';
   const now = new Date();
-
-  const commitChunkedDeletes = async (clientList) => {
-    const CHUNK_SIZE = 400;
-    for (let i = 0; i < clientList.length; i += CHUNK_SIZE) {
-      const batchOp = writeBatch(db);
-      for (const c of clientList.slice(i, i + CHUNK_SIZE)) {
-        batchOp.delete(doc(db, `users/${userId}/clients/${c.id}`));
-      }
-      await batchOp.commit();
-    }
-  };
 
   // Progress Stage 1: Auto Backup
   if (onProgress) onProgress({ step: 1, text: "📦 جاري إنشاء النسخة الاحتياطية الوقائية في المتصفح...", pct: 20 });
@@ -192,11 +177,18 @@ export async function executePurge(config, onProgress) {
   let updatedClients = [...clients];
 
   if (targetScope === 'all') {
-    await commitChunkedDeletes(clients);
+    // Delete all client docs and subcollections
+    const batch = writeBatch(db);
+    for (const c of clients) {
+      batch.delete(doc(db, `users/${userId}/clients/${c.id}`));
+    }
+    await batch.commit();
     updatedClients = [];
 
   } else if (targetScope === 'filtered') {
     if (filterType === 'stopped_clients') {
+      const idsToDelete = sim.sampleClients.map(c => c.id);
+      // Delete matching clients
       const toDeleteList = clients.filter(c => {
         if (c.status !== 'متوقف') return false;
         if (!c.lastContact) return true;
@@ -204,7 +196,11 @@ export async function executePurge(config, onProgress) {
         return diffDays >= olderThanDays;
       });
 
-      await commitChunkedDeletes(toDeleteList);
+      const batch = writeBatch(db);
+      for (const c of toDeleteList) {
+        batch.delete(doc(db, `users/${userId}/clients/${c.id}`));
+      }
+      await batch.commit();
 
       const deleteIds = new Set(toDeleteList.map(c => c.id));
       updatedClients = clients.filter(c => !deleteIds.has(c.id));
@@ -236,7 +232,11 @@ export async function executePurge(config, onProgress) {
     });
 
     if (selectiveCollections.clients) {
-      await commitChunkedDeletes(clients);
+      const batch = writeBatch(db);
+      for (const c of clients) {
+        batch.delete(doc(db, `users/${userId}/clients/${c.id}`));
+      }
+      await batch.commit();
       updatedClients = [];
     }
   }
@@ -255,7 +255,7 @@ export async function executePurge(config, onProgress) {
   const prospectiveCount = updatedClients.filter(c => c.status === 'محتمل').length;
   const stoppedCount = updatedClients.filter(c => c.status === 'متوقف').length;
   const totalProgs = updatedClients.reduce((acc, c) => acc + (c.programs || []).length, 0);
-  const totalInsts = updatedClients.reduce((total, c) => total + getProgramStats(c).totalInstalls, 0);
+  const totalInsts = updatedClients.reduce((acc, c) => acc + (c.programs || []).reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0), 0);
   const totalOpenIss = updatedClients.reduce((acc, c) => acc + (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length, 0);
 
   const newStats = {
@@ -271,7 +271,6 @@ export async function executePurge(config, onProgress) {
 
   await saveUserData(userId, {
     v: 3,
-    nid: Number.isFinite(Number(S.nid)) ? Number(S.nid) : 1,
     updatedAt: now.toISOString(),
     stats: newStats
   });

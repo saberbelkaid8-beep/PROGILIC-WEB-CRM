@@ -3,7 +3,6 @@
  */
 
 import { parseLocalIntent } from './localIntentParser.js';
-import { auth } from '../../firebase/config.js';
 
 export async function processAiRequest(userMessage, activeContext = {}, conversationHistory = []) {
   if (!navigator.onLine) {
@@ -12,17 +11,9 @@ export async function processAiRequest(userMessage, activeContext = {}, conversa
   }
 
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (auth && auth.currentUser && typeof auth.currentUser.getIdToken === 'function') {
-      try {
-        const idToken = await auth.currentUser.getIdToken();
-        if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
-      } catch (_) {}
-    }
-
     const res = await fetch('/api/ai', {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userMessage, activeContext, conversationHistory })
     });
 

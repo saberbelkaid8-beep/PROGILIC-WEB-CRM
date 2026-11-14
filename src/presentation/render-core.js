@@ -232,6 +232,7 @@ function performRender() { try {
   }
   
   const alerts = computeAlerts();
+  try { clients.forEach(c => autoDetectFeatureOpp(c.issues || [])); } catch(e) { console.error("Error in autoDetectFeatureOpp:", e); }
 
   let modalHTML = '';
   if (S.modal) {
@@ -362,13 +363,6 @@ function renderHdr(alertCount) {
         </button>
       ` : ''}
 
-      <!-- Trello Integration Master Hub (Strictly progilicservice@gmail.com) -->
-      ${(currentUser && currentUser.email === 'progilicservice@gmail.com') ? `
-        <button class="btn btn-xs" onclick="openModal('trelloIntegration')" style="margin-left:4px; margin-right:4px; background:linear-gradient(135deg, rgba(14,165,233,0.2) 0%, rgba(2,132,199,0.2) 100%); border:1px solid #0284c7; color:#38bdf8; font-weight:800; font-size:11px; padding:3px 10px; border-radius:8px;" title="${t('تكامل Trello الذكي والمزامنة')}">
-          📋 ${t('تكامل Trello')}
-        </button>
-      ` : ''}
-
       <span style="font-size:13px;font-weight:600;margin-left:8px;color:var(--t2)">
         👤 ${currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? currentUser.email : '')}
       </span>
@@ -400,9 +394,7 @@ function renderAlertBanner(alerts) {
 // Helper to render Storage & Sync Status Bar
 function renderStorageBar() {
   const isOnline = S.isOnline;
-  const queue = S.syncQueue || [];
-  const queueCount = queue.length;
-  const attentionCount = queue.filter(item => item.state === 'failed' || item.state === 'requires-attention').length;
+  const queueCount = (S.syncQueue || []).length;
   const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
   
   let statusHTML = '';
@@ -411,13 +403,6 @@ function renderStorageBar() {
       <span style="color:#ef4444; font-weight:700; display:flex; align-items:center; gap:6px;">
         <span class="pulse-offline" style="width:10px; height:10px; border-radius:50%; background:#ef4444; display:inline-block; animation: pulse 1s infinite;"></span>
         ⚠️ ${t('غير متصل - مطلوب اتصال بالإنترنت (نظام سحابي أونلاين فقط)')}
-      </span>
-    `;
-  } else if (attentionCount > 0) {
-    statusHTML = `
-      <span style="color:#ff4d4f; font-weight:700; display:flex; align-items:center; gap:6px;">
-        ⚠️ ${attentionCount} ${t('عملية مزامنة تحتاج إلى مراجعة')}
-        <button class="btn btn-xs" onclick="retrySyncQueue()" style="margin-inline-start:8px">${t('إعادة المحاولة')}</button>
       </span>
     `;
   } else if (queueCount > 0) {
@@ -462,7 +447,6 @@ function renderStorageBar() {
       <div style="display:flex;align-items:center;gap:6px;">
         ${hasPermission('backup.view') ? `<button class="btn btn-ghost btn-xs" onclick="openModal('backupManager')" title="${t('إدارة النسخ الاحتياطية')}" style="color:var(--brand);font-weight:600">💾 ${t('النسخ الاحتياطية')}</button>` : ''}
         ${isGerant() ? `<button class="btn btn-ghost btn-xs" onclick="openDbPurgeModal()" title="${t('تصفية/محو البيانات')}" style="color:var(--r);font-weight:700">🗑️ ${t('تصفية/محو البيانات')}</button>` : ''}
-        ${hasPermission('clients.export') ? `<button class="btn btn-ghost btn-xs" onclick="exportData('json')" title="${t('تصدير JSON')}">📄 ${t('تصدير JSON')}</button>` : ''}
         ${hasPermission('clients.export') ? `<button class="btn btn-ghost btn-xs" onclick="exportToCSV()" title="${t('تصدير CSV')}">📊 ${t('تصدير CSV')}</button>` : ''}
         ${isGerant() || hasPermission('backup.restore') ? `
           <label class="btn btn-ghost btn-xs" title="${t('استيراد ملف JSON أو DUM')}" style="cursor:pointer;margin:0">
@@ -477,6 +461,4 @@ function renderStorageBar() {
 
 // Clean UI: No telemetry indicators
 function updateAuditorHUD() {}
-if (typeof window !== 'undefined') {
-  window.__updateAuditorUI = updateAuditorHUD;
-}
+window.__updateAuditorUI = updateAuditorHUD;

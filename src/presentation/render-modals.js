@@ -1,4 +1,4 @@
-import { S, clients, currentUser } from '../state/store.js';
+import { S, clients } from '../state/store.js';
 import { BUSINESS_TYPES, PLATFORMS, PROGRAM_TYPES, PROGRAM_VERSIONS, ISSUE_TYPES, PRIORITY_LEVELS, ISSUE_STATUSES, ISSUE_SOURCES, REQ_STATUSES, IMPACT_LEVELS, WILAYAS } from '../constants/index.js';
 import { gc, selOpts, td, wOpts, actTypeOpts, esc, isClientAtRisk } from '../utils/index.js';
 import { getPurgeAuditLogs } from '../business/purgeService.js';
@@ -14,17 +14,6 @@ const RSTATUSES = REQ_STATUSES;
 const RTYPES = ['ميزة جديدة', 'تحسين', 'تعديل', 'أخرى'];
 const PROGRAM_PLATFORMS = PLATFORMS;
 const ACTIVITIES = BUSINESS_TYPES;
-
-function getLicenseLifecycle(program) {
-  if (!program?.endDate) return { label: t('غير محدد'), badgeClass: 'bdg-gr' };
-  const endDate = new Date(`${String(program.endDate).slice(0, 10)}T00:00:00`);
-  if (!Number.isFinite(endDate.getTime())) return { label: t('غير محدد'), badgeClass: 'bdg-gr' };
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return endDate < today
-    ? { label: t('منتهي'), badgeClass: 'bdg-r' }
-    : { label: t('نشط'), badgeClass: 'bdg-g' };
-}
 import { 
   renderEmployeeFormModal, 
   renderEditPermissionsModal, 
@@ -32,7 +21,6 @@ import {
   renderViewEmployeeTasksModal, 
   renderAdminPasswordModal 
 } from './render-employees.js';
-import { renderTrelloIntegrationModal } from './render-trello-modal.js';
 
 export function renderModal(){
   const m=S.modal;
@@ -54,14 +42,7 @@ export function renderModal(){
   if(m==='ticketsAndReqs')html=renderTicketsAndReqsModal();
   if(m==='healthScoreExplainer')html=renderHealthScoreExplainerModal();
   if(m==='licensesExplorer')html=renderLicensesExplorerModal();
-  if(m==='trelloIntegration') {
-    if (currentUser && currentUser.email === 'progilicservice@gmail.com') {
-      html = renderTrelloIntegrationModal();
-    } else {
-      html = `<div class="mhdr"><div class="mtitle">${t('غير مصرح')}</div></div><p style="padding:16px; color:var(--r);">${t('عذراً، هذا القسم مخصص حصرياً للحساب المصرح له بتكامل Trello.')}</p>`;
-    }
-  }
-  const isSuperWide = m === 'licensesExplorer' || m === 'trelloIntegration';
+  const isSuperWide = m === 'licensesExplorer';
   const isWide = m === 'geoReport' || m === 'ticketsAndReqs' || m === 'healthScoreExplainer' || m === 'dbPurge' || isSuperWide;
   return`<div class="mbk"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'}; ${isSuperWide ? 'max-width:1080px; width:96vw; max-height:94vh;' : isWide ? 'max-width:920px; width:95vw;' : ''}">${html}</div></div>`;
 }
@@ -71,8 +52,8 @@ import { cOpts, programTypeOpts, updateProgramTypeSelect } from '../utils/index.
 
 function renderClientModal(){
   const isEdit=S.modal==='editClient';
-  let c={};if(isEdit)c=clients.find(x=>x.id===S.selId || String(x.id) === String(S.selId))||{};
-  const curStatus = c.status || (isEdit ? '' : 'نشط');
+  let c={};if(isEdit)c=clients.find(x=>x.id===S.selId)||{};
+  const curStatus = c.status || 'نشط';
   return`
     <div class="mhdr">
       <div class="mtitle">${isEdit?t('تعديل بيانات العميل'):t('إضافة عميل جديد')}</div>
@@ -97,46 +78,41 @@ function renderClientModal(){
     </div>
     <div class="fsec">${t('حالة العقد والارتباط')}</div>
     <div class="frow">
-      <div class="fgroup"><label class="flbl">${t('الحالة')} *</label><select class="fctl" id="f_st" onchange="onClientStatusChange()">${isEdit && !c.status ? `<option value="" selected>${t('غير محدد')}</option>` : ''}${selOpts(CSTATUSES,curStatus)}</select></div>
-      <div class="fgroup"><label class="flbl">${t('آخر تواصل')} *</label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||(isEdit?'':td())}"></div>
+      <div class="fgroup"><label class="flbl">${t('الحالة')} *</label><select class="fctl" id="f_st" onchange="onClientStatusChange()">${selOpts(CSTATUSES,curStatus)}</select></div>
+      <div class="fgroup"><label class="flbl">${t('آخر تواصل')} *</label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||td()}"></div>
     </div>
     <div class="fgroup">
-      <label class="flbl">${t('تاريخ البدء / التسجيل')} *</label>
-      <input type="date" class="fctl" id="f_sd" value="${c.startDate||(isEdit?'':curStatus==='نشط'?td():'')}">
+      <label class="flbl">${t('تاريخ البدء / التسجيل')} * <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة')})</span></label>
+      <input type="date" class="fctl" id="f_sd" value="${c.startDate||(curStatus==='نشط'?td():'')}">
     </div>
     ${!isEdit ? `
-    <div id="active_client_prog_sec" style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-top:10px">
+    <div id="active_client_prog_sec" style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-top:10px; ${curStatus==='نشط'?'':'display:none;'}">
       <div class="fsec" style="margin-top:0; color:var(--brand)">${t('📦 تسجيل أول برنامج ترخيص للعميل')}</div>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px">
-        <input type="checkbox" id="f_p_enabled">
-        ${t('إضافة ترخيص برنامج الآن')}
-      </label>
       <div class="frow">
         <div class="fgroup">
           <label class="flbl">${t('المنصة')} *</label>
           <select class="fctl" id="f_p_pl" onchange="updateProgramTypeSelect(this.value, 'f_p_ty')">
-            <option value="" selected>${t('اختر المنصة')}</option>
-            <option value="Desktop">Desktop</option>
+            <option value="Desktop" selected>Desktop</option>
             <option value="Mobile">Mobile</option>
             <option value="Web">Web</option>
           </select>
         </div>
         <div class="fgroup">
           <label class="flbl">${t('نوع البرنامج')} *</label>
-          <select class="fctl" id="f_p_ty">${programTypeOpts('', '')}</select>
+          <select class="fctl" id="f_p_ty">${programTypeOpts('Desktop', 'تجاري (Commercial)')}</select>
         </div>
       </div>
       <div class="frow">
         <div class="fgroup" id="f_p_ver_group">
           <label class="flbl">${t('إصدار البرنامج')} *</label>
           <select class="fctl" id="f_p_ver">
-            <option value="" selected>${t('اختر الإصدار')}</option>
+            <option value="">${t('اختر الإصدار')}</option>
             ${PROGRAM_VERSIONS.map(v => `<option value="${v}">${v}</option>`).join('')}
           </select>
         </div>
         <div class="fgroup">
           <label class="flbl">${t('عدد الأجهزة المرخصة')} *</label>
-          <input type="number" class="fctl" id="f_p_ic" min="1" value="">
+          <input type="number" class="fctl" id="f_p_ic" min="1" value="1">
         </div>
       </div>
     </div>
@@ -150,10 +126,10 @@ function renderClientModal(){
 
 function renderProgramModal(){
   const isEdit=S.modal==='editProgram';
-  const cid=S.selId;const c=clients.find(x=>x.id===cid || String(x.id) === String(cid));if(!c)return'';
+  const cid=S.selId;const c=clients.find(x=>x.id===cid);if(!c)return'';
   let p={};
   if(isEdit){const eid=S.form.eid;p=c.programs.find(x=>x.id===eid)||{};}
-  const curPlat = p.platform || '';
+  const curPlat = p.platform || 'Desktop';
   return`
     <div class="mhdr">
       <div class="mtitle">${isEdit?t('تعديل بيانات الترخيص'):t('إضافة برنامج وترخيص جديد')}</div>
@@ -163,7 +139,6 @@ function renderProgramModal(){
       <div class="fgroup">
         <label class="flbl">${t('المنصة')} *</label>
         <select class="fctl" id="fp_pl" onchange="updateProgramTypeSelect(this.value, 'fp_ty')">
-          ${!curPlat ? `<option value="" selected>${t('اختر المنصة')}</option>` : ''}
           <option value="Desktop"${curPlat==='Desktop'?' selected':''}>Desktop</option>
           <option value="Mobile"${curPlat==='Mobile'?' selected':''}>Mobile</option>
           <option value="Web"${curPlat==='Web'?' selected':''}>Web</option>
@@ -178,18 +153,18 @@ function renderProgramModal(){
       <div class="fgroup" id="fp_ver_group" style="${curPlat==='Mobile'?'display:none;':''}">
         <label class="flbl">${t('إصدار البرنامج')} *</label>
         <select class="fctl" id="fp_ver">
-          <option value=""${!p.version ? ' selected' : ''}>${t('اختر الإصدار')}</option>
+          <option value="">${t('اختر الإصدار')}</option>
           ${PROGRAM_VERSIONS.map(v => `<option value="${v}"${p.version===v?' selected':''}>${v}</option>`).join('')}
         </select>
       </div>
       <div class="fgroup">
         <label class="flbl">${t('عدد الأجهزة المرخصة')} *</label>
-        <input type="number" class="fctl" id="fp_ic" min="1" value="${p.installationsCount ?? ''}">
+        <input type="number" class="fctl" id="fp_ic" min="1" value="${p.installationsCount||1}">
       </div>
     </div>
     <div class="fgroup">
-      <label class="flbl">${t('تاريخ البداية / التثبيت')}</label>
-      <input type="date" class="fctl" id="fp_sd" value="${p.startDate || ''}">
+      <label class="flbl">${t('تاريخ البداية / التثبيت')} <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة — Licence à vie')})</span></label>
+      <input type="date" class="fctl" id="fp_sd" value="${p.startDate||td()}">
     </div>
     <div class="facts">
       <button class="btn btn-ghost" onclick="closeModal()">${t('إلغاء')}</button>
@@ -199,7 +174,7 @@ function renderProgramModal(){
 
 function renderIssueModal(){
   const isEdit=S.modal==='editIssue';
-  const cid=S.selId;const c=clients.find(x=>x.id===cid || String(x.id) === String(cid));if(!c)return'';
+  const cid=S.selId;const c=clients.find(x=>x.id===cid);if(!c)return'';
   let i={};if(isEdit){const eid=S.form.eid;i=c.issues.find(x=>x.id===eid)||{};}
   return`
     <div class="mhdr">
@@ -244,7 +219,7 @@ function renderIssueModal(){
 
 function renderReqModal(){
   const isEdit=S.modal==='editReq';
-  const cid=S.selId;const c=clients.find(x=>x.id===cid || String(x.id) === String(cid));if(!c)return'';
+  const cid=S.selId;const c=clients.find(x=>x.id===cid);if(!c)return'';
   let r={};if(isEdit){const eid=S.form.eid;r=c.requirements.find(x=>x.id===eid)||{};}
   return`
     <div class="mhdr">
@@ -1191,39 +1166,31 @@ export function renderLicensesExplorerModal() {
 
   // Aggregate all licenses across all clients
   const allLicenses = [];
-  const legacySummaryCount = clients.filter(client => (
-    (!Array.isArray(client.programs) || client.programs.length === 0)
-    && (Number(client.programsCount) > 0 || (Array.isArray(client.programNames) && client.programNames.length > 0))
-  )).length;
   clients.forEach(c => {
-    const progs = Array.isArray(c.programs) ? c.programs : [];
+    const progs = c.programs || [];
     progs.forEach(p => {
-        allLicenses.push({
-          ...p,
-          clientId: c.id,
-          clientName: c.fullName || 'عميل غير مسمى',
-          clientCompany: c.company || '—',
-          clientWilaya: c.wilaya || '—',
-          clientPhone: c.phone || '—',
-          clientStatus: c.status || ''
-        });
+      allLicenses.push({
+        ...p,
+        clientId: c.id,
+        clientName: c.fullName || 'عميل غير مسمى',
+        clientCompany: c.company || '—',
+        clientWilaya: c.wilaya || '—',
+        clientPhone: c.phone || '—',
+        clientStatus: c.status || 'نشط'
+      });
     });
   });
 
   // Calculate high-level stats
   const totalLicenses = allLicenses.length;
-  const desktopLicenses = allLicenses.filter(l => l.platform === 'Desktop').length;
+  const desktopLicenses = allLicenses.filter(l => (l.platform || 'Desktop') === 'Desktop').length;
   const mobileLicenses = allLicenses.filter(l => l.platform === 'Mobile').length;
   const webLicenses = allLicenses.filter(l => l.platform === 'Web').length;
-  const incompleteDeviceCounts = allLicenses.filter(l => !(Number.isFinite(Number(l.installationsCount)) && Number(l.installationsCount) > 0)).length;
-  const totalDevices = allLicenses.reduce((sum, l) => {
-    const count = Number(l.installationsCount);
-    return Number.isFinite(count) && count > 0 ? sum + count : sum;
-  }, 0);
+  const totalDevices = allLicenses.reduce((sum, l) => sum + (Number(l.installationsCount) || 1), 0);
 
   // Filter licenses
   const filtered = allLicenses.filter(l => {
-    const plat = l.platform || '';
+    const plat = l.platform || 'Desktop';
     if (curPlatform !== 'all' && plat !== curPlatform) return false;
     if (curVersion !== 'all' && (l.version || '').toUpperCase() !== curVersion.toUpperCase()) return false;
     if (curType !== 'all') {
@@ -1261,7 +1228,7 @@ export function renderLicensesExplorerModal() {
           <span class="bdg bdg-b" style="font-size:12px;font-weight:800;padding:3px 10px">${filtered.length} ${t('ترخيص')}</span>
         </div>
         <div style="font-size:12px;color:var(--t2);margin-top:4px">
-          ${t('تُعرض هنا سجلات البرامج المحفوظة فقط؛ البيانات الملخصة غير كافية لإنشاء سجل ترخيص.')}
+          ${t('استعراض تفصيلي ومقارنة حية لتراخيص العملاء والمنصات (Desktop · Mobile · Web) والإصدارات في الـ CRM')}
         </div>
       </div>
       <button class="mclose" onclick="closeModal()" title="${t('إغلاق')}">×</button>
@@ -1287,13 +1254,9 @@ export function renderLicensesExplorerModal() {
       </div>
       <div class="lic-kpi-card" style="border-inline-start:3px solid #5856D6">
         <span class="lic-kpi-lbl">💻 ${t('إجمالي الأجهزة')}</span>
-        <span class="lic-kpi-val" style="color:#5856D6">${totalDevices}${incompleteDeviceCounts ? ' + ?' : ''}</span>
+        <span class="lic-kpi-val" style="color:#5856D6">${totalDevices}</span>
       </div>
     </div>
-
-    ${legacySummaryCount ? `<div role="status" style="margin-bottom:14px;padding:12px;border:1px solid var(--warning,#eda100);border-radius:8px;color:var(--t1)">
-      ${legacySummaryCount} ${t('عميل لديهم ملخص برامج بلا سجلات ترخيص تفصيلية. هذه البيانات غير معروضة كتراخيص وتحتاج إلى مراجعة.')}
-    </div>` : ''}
 
     <!-- Platform Tabs (Desktop / Mobile / Web) -->
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
@@ -1423,11 +1386,10 @@ export function renderLicensesExplorerModal() {
           </thead>
           <tbody>
             ${filtered.map((item, idx) => {
-              const plat = item.platform || '';
-              const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : (plat === 'Web' ? 'lic-pill-web' : 'lic-pill-unknown'));
-              const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : (plat === 'Web' ? '🌐' : ''));
-              const statusBdg = item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-gr');
-              const licenseStatus = getLicenseLifecycle(item);
+              const plat = item.platform || 'Desktop';
+              const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : 'lic-pill-web');
+              const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : '🌐');
+              const statusBdg = item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-y');
 
               return `
                 <tr>
@@ -1443,7 +1405,7 @@ export function renderLicensesExplorerModal() {
                         ${esc(item.clientName)}
                       </strong>
                       <span class="bdg ${statusBdg}" style="font-size:10px;padding:1px 6px">
-                        ${t(item.clientStatus || 'غير محدد')}
+                        ${t(item.clientStatus)}
                       </span>
                     </div>
                     ${item.clientCompany && item.clientCompany !== '—' ? `
@@ -1469,44 +1431,44 @@ export function renderLicensesExplorerModal() {
                   <!-- Platform Badge -->
                   <td>
                     <span class="${platPillClass}">
-                      ${platIcon} ${esc(plat || t('غير محدد'))}
+                      ${platIcon} ${esc(plat)}
                     </span>
                   </td>
 
                   <!-- Program & Type -->
                   <td>
                     <div style="font-weight:700;color:var(--t1);font-size:12.5px">
-                      ${esc(item.programName || '—')}
+                      ${esc(item.programName || item.type || 'PROGILIC')}
                     </div>
                     <div style="font-size:11px;color:var(--t3);margin-top:1px">
-                      ${esc(item.type || '—')}
+                      ${esc(item.type || 'تجاري')}
                     </div>
                   </td>
 
                   <!-- Version Pill -->
                   <td style="text-align:center">
                     <span class="lic-pill-ver">
-                      ${esc(item.version || '—')}
+                      ${esc(item.version || 'V27')}
                     </span>
                   </td>
 
                   <!-- Devices Count -->
                   <td style="text-align:center">
                     <span class="lic-pill-dev">
-                      💻 ${item.installationsCount ?? '—'}
+                      💻 ${item.installationsCount || 1}
                     </span>
                   </td>
 
                   <!-- License Validity & Date -->
                   <td>
-                    <span class="bdg ${licenseStatus.badgeClass}">${licenseStatus.label}</span>
-                    ${item.licenseType || item.licenseTerm ? `<div style="font-size:10.5px;color:var(--t3);margin-top:2px">${esc(item.licenseType || item.licenseTerm)}</div>` : ''}
+                    <div style="font-size:11.5px;color:var(--brand);font-weight:700">
+                      ⏳ ${t('مدى الحياة')}
+                    </div>
                     ${item.startDate ? `
                       <div style="font-size:10.5px;color:var(--t3);margin-top:2px">
                         📅 ${esc(item.startDate)}
                       </div>
                     ` : ''}
-                    ${item.endDate ? `<div style="font-size:10.5px;color:var(--t3);margin-top:2px">↳ ${esc(item.endDate)}</div>` : ''}
                   </td>
 
                   <!-- Action Button -->
@@ -1531,12 +1493,11 @@ export function renderLicensesExplorerModal() {
       <!-- 2. Cards View (Spacious, Tiered & Non-Overlapping) -->
       <div style="max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-inline-end:4px">
         ${filtered.map(item => {
-          const plat = item.platform || '';
-          const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : (plat === 'Web' ? 'lic-pill-web' : 'lic-pill-unknown'));
-          const platColor = plat === 'Desktop' ? '#007AFF' : (plat === 'Mobile' ? '#34C759' : (plat === 'Web' ? '#FF9500' : '#8b949e'));
-          const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : (plat === 'Web' ? '🌐' : ''));
-          const statusBdg = item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-gr');
-          const licenseStatus = getLicenseLifecycle(item);
+          const plat = item.platform || 'Desktop';
+          const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : 'lic-pill-web');
+          const platColor = plat === 'Desktop' ? '#007AFF' : (plat === 'Mobile' ? '#34C759' : '#FF9500');
+          const platIcon = plat === 'Desktop' ? '🖥️' : (plat === 'Mobile' ? '📱' : '🌐');
+          const statusBdg = item.clientStatus === 'نشط' ? 'bdg-g' : (item.clientStatus === 'محتمل' ? 'bdg-b' : 'bdg-y');
 
           return `
             <div 
@@ -1553,7 +1514,7 @@ export function renderLicensesExplorerModal() {
                     <span style="font-size:12px;color:var(--t2)">(${esc(item.clientCompany)})</span>
                   ` : ''}
                   <span class="bdg ${statusBdg}" style="font-size:10.5px">
-                    ${t(item.clientStatus || 'غير محدد')}
+                    ${t(item.clientStatus)}
                   </span>
                 </div>
 
@@ -1572,27 +1533,25 @@ export function renderLicensesExplorerModal() {
                 ${item.clientPhone && item.clientPhone !== '—' ? `
                   <span style="display:inline-flex;align-items:center;gap:4px" dir="ltr">📞 ${esc(item.clientPhone)}</span>
                 ` : ''}
-                <span class="bdg ${licenseStatus.badgeClass}">⏳ ${licenseStatus.label}</span>
-                ${item.licenseType || item.licenseTerm ? `<span>${esc(item.licenseType || item.licenseTerm)}</span>` : ''}
+                <span style="display:inline-flex;align-items:center;gap:4px;color:var(--brand);font-weight:700">⏳ ${t('ترخيص مدى الحياة')}</span>
                 ${item.startDate ? `
                   <span style="display:inline-flex;align-items:center;gap:4px">📅 ${t('بدء التثبيت')}: ${esc(item.startDate)}</span>
                 ` : ''}
-                ${item.endDate ? `<span style="display:inline-flex;align-items:center;gap:4px">↳ ${esc(item.endDate)}</span>` : ''}
               </div>
 
               <!-- Tier 3: Separated Badges Strip -->
               <div class="lic-card-pills">
                 <span class="${platPillClass}">
-                  ${platIcon} ${esc(plat || t('غير محدد'))}
+                  ${platIcon} ${esc(plat)}
                 </span>
                 <span style="background:var(--surface);border:1px solid var(--border);color:var(--t1);font-weight:700;font-size:11.5px;padding:3px 10px;border-radius:6px">
-                  ${esc(item.type || '—')}
+                  ${esc(item.type || 'تجاري')}
                 </span>
                 <span class="lic-pill-ver">
-                  ${esc(item.version || '—')}
+                  ${esc(item.version || 'V27')}
                 </span>
                 <span class="lic-pill-dev">
-                  💻 ${item.installationsCount ?? '—'} ${t('أجهزة')}
+                  💻 ${item.installationsCount || 1} ${t('أجهزة')}
                 </span>
               </div>
             </div>

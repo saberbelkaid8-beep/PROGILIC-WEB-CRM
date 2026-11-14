@@ -92,8 +92,7 @@ describe('Universal DUM and JSON Import Parser', () => {
     expect(migrated.clients).toHaveLength(1);
     expect(migrated.clients[0].fullName).toBe('حمزة بن عيسى');
     expect(migrated.clients[0].status).toBe('محتمل');
-    expect(migrated.clients[0].programs).toHaveLength(0);
-    expect(migrated.clients[0].product).toBe('Logiciel Commercial');
-    expect(migrated.clients[0].contractType).toBe('سنوي');
+    expect(migrated.clients[0].programs).toHaveLength(1);
+    expect(migrated.clients[0].programs[0].programName).toBe('Logiciel Commercial');
   });
 });

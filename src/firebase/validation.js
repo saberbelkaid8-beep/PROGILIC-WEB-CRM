@@ -1,77 +1,56 @@
 export function validateClient(c) {
-  if (!c || typeof c !== 'object' || Array.isArray(c)) {
-    throw new TypeError('Client data must be an object.');
-  }
-  if (!Number.isSafeInteger(c.id)) {
-    throw new TypeError('Client ID is missing or invalid; it cannot be synthesized during migration.');
-  }
-  if (typeof c.fullName !== 'string' || !c.fullName.trim()) {
-    throw new TypeError('Client name is missing; the record requires manual review.');
-  }
-  if (!['نشط', 'محتمل', 'متوقف'].includes(c.status)) {
-    throw new TypeError('Client status is missing or invalid; it cannot be assumed during migration.');
-  }
-  for (const field of ['openIssuesCount', 'requirementsCount', 'programsCount', 'installationsCount']) {
-    if (Object.hasOwn(c, field) && (typeof c[field] !== 'number' || !Number.isFinite(c[field]))) {
-      throw new TypeError(`Client ${field} is invalid; it cannot be coerced during migration.`);
-    }
-  }
-
-  const allowedFields = [
-    'id', 'fullName', 'status', 'phone', 'gmailAccount', 'company', 'wilaya', 'commune',
-    'location', 'businessType', 'businessField', 'startDate', 'endDate', 'lastContact',
-    'notes', 'gps', 'score', 'openIssuesCount', 'requirementsCount', 'programsCount',
-    'installationsCount', 'updatedAt', 'createdAt', '_subcollectionsLoaded', 'version',
-    'programNames', 'firestoreId', 'category', 'registrationChannel', 'deviceType',
-    'creatorRole', 'creatorEmail', 'source', 'urgentIssuesCount', 'trelloCardId',
-    'trelloListId', 'trelloSyncStatus', 'trelloLastSyncedAt', 'trelloOriginCard',
-    'trelloChecklistItemId', 'lastModifiedBy'
+  const data = { ...c };
+  const validBT = [
+    "تجارة تجزئة", "تجارة جملة", "منتوجات التجميل والكوسميتيك", "مطاعم وفنادق", 
+    "خدمات ومهن حرة", "شركة خدمات", "إنتاج وصناعة", "صناعة / تصنيع", 
+    "صحة وصيدلة", "تعليم وتكوين", "بناء وعقارات", "نقل ولوجستيك", 
+    "زراعة وأغذية", "تقنية ومعلوماتية", "مالية وتأمين", "أخرى"
   ];
-  const doc = Object.fromEntries(allowedFields
-    .filter(field => Object.hasOwn(c, field))
-    .map(field => [field, c[field]]));
+  
+  const doc = {
+    id: Number(data.id) || Date.now(),
+    fullName: (data.fullName || 'بدون اسم').substring(0, 100) || 'بدون اسم',
+    phone: (data.phone || '').substring(0, 30),
+    gmailAccount: (data.gmailAccount || '').substring(0, 254),
+    company: (data.company || '').substring(0, 100),
+    wilaya: (data.wilaya || '').substring(0, 50),
+    commune: (data.commune || '').substring(0, 50),
+    location: (data.location || '').substring(0, 100),
+    businessType: validBT.includes(data.businessType) ? data.businessType : 'أخرى',
+    businessField: (data.businessField || '').substring(0, 50),
+    status: ["نشط", "محتمل", "متوقف"].includes(data.status) ? data.status : "نشط",
+    startDate: (data.startDate || '').substring(0, 20),
+    endDate: (data.endDate || '').substring(0, 20),
+    lastContact: (data.lastContact || '').substring(0, 20),
+    notes: (data.notes || '').substring(0, 1000),
+    gps: (data.gps && typeof data.gps === 'object') ? { lat: typeof data.gps.lat === 'number' ? data.gps.lat : null, lng: typeof data.gps.lng === 'number' ? data.gps.lng : null } : { lat: null, lng: null },
+    score: typeof data.score === 'number' ? Math.max(0, Math.min(100, Math.round(data.score))) : 100,
+    openIssuesCount: Number(data.openIssuesCount) || 0,
+    requirementsCount: Number(data.requirementsCount) || 0,
+    programsCount: Number(data.programsCount) || 0,
+    installationsCount: Number(data.installationsCount) || 0,
+    updatedAt: new Date().toISOString()
+  };
   return doc;
 }
 
 export function validateProgram(p) {
-  if (!p || typeof p !== 'object' || Array.isArray(p)) {
-    throw new TypeError('Program data must be an object.');
-  }
-  if (!Number.isSafeInteger(p.id)) {
-    throw new TypeError('Program ID is missing or invalid; it cannot be synthesized during migration.');
-  }
-  if (typeof p.programName !== 'string' || !p.programName.trim()) {
-    throw new TypeError('Program name is missing; the record requires manual review.');
-  }
-  if (!['Desktop', 'Mobile', 'Web', 'Hybrid'].includes(p.platform)) {
-    throw new TypeError('Program platform is missing or invalid; the record requires manual review.');
-  }
-  if (typeof p.type !== 'string' || !p.type.trim()) {
-    throw new TypeError('Program type is missing; the record requires manual review.');
-  }
-  const allowedFields = [
-    'id', 'programName', 'platform', 'type', 'version', 'installationsCount',
-    'startDate', 'endDate', 'clientId', 'notes', 'createdAt', 'updatedAt',
-    'source', 'trelloChecklistItemId', 'lastModifiedBy'
+  const objId = Number(p.id) || (Date.now() + Math.floor(Math.random() * 9999));
+  const isMobile = p.platform === 'Mobile';
+  const allowedVersions = [
+    "V27", "V26", "V24", "V23", "V21", "v18", "v16", "v15", "R+", "arabe",
+    "V18", "V16", "V15", "r+", "Arabe"
   ];
-  if (Object.keys(p).some(field => !allowedFields.includes(field))) {
-    throw new TypeError('Program contains unsupported fields; the record requires manual review.');
-  }
-  if (p.programName.length > 200 || p.type.length > 100) {
-    throw new TypeError('Program name or type exceeds the database schema limit.');
-  }
-  if (Object.hasOwn(p, 'version') && (typeof p.version !== 'string' || p.version.length > 50)) {
-    throw new TypeError('Program version is invalid; it cannot be normalized during migration.');
-  }
-  if (Object.hasOwn(p, 'installationsCount') && (!Number.isSafeInteger(p.installationsCount) || p.installationsCount < 0)) {
-    throw new TypeError('Program installation count is invalid; it cannot be coerced during migration.');
-  }
-  for (const field of ['startDate', 'endDate']) {
-    if (Object.hasOwn(p, field) && (typeof p[field] !== 'string' || p[field].length > 20)) {
-      throw new TypeError(`Program ${field} is invalid; it cannot be normalized during migration.`);
-    }
-  }
-  return { ...p };
+  return {
+    id: objId,
+    programName: (p.programName || p.product || 'غير محدد').substring(0, 100) || 'غير محدد',
+    platform: ["Desktop", "Mobile", "Web", "Hybrid"].includes(p.platform) ? p.platform : "Desktop",
+    type: ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"].includes(p.type) ? p.type : (p.type || "أخرى"),
+    version: isMobile ? "" : (allowedVersions.includes(p.version) ? p.version : (p.version || "")),
+    installationsCount: Number(p.installationsCount) || 1,
+    startDate: (p.startDate || '').substring(0, 20),
+    endDate: (p.endDate || '').substring(0, 20)
+  };
 }
 
 export function validateIssue(i) {

@@ -283,32 +283,30 @@ export function renderStaffManagerModal() {
   `;
 }
 
-if (typeof window !== 'undefined') {
-  window.focusGerantLogin = function() {
-    const list = staffUsers || [];
-    const gerant = list.find(s => s.role === 'GERANT' || s.id === 'gerant') || list[0];
-    const gerantId = gerant ? gerant.id : 'gerant';
-    const inp = document.getElementById('staff-pwd-' + gerantId);
-    if (inp) {
-      inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      inp.focus();
-      inp.style.outline = '2px solid #f59e0b';
-      inp.style.boxShadow = '0 0 0 4px rgba(245, 158, 11, 0.4)';
-      setTimeout(() => {
-        if (inp) {
-          inp.style.outline = '';
-          inp.style.boxShadow = '';
-        }
-      }, 2500);
-    }
-  };
+window.focusGerantLogin = function() {
+  const list = staffUsers || [];
+  const gerant = list.find(s => s.role === 'GERANT' || s.id === 'gerant') || list[0];
+  const gerantId = gerant ? gerant.id : 'gerant';
+  const inp = document.getElementById('staff-pwd-' + gerantId);
+  if (inp) {
+    inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    inp.focus();
+    inp.style.outline = '2px solid #f59e0b';
+    inp.style.boxShadow = '0 0 0 4px rgba(245, 158, 11, 0.4)';
+    setTimeout(() => {
+      if (inp) {
+        inp.style.outline = '';
+        inp.style.boxShadow = '';
+      }
+    }, 2500);
+  }
+};
 
-  window.enterAsGerantDirectly = window.focusGerantLogin;
+window.enterAsGerantDirectly = window.focusGerantLogin;
 
-  window.closeStaffPortal = function() {
-    S.showStaffPortal = false;
-    if (typeof window.R === 'function') {
-      window.R();
-    }
-  };
-}
+window.closeStaffPortal = function() {
+  S.showStaffPortal = false;
+  if (typeof window.R === 'function') {
+    window.R();
+  }
+};

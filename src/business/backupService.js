@@ -35,17 +35,12 @@ export async function createSnapshotBackup(uid, reason, clientsList, stats, nid)
     reason,
     clients: clientsCopy,
     stats: statsCopy,
-    nid: Number.isSafeInteger(nid) && nid >= 0 ? nid : null,
-    version: 4,
-    schemaVersion: 1
+    nid: nid || 100,
+    version: 3
   };
 
   try {
     await saveBackup(uid, backup);
-    const savedBackup = (await getBackups(uid)).find(item => item.id === backup.id);
-    if (!savedBackup || JSON.stringify(savedBackup) !== JSON.stringify(backup)) {
-      throw new Error('Backup verification failed after writing to IndexedDB.');
-    }
     console.log(`[Backup] Created snapshot "${reason}" with ID: ${backup.id}`);
     
     // Prune backups beyond the rolling limit of 30
@@ -121,33 +116,31 @@ export async function restoreFromBackup(uid, backupId) {
   try {
     const list = await getBackups(uid);
     const targetBackup = list.find(b => b.id === backupId);
-    if (!targetBackup || !Array.isArray(targetBackup.clients) || !targetBackup.stats || typeof targetBackup.stats !== 'object') {
+    if (!targetBackup) {
       showToast("لم يتم العثور على النسخة الاحتياطية المحددة.", "error");
       return false;
     }
 
     // Safeguard Snapshot: Back up the current active state first before overwriting!
-    const safetyBackup = await createSnapshotBackup(
+    await createSnapshotBackup(
       uid, 
       `نسخ احتياطي تلقائي وقائي (قبل استرجاع نسخة ${targetBackup.reason})`, 
       clients, 
       S.stats, 
       S.nid
     );
-    if (!safetyBackup) {
-      throw new Error('The pre-restore safety backup could not be verified; restore was cancelled.');
-    }
 
     // Deep copy data from backup to state
     const restoredClients = JSON.parse(JSON.stringify(targetBackup.clients || []));
     const restoredStats = JSON.parse(JSON.stringify(targetBackup.stats || {}));
+    const restoredNid = targetBackup.nid || 100;
+
     // Apply to UI state
     setClients(restoredClients);
-    const restoredState = { stats: restoredStats };
-    if (Number.isSafeInteger(targetBackup.nid) && targetBackup.nid >= 0) {
-      restoredState.nid = targetBackup.nid;
-    }
-    updateState(restoredState);
+    updateState({
+      nid: restoredNid,
+      stats: restoredStats
+    });
 
     // Log this restore event into the timeline of all clients, or generally
     await logActivity(

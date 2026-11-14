@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Offline and Realtime Sync', () => {
   const testEmail = `offline_${Date.now()}@example.com`;
   const testPassword = 'Password123!';
-  const clientName = `Offline Client Hero`;
+  const clientName = `Offline Client ${Date.now()}`;
 
   test('should work offline and sync when online', async ({ page, context }) => {
     // 1. Setup - register and login
@@ -22,24 +22,21 @@ test.describe('Offline and Realtime Sync', () => {
     
     // Check if network status indicator shows offline (assuming there is one, or just proceed)
     // Create a client while offline
-    await page.locator('button', { hasText: /إضافة عميل|عميل جديد/ }).first().click();
+    await page.locator('button', { hasText: 'عميل جديد' }).first().click();
     await page.fill('#f_fn', clientName);
-    await page.fill('#f_co', 'Offline Co');
-    await page.fill('#f_ph', '0555333333');
-    await page.selectOption('#f_wi', 'الجزائر');
-    await page.selectOption('#f_bt', 'تجارة تجزئة');
-    await page.selectOption('#f_bf', 'سوبرماركت / بقالة');
-    await page.selectOption('#f_st', 'نشط');
-    await page.selectOption('#f_p_ver', 'V27');
-    await page.locator('.msheet button.btn-primary').click();
+    await page.locator('.msheet button', { hasText: 'إضافة العميل' }).click();
     
     // Verify client appears in UI optimistically
-    await expect(page.locator(`text=${clientName}`).first()).toBeVisible();
+    await expect(page.locator(`text=${clientName}`)).toBeVisible();
 
     // 3. Go back online
     await context.setOffline(false);
     
-    // Client should remain visible in UI after online reconnection and sync flush
-    await expect(page.locator(`text=${clientName}`).first()).toBeVisible();
+    // 4. Reload page to verify data persisted/synced
+    await page.reload();
+    await expect(page.locator('.hdr')).toBeVisible({ timeout: 15000 });
+    
+    // Client should still be there because it synced or is in local cache
+    await expect(page.locator(`text=${clientName}`)).toBeVisible();
   });
 });

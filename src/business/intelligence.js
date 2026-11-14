@@ -142,16 +142,15 @@ export function computeRiskProfile(c){
 }
 
 export function computeGlobalStats(){
-  const safeClients = (clients || []).filter(c => c && typeof c === 'object');
-  const totalProgsGlobal=safeClients.reduce((s,c)=>s+(c.programs||[]).length,0);
-  const totalInstGlobal=safeClients.reduce((total,c)=>total+getProgramStats(c).totalInstalls,0);
-  const allIssues=safeClients.flatMap(c=>(c.issues||[]).map(i=>({...i,clientName:c.fullName,clientId:c.id})));
-  const allReqs=safeClients.flatMap(c=>(c.requirements||[]).map(r=>({...r,clientName:c.fullName,clientId:c.id})));
+  const totalProgsGlobal=clients.reduce((s,c)=>s+(c.programs||[]).length,0);
+  const totalInstGlobal=clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0);
+  const allIssues=clients.flatMap(c=>(c.issues||[]).map(i=>({...i,clientName:c.fullName,clientId:c.id})));
+  const allReqs=clients.flatMap(c=>(c.requirements||[]).map(r=>({...r,clientName:c.fullName,clientId:c.id})));
   const openIssues=allIssues.filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة');
   const featureOpps=allIssues.filter(i=>i.featureOpp);
-  const highRiskClients=safeClients.filter(c=>computeRiskProfile(c).level==='high');
+  const highRiskClients=clients.filter(c=>computeRiskProfile(c).level==='high');
   const crossIssues=detectCrossClientIssues();
-  const avgScore=safeClients.length?Math.round(safeClients.reduce((s,c)=>s+computeScore(c).total,0)/safeClients.length):0;
+  const avgScore=clients.length?Math.round(clients.reduce((s,c)=>s+computeScore(c).total,0)/clients.length):0;
   const impactW={عالي:3,متوسط:2,منخفض:1};const prioW={عاجل:4,عالية:3,متوسطة:2,منخفضة:1};
   const topReqs=[...allReqs].filter(r=>r.status!=='مرفوض').sort((a,b)=>
     ((impactW[b.impact]||1)+(prioW[b.priority]||1))-((impactW[a.impact]||1)+(prioW[a.priority]||1))).slice(0,5);
@@ -160,8 +159,7 @@ export function computeGlobalStats(){
 
 export function computeAlerts(){
   const alerts=[];const now=Date.now();const DAY=86400000;
-  (clients || []).forEach(c=>{
-    if (!c || typeof c !== 'object') return;
+  clients.forEach(c=>{
     if(c.status==='نشط'&&c.lastContact){
       const ds=Math.floor((now-new Date(c.lastContact+'T00:00').getTime())/DAY);
       if(ds>=60)alerts.push({type:'NO_CONTACT',cid:c.id,

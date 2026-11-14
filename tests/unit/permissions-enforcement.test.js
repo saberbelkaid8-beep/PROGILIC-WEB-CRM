@@ -2,15 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { S, setCurrentUser, setCurrentStaffUser, hasPermission, isGerant, setStaffUsers } from '../../src/state/store.js';
 import { ALL_PERMISSIONS, PERMISSION_GROUPS, createDefaultGerant } from '../../src/constants/index.js';
 
-vi.mock('../../src/firebase/service.js', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    saveEmployeeForTenant: vi.fn(async () => true),
-    saveTenantActivity: vi.fn(async (_uid, activity) => activity.id)
-  };
-});
-
 describe('Permissions Enforcement & Control System', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -155,7 +146,7 @@ describe('Permissions Enforcement & Control System', () => {
     expect(revokedStaff.permissions['issues.view']).toBeFalsy();
     expect(revokedStaff.permissions['issues.create']).toBeFalsy();
     expect(revokedStaff.permissions['issues.resolve']).toBeFalsy();
-  }, 15000);
+  });
 
   it('openModal should block unauthorized modal popups when permission is missing', async () => {
     const { openModal } = await import('../../src/business/actions/uiActions.js');

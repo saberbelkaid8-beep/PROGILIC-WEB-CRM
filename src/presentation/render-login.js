@@ -21,43 +21,39 @@ import {
   getDepartment 
 } from '../business/employeeService.js';
 
-if (typeof window !== 'undefined') {
-  window.loginMode = window.loginMode || 'login';
-  window.loginPortalTab = window.loginPortalTab || 'gerant';
+window.loginMode = window.loginMode || 'login';
+window.loginPortalTab = window.loginPortalTab || 'gerant';
 
-  window.switchLoginTab = function(tab) {
-    window.loginPortalTab = tab;
+window.switchLoginTab = function(tab) {
+  window.loginPortalTab = tab;
+  R();
+};
+
+window.handleEmployeeLoginSubmit = function(e) {
+  e.preventDefault();
+  const u = e.target.emp_username ? e.target.emp_username.value : '';
+  const p = e.target.emp_password ? e.target.emp_password.value : '';
+  if (!p || !p.trim()) {
+    showToast(t("يرجى إدخال كلمة المرور للمتابعة. لا يمكن الدخول بدون التحقق من كلمة المرور."), 'error');
+    return;
+  }
+  try {
+    const emp = authenticateEmployee(u, p);
+    loginAsEmployeeSession(emp);
+    showToast(`مرحباً بك ${emp.fullName || emp.name}! تم تسجيل الدخول بنجاح بحساب (${emp.position}).`, 'success');
     R();
-  };
-}
+  } catch (err) {
+    showToast(err.message || "فشل تسجيل الدخول", 'error');
+  }
+};
 
-if (typeof window !== 'undefined') {
-  window.handleEmployeeLoginSubmit = function(e) {
-    e.preventDefault();
-    const u = e.target.emp_username ? e.target.emp_username.value : '';
-    const p = e.target.emp_password ? e.target.emp_password.value : '';
-    if (!p || !p.trim()) {
-      showToast(t("يرجى إدخال كلمة المرور للمتابعة. لا يمكن الدخول بدون التحقق من كلمة المرور."), 'error');
-      return;
-    }
-    try {
-      const emp = authenticateEmployee(u, p);
-      loginAsEmployeeSession(emp);
-      showToast(`مرحباً بك ${emp.fullName || emp.name}! تم تسجيل الدخول بنجاح بحساب (${emp.position}).`, 'success');
-      R();
-    } catch (err) {
-      showToast(err.message || "فشل تسجيل الدخول", 'error');
-    }
-  };
+window.quickLoginAsStaff = function(empId) {
+  showToast(t("يرجى إدخال كلمة المرور الخاصة بحسابك للمتابعة."), 'warning');
+};
 
-  window.quickLoginAsStaff = function(empId) {
-    showToast(t("يرجى إدخال كلمة المرور الخاصة بحسابك للمتابعة."), 'warning');
-  };
-
-  window.bypassVerificationAndEnter = function() {
-    showToast(t("يرجى تفعيل بريدك الإلكتروني أو إعادة تسجيل الدخول للمتابعة."), 'warning');
-  };
-}
+window.bypassVerificationAndEnter = function() {
+  showToast(t("يرجى تفعيل بريدك الإلكتروني أو إعادة تسجيل الدخول للمتابعة."), 'warning');
+};
 
 // Local Password Strength Checker
 function getLocalPasswordStrength(p) {
@@ -70,54 +66,52 @@ function getLocalPasswordStrength(p) {
   return score;
 }
 
-if (typeof window !== 'undefined') {
-  window.updatePassStrengthUI = function(val) {
-    const score = getLocalPasswordStrength(val);
-    const bar = document.getElementById('pass-strength-bar');
-    const text = document.getElementById('pass-strength-text');
-    if (!bar || !text) return;
-    
-    bar.style.width = (score * 25) + '%';
-    if (score === 0) {
-      bar.style.backgroundColor = '#e0e0e0';
-      text.innerText = t('قصيرة جداً');
-      text.style.color = '#94a3b8';
-    } else if (score === 1) {
-      bar.style.backgroundColor = '#ef4444';
-      text.innerText = t('ضعيفة');
-      text.style.color = '#ef4444';
-    } else if (score === 2) {
-      bar.style.backgroundColor = '#f59e0b';
-      text.innerText = t('متوسطة');
-      text.style.color = '#f59e0b';
-    } else if (score === 3) {
-      bar.style.backgroundColor = '#10b981';
-      text.innerText = t('قوية');
-      text.style.color = '#10b981';
-    } else if (score === 4) {
-      bar.style.backgroundColor = '#059669';
-      text.innerText = t('قوية جداً');
-      text.style.color = '#059669';
-    }
-  };
+window.updatePassStrengthUI = function(val) {
+  const score = getLocalPasswordStrength(val);
+  const bar = document.getElementById('pass-strength-bar');
+  const text = document.getElementById('pass-strength-text');
+  if (!bar || !text) return;
+  
+  bar.style.width = (score * 25) + '%';
+  if (score === 0) {
+    bar.style.backgroundColor = '#e0e0e0';
+    text.innerText = t('قصيرة جداً');
+    text.style.color = '#94a3b8';
+  } else if (score === 1) {
+    bar.style.backgroundColor = '#ef4444';
+    text.innerText = t('ضعيفة');
+    text.style.color = '#ef4444';
+  } else if (score === 2) {
+    bar.style.backgroundColor = '#f59e0b';
+    text.innerText = t('متوسطة');
+    text.style.color = '#f59e0b';
+  } else if (score === 3) {
+    bar.style.backgroundColor = '#10b981';
+    text.innerText = t('قوية');
+    text.style.color = '#10b981';
+  } else if (score === 4) {
+    bar.style.backgroundColor = '#059669';
+    text.innerText = t('قوية جداً');
+    text.style.color = '#059669';
+  }
+};
 
-  window.togglePasswordVisibility = function(inputId, iconId) {
-    const input = document.getElementById(inputId);
-    const icon = document.getElementById(iconId);
-    if (!input) return;
-    if (input.type === 'password') {
-      input.type = 'text';
-      if (icon) {
-        icon.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-      }
-    } else {
-      input.type = 'password';
-      if (icon) {
-        icon.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
-      }
+window.togglePasswordVisibility = function(inputId, iconId) {
+  const input = document.getElementById(inputId);
+  const icon = document.getElementById(iconId);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) {
+      icon.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
     }
-  };
-}
+  } else {
+    input.type = 'password';
+    if (icon) {
+      icon.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+    }
+  }
+};
 
 /**
  * Returns the exact 3D Folded Ribbon "P" Emblem from the reference design.
@@ -1164,10 +1158,10 @@ export function renderLogin() {
       <!-- Auth Switch Tabs (Connexion / Inscription) -->
       <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
         <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
-          <span>${L.loginBtn}</span> <span translate="no" style="display:inline-block; font-size:11px; opacity:0.85; margin:0 3px;">(Log in)</span>
+          ${L.loginBtn}
         </button>
         <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">
-          <span>${L.createAccount}</span> <span translate="no" style="display:inline-block; font-size:11px; opacity:0.85; margin:0 3px;">(Sign up)</span>
+          ${L.createAccount}
         </button>
       </div>
 
@@ -1297,10 +1291,10 @@ export function renderLogin() {
       <!-- Auth Switch Tabs (Connexion / Inscription) -->
       <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
         <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">
-          <span>${L.loginBtn}</span> <span translate="no" style="display:inline-block; font-size:11px; opacity:0.85; margin:0 3px;">(Log in)</span>
+          ${L.loginBtn}
         </button>
         <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
-          <span>${L.createAccount}</span> <span translate="no" style="display:inline-block; font-size:11px; opacity:0.85; margin:0 3px;">(Sign up)</span>
+          ${L.createAccount}
         </button>
       </div>
 
@@ -1591,7 +1585,7 @@ export function renderLogin() {
 
   return `
     ${styles}
-    <div class="progilic-login-page auth-wrapper" style="direction: ${isRTL ? 'rtl' : 'ltr'};">
+    <div class="progilic-login-page" style="direction: ${isRTL ? 'rtl' : 'ltr'};">
       <!-- Top-Right Smooth Curved Layered Wave -->
       <svg class="prog-wave-top-right" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMin meet">
         <path d="M500 0 C450 150, 320 220, 200 180 C80 140, 20 80, 0 0 L500 0 Z" fill="#93c5fd" opacity="0.3"/>
@@ -1626,55 +1620,86 @@ export function renderLogin() {
 }
 
 // Authentication Global Bindings
-if (typeof window !== 'undefined') {
-  window.loginUser = async function(username, password, fullname = '') {
-    const email = username.trim().toLowerCase();
-    if (!email || !password.trim()) {
-      showToast(t("يرجى إدخال البريد الإلكتروني وكلمة المرور."), 'error');
+window.loginUser = async function(username, password, fullname = '') {
+  const email = username.trim().toLowerCase();
+  if (!email || !password.trim()) {
+    showToast(t("يرجى إدخال البريد الإلكتروني وكلمة المرور."), 'error');
+    return;
+  }
+  
+  stopRealtimeSync();
+
+  const btn = document.querySelector('.auth-btn');
+  const originalText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = window.loginMode === 'register' ? t('جاري إنشاء الحساب...') : t('جاري تسجيل الدخول...');
+  }
+
+  if (window.loginMode === 'register') {
+    const strength = checkPasswordStrength(password);
+    if (strength.score < 2) {
+      showToast(t("يرجى استخدام كلمة مرور أقوى (متوسطة على الأقل)."), 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = originalText;
+      }
       return;
     }
-    
-    stopRealtimeSync();
 
-    const btn = document.querySelector('.auth-btn');
-    const originalText = btn ? btn.innerText : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = window.loginMode === 'register' ? t('جاري إنشاء الحساب...') : t('جاري تسجيل الدخول...');
-    }
-
-    if (window.loginMode === 'register') {
-      const strength = checkPasswordStrength(password);
-      if (strength.score < 2) {
-        showToast(t("يرجى استخدام كلمة مرور أقوى (متوسطة على الأقل)."), 'error');
-        if (btn) {
-          btn.disabled = false;
-          btn.innerText = originalText;
-        }
-        return;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      try {
+        await updateProfile(user, {
+          displayName: fullname.trim() || email.split('@')[0]
+        });
+        console.log("User profile displayName updated successfully.");
+      } catch (err) {
+        console.error("Error updating profile displayName:", err);
       }
 
       try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        try {
-          await updateProfile(user, {
-            displayName: fullname.trim() || email.split('@')[0]
-          });
-          console.log("User profile displayName updated successfully.");
-        } catch (err) {
-          console.error("Error updating profile displayName:", err);
-        }
+        await sendEmailVerification(user);
+        showToast(t("تم إنشاء الحساب بنجاح وإرسال بريد تفعيل الحساب!"), "success");
+      } catch (err) {
+        console.error("Error sending verification email:", err);
+        showToast(t("تم إنشاء الحساب ولكن فشل إرسال بريد التفعيل: ") + err.message, "warning");
+      }
 
-        try {
-          await sendEmailVerification(user);
-          showToast(t("تم إنشاء الحساب بنجاح وإرسال بريد تفعيل الحساب!"), "success");
-        } catch (err) {
-          console.error("Error sending verification email:", err);
-          showToast(t("تم إنشاء الحساب ولكن فشل إرسال بريد التفعيل: ") + err.message, "warning");
-        }
-
+      setCurrentUser({
+        uid: user.uid,
+        email: user.email,
+        emailVerified: false,
+      });
+      window.loginMode = 'verificationPending';
+      R();
+    } catch (error) {
+      console.error("Registration error:", error);
+      let errorMsg = t("حدث خطأ أثناء إنشاء حسابك.");
+      if (error.code === 'auth/email-already-in-use') {
+        errorMsg = t("البريد الإلكتروني مستخدم بالفعل. يرجى تسجيل الدخول.");
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = t("البريد الإلكتروني غير صحيح.");
+      } else if (error.code === 'auth/weak-password') {
+        errorMsg = t("كلمة المرور ضعيفة للغاية.");
+      }
+      showToast(errorMsg, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = originalText;
+      }
+    }
+  } else {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      const isVerified = user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com');
+      
+      if (!isVerified) {
+        showToast(t("يرجى تفعيل بريدك الإلكتروني أولاً للوصول إلى النظام."), "warning");
         setCurrentUser({
           uid: user.uid,
           email: user.email,
@@ -1682,254 +1707,221 @@ if (typeof window !== 'undefined') {
         });
         window.loginMode = 'verificationPending';
         R();
-      } catch (error) {
-        console.error("Registration error:", error);
-        let errorMsg = t("حدث خطأ أثناء إنشاء حسابك.");
-        if (error.code === 'auth/email-already-in-use') {
-          errorMsg = t("البريد الإلكتروني مستخدم بالفعل. يرجى تسجيل الدخول.");
-        } else if (error.code === 'auth/invalid-email') {
-          errorMsg = t("البريد الإلكتروني غير صحيح.");
-        } else if (error.code === 'auth/weak-password') {
-          errorMsg = t("كلمة المرور ضعيفة للغاية.");
-        }
-        showToast(errorMsg, 'error');
-        if (btn) {
-          btn.disabled = false;
-          btn.innerText = originalText;
-        }
+        return;
       }
-    } else {
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        const isVerified = user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com');
-        
-        if (!isVerified) {
-          showToast(t("يرجى تفعيل بريدك الإلكتروني أولاً للوصول إلى النظام."), "warning");
-          setCurrentUser({
-            uid: user.uid,
-            email: user.email,
-            emailVerified: false,
-          });
-          window.loginMode = 'verificationPending';
-          R();
-          return;
-        }
 
-        showToast(t("تم تسجيل الدخول بنجاح!"), "success");
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          emailVerified: true,
-        });
-        window.loginMode = 'main';
-        await loadDataFromFirestore(user);
-        R();
-      } catch (error) {
-        console.warn("[Auth Notice] Login credentials rejected:", error.code || error.message);
-        let errorMsg = t("البريد الإلكتروني أو كلمة المرور غير صحيحة.");
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-          errorMsg = t("بيانات الدخول غير صحيحة. إذا كنت قد سجلت مسبقاً بواسطة Google، يرجى الضغط على زر 'متابعة باستخدام Google'.");
-        } else if (error.code === 'auth/invalid-email') {
-          errorMsg = t("صيغة البريد الإلكتروني غير صحيحة.");
-        } else if (error.code === 'auth/user-disabled') {
-          errorMsg = t("تم تعطيل هذا الحساب من قبل إدارة النظام.");
-        } else if (error.code === 'auth/too-many-requests') {
-          errorMsg = t("تم حظر محاولات الدخول مؤقتاً لكثرة المحاولات الخاطئة. يرجى المحاولة لاحقاً.");
-        } else if (error.code === 'auth/operation-not-allowed') {
-          errorMsg = t("تسجيل الدخول بالبريد وكلمة المرور غير مفعل. يرجى استخدام 'متابعة باستخدام Google'.");
-        }
-
-        // Check if this username/email belongs to a registered staff member
-        try {
-          const staffList = getEmployees() || [];
-          const cleanInput = (email || '').trim().toLowerCase();
-          const staffFound = staffList.find(s => 
-            (s.username && s.username.toLowerCase() === cleanInput) ||
-            (s.email && s.email.toLowerCase() === cleanInput)
-          );
-          if (staffFound) {
-            errorMsg = t("هذا الحساب مسجل كحساب موظف في النظام! يرجى النقر على تبويب 'الموظفون والأقسام' في الأعلى للدخول.");
-          }
-        } catch (e) {}
-
-        showToast(errorMsg, 'error', 6000);
-        if (btn) {
-          btn.disabled = false;
-          btn.innerText = originalText;
-        }
-      }
-    }
-  };
-
-  window.sendPasswordReset = async function(email) {
-    const btn = document.querySelector('.auth-btn');
-    const originalText = btn ? btn.innerText : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = t('جاري إرسال رابط إعادة التعيين...');
-    }
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      await sendPasswordResetEmail(auth, cleanEmail);
-      showToast(t("تم إرسال بريد إعادة تعيين كلمة المرور بنجاح. يرجى مراجعة بريدك الوارد."), "success");
-      window.loginMode = 'login';
-      R();
-    } catch (err) {
-      console.error("Send password reset error:", err);
-      let errMsg = t("فشل إرسال بريد إعادة التعيين.");
-      if (err.code === 'auth/user-not-found') {
-        errMsg = t("لا يوجد حساب مسجل بهذا البريد الإلكتروني.");
-      } else if (err.code === 'auth/invalid-email') {
-        errMsg = t("البريد الإلكتروني غير صحيح.");
-      }
-      showToast(errMsg, "error");
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = originalText;
-      }
-    }
-  };
-
-  window.resendVerificationEmail = async function() {
-    const btn = document.getElementById('resend-ver-btn');
-    const originalText = btn ? btn.innerText : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = t('جاري الإرسال...');
-    }
-    try {
-      if (auth.currentUser) {
-        await sendEmailVerification(auth.currentUser);
-        showToast(t("تم إعادة إرسال رابط التفعيل بنجاح. يرجى تفقّد بريدك الإلكتروني."), "success");
-      } else {
-        showToast(t("لم نتمكن من العثور على حسابك الحالي."), "error");
-      }
-    } catch (err) {
-      console.error("Error resending verification email:", err);
-      let errMsg = err.message;
-      if (err.code === 'auth/too-many-requests') {
-        errMsg = t("تم إرسال عدد كبير من طلبات التفعيل مؤخراً. يرجى الانتظار دقيقة قبل المحاولة مرة أخرى.");
-      }
-      showToast(errMsg, "error");
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = originalText;
-      }
-    }
-  };
-
-  window.checkVerificationStatus = async function() {
-    const btn = document.getElementById('check-ver-btn');
-    const originalText = btn ? btn.innerText : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = t('جاري التحقق...');
-    }
-    try {
-      if (auth.currentUser) {
-        await auth.currentUser.reload();
-        const user = auth.currentUser;
-        const isVerified = user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com');
-        
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          emailVerified: isVerified,
-        });
-
-        if (isVerified) {
-          showToast(t("تم تفعيل حسابك بنجاح! جاري تحميل البيانات..."), "success");
-          try {
-            await user.getIdToken();
-          } catch (tokErr) {
-            console.warn("Failed to refresh ID token during verification check:", tokErr);
-          }
-          await loadDataFromFirestore(user);
-          window.loginMode = 'main';
-          R();
-        } else {
-          showToast(t("لم يتم تفعيل البريد الإلكتروني بعد. يرجى فتح الرسالة المرسلة وتأكيد حسابك."), "info");
-        }
-      }
-    } catch (err) {
-      console.error("Error checking verification status:", err);
-      showToast(err.message, "error");
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = originalText;
-      }
-    }
-  };
-
-  window.loginWithGoogle = async function() {
-    const btn = document.querySelector('.auth-btn');
-    const originalText = btn ? btn.innerText : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = 'Google...';
-    }
-    try {
-      stopRealtimeSync();
-      import('../state/store.js').then(m => {
-        m.setCurrentStaffUser(null);
-        m.S.showStaffPortal = true;
+      showToast(t("تم تسجيل الدخول بنجاح!"), "success");
+      setCurrentUser({
+        uid: user.uid,
+        email: user.email,
+        emailVerified: true,
       });
-      await signInWithPopup(auth, googleProvider);
+      window.loginMode = 'main';
+      await loadDataFromFirestore(user);
+      R();
     } catch (error) {
-      console.error('Error during Google login:', error);
-      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        showToast(t("تم إلغاء عملية الدخول بواسطة المستخدم."), "warning");
-      } else if (error.code === 'auth/network-request-failed') {
-        showToast(t("تعذر الاتصال بخوادم تسجيل الدخول. يرجى التحقق من اتصال الإنترنت وإعادة المحاولة."), "error");
-      } else if (error.code === 'auth/popup-blocked') {
-        showToast(t("تم حظر النافذة المنبثقة من قِبل المتصفح. يرجى السماح بالنوافذ المنبثقة."), "warning");
-      } else if (error.code === 'auth/unauthorized-domain') {
-        showToast(t("النطاق الحالي غير مصرح له بتسجيل الدخول عبر Google."), "error");
-      } else {
-        showToast(t("فشل تسجيل الدخول باستخدام Google: ") + (error.message || error.code), "error");
+      console.warn("[Auth Notice] Login credentials rejected:", error.code || error.message);
+      let errorMsg = t("البريد الإلكتروني أو كلمة المرور غير صحيحة.");
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        errorMsg = t("بيانات الدخول غير صحيحة. إذا كنت قد سجلت مسبقاً بواسطة Google، يرجى الضغط على زر 'متابعة باستخدام Google'.");
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = t("صيغة البريد الإلكتروني غير صحيحة.");
+      } else if (error.code === 'auth/user-disabled') {
+        errorMsg = t("تم تعطيل هذا الحساب من قبل إدارة النظام.");
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMsg = t("تم حظر محاولات الدخول مؤقتاً لكثرة المحاولات الخاطئة. يرجى المحاولة لاحقاً.");
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMsg = t("تسجيل الدخول بالبريد وكلمة المرور غير مفعل. يرجى استخدام 'متابعة باستخدام Google'.");
       }
-    } finally {
+
+      // Check if this username/email belongs to a registered staff member
+      try {
+        const staffList = getEmployees() || [];
+        const cleanInput = (email || '').trim().toLowerCase();
+        const staffFound = staffList.find(s => 
+          (s.username && s.username.toLowerCase() === cleanInput) ||
+          (s.email && s.email.toLowerCase() === cleanInput)
+        );
+        if (staffFound) {
+          errorMsg = t("هذا الحساب مسجل كحساب موظف في النظام! يرجى النقر على تبويب 'الموظفون والأقسام' في الأعلى للدخول.");
+        }
+      } catch (e) {}
+
+      showToast(errorMsg, 'error', 6000);
       if (btn) {
         btn.disabled = false;
         btn.innerText = originalText;
       }
     }
-  };
+  }
+};
 
-  window.loginWithDiscord = async function() {
-    showToast(t("تسجيل الدخول عبر Discord غير متوفر حالياً على هذا النطاق."), "info");
-  };
+window.sendPasswordReset = async function(email) {
+  const btn = document.querySelector('.auth-btn');
+  const originalText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = t('جاري إرسال رابط إعادة التعيين...');
+  }
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    await sendPasswordResetEmail(auth, cleanEmail);
+    showToast(t("تم إرسال بريد إعادة تعيين كلمة المرور بنجاح. يرجى مراجعة بريدك الوارد."), "success");
+    window.loginMode = 'login';
+    R();
+  } catch (err) {
+    console.error("Send password reset error:", err);
+    let errMsg = t("فشل إرسال بريد إعادة التعيين.");
+    if (err.code === 'auth/user-not-found') {
+      errMsg = t("لا يوجد حساب مسجل بهذا البريد الإلكتروني.");
+    } else if (err.code === 'auth/invalid-email') {
+      errMsg = t("البريد الإلكتروني غير صحيح.");
+    }
+    showToast(errMsg, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+};
 
-  window.loginWithFacebook = async function() {
-    try {
-      stopRealtimeSync();
-      await signInWithPopup(auth, facebookProvider);
-    } catch (error) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        showToast(t("تم إلغاء عملية الدخول بواسطة المستخدم."), "warning");
+window.resendVerificationEmail = async function() {
+  const btn = document.getElementById('resend-ver-btn');
+  const originalText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = t('جاري الإرسال...');
+  }
+  try {
+    if (auth.currentUser) {
+      await sendEmailVerification(auth.currentUser);
+      showToast(t("تم إعادة إرسال رابط التفعيل بنجاح. يرجى تفقّد بريدك الإلكتروني."), "success");
+    } else {
+      showToast(t("لم نتمكن من العثور على حسابك الحالي."), "error");
+    }
+  } catch (err) {
+    console.error("Error resending verification email:", err);
+    let errMsg = err.message;
+    if (err.code === 'auth/too-many-requests') {
+      errMsg = t("تم إرسال عدد كبير من طلبات التفعيل مؤخراً. يرجى الانتظار دقيقة قبل المحاولة مرة أخرى.");
+    }
+    showToast(errMsg, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+};
+
+window.checkVerificationStatus = async function() {
+  const btn = document.getElementById('check-ver-btn');
+  const originalText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = t('جاري التحقق...');
+  }
+  try {
+    if (auth.currentUser) {
+      await auth.currentUser.reload();
+      const user = auth.currentUser;
+      const isVerified = user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com');
+      
+      setCurrentUser({
+        uid: user.uid,
+        email: user.email,
+        emailVerified: isVerified,
+      });
+
+      if (isVerified) {
+        showToast(t("تم تفعيل حسابك بنجاح! جاري تحميل البيانات..."), "success");
+        try {
+          await user.getIdToken();
+        } catch (tokErr) {
+          console.warn("Failed to refresh ID token during verification check:", tokErr);
+        }
+        await loadDataFromFirestore(user);
+        window.loginMode = 'main';
+        R();
       } else {
-        showToast(t("فشل تسجيل الدخول باستخدام Facebook: ") + error.message, "error");
+        showToast(t("لم يتم تفعيل البريد الإلكتروني بعد. يرجى فتح الرسالة المرسلة وتأكيد حسابك."), "info");
       }
     }
-  };
-
-  window.loginWithApple = async function() {
-    try {
-      stopRealtimeSync();
-      await signInWithPopup(auth, appleProvider);
-    } catch (error) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        showToast("تم إلغاء عملية الدخول بواسطة المستخدم.", "warning");
-      } else {
-        showToast("فشل تسجيل الدخول باستخدام Apple: " + error.message, "error");
-      }
+  } catch (err) {
+    console.error("Error checking verification status:", err);
+    showToast(err.message, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
     }
-  };
+  }
+};
 
-  window.logout = logout;
-}
+window.loginWithGoogle = async function() {
+  const btn = document.querySelector('.auth-btn');
+  const originalText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'Google...';
+  }
+  try {
+    stopRealtimeSync();
+    import('../state/store.js').then(m => {
+      m.setCurrentStaffUser(null);
+      m.S.showStaffPortal = true;
+    });
+    await signInWithPopup(auth, googleProvider);
+  } catch (error) {
+    console.error('Error during Google login:', error);
+    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+      showToast(t("تم إلغاء عملية الدخول بواسطة المستخدم."), "warning");
+    } else if (error.code === 'auth/network-request-failed') {
+      showToast(t("تعذر الاتصال بخوادم تسجيل الدخول. يرجى التحقق من اتصال الإنترنت وإعادة المحاولة."), "error");
+    } else if (error.code === 'auth/popup-blocked') {
+      showToast(t("تم حظر النافذة المنبثقة من قِبل المتصفح. يرجى السماح بالنوافذ المنبثقة."), "warning");
+    } else if (error.code === 'auth/unauthorized-domain') {
+      showToast(t("النطاق الحالي غير مصرح له بتسجيل الدخول عبر Google."), "error");
+    } else {
+      showToast(t("فشل تسجيل الدخول باستخدام Google: ") + (error.message || error.code), "error");
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+};
+
+window.loginWithDiscord = async function() {
+  showToast(t("تسجيل الدخول عبر Discord غير متوفر حالياً على هذا النطاق."), "info");
+};
+
+window.loginWithFacebook = async function() {
+  try {
+    stopRealtimeSync();
+    await signInWithPopup(auth, facebookProvider);
+  } catch (error) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      showToast(t("تم إلغاء عملية الدخول بواسطة المستخدم."), "warning");
+    } else {
+      showToast(t("فشل تسجيل الدخول باستخدام Facebook: ") + error.message, "error");
+    }
+  }
+};
+
+window.loginWithApple = async function() {
+  try {
+    stopRealtimeSync();
+    await signInWithPopup(auth, appleProvider);
+  } catch (error) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      showToast("تم إلغاء عملية الدخول بواسطة المستخدم.", "warning");
+    } else {
+      showToast("فشل تسجيل الدخول باستخدام Apple: " + error.message, "error");
+    }
+  }
+};
+
+window.logout = logout;

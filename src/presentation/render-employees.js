@@ -25,13 +25,11 @@ import { showConfirm } from '../utils/confirm.js';
 import { R } from './render-core.js';
 
 // Internal UI state for Employees view
-if (typeof window !== 'undefined') {
-  window.__empFilterDept = window.__empFilterDept || 'all';
-  window.__empSearchQuery = window.__empSearchQuery || '';
-  window.__empFilterStatus = window.__empFilterStatus || 'all';
-  window.__editingEmpId = window.__editingEmpId || null;
-  window.__permTargetEmpId = window.__permTargetEmpId || null;
-}
+window.__empFilterDept = window.__empFilterDept || 'all';
+window.__empSearchQuery = window.__empSearchQuery || '';
+window.__empFilterStatus = window.__empFilterStatus || 'all';
+window.__editingEmpId = window.__editingEmpId || null;
+window.__permTargetEmpId = window.__permTargetEmpId || null;
 
 const employeeCountLabel = count => `${count} ${t(count === 1 ? 'موظف' : 'موظفين')}`;
 
@@ -375,118 +373,116 @@ export function renderEmployeesView() {
   `;
 }
 
-if (typeof window !== 'undefined') {
-  /**
-   * Filter and search dispatchers
-   */
-  window.setEmpDeptFilter = function(deptId) {
-    window.__empFilterDept = deptId;
+/**
+ * Filter and search dispatchers
+ */
+window.setEmpDeptFilter = function(deptId) {
+  window.__empFilterDept = deptId;
+  R();
+};
+
+window.setEmpSearchQuery = function(q) {
+  window.__empSearchQuery = q;
+  R();
+};
+
+window.setEmpStatusFilter = function(st) {
+  window.__empFilterStatus = st;
+  R();
+};
+
+window.resetEmpFilters = function() {
+  window.__empFilterDept = 'all';
+  window.__empSearchQuery = '';
+  window.__empFilterStatus = 'all';
+  R();
+};
+
+/**
+ * Modal Openers
+ */
+window.openAddEmployeeModal = function() {
+  window.__editingEmpId = null;
+  S.modal = 'addEmployee';
+  R();
+};
+
+window.openEditEmployeeModal = function(empId) {
+  window.__editingEmpId = empId;
+  S.modal = 'editEmployee';
+  R();
+};
+
+window.openEditPermissionsModal = function(empId) {
+  window.__permTargetEmpId = empId;
+  S.modal = 'editEmployeePermissions';
+  R();
+};
+
+window.openChangePasswordModal = function(empId) {
+  window.__passwordTargetEmpId = empId;
+  S.modal = 'changeEmployeePassword';
+  R();
+};
+
+window.viewEmployeeTasks = function(empId) {
+  window.__viewingEmpId = empId;
+  S.modal = 'viewEmployeeTasks';
+  R();
+};
+
+window.confirmDeleteEmployee = function(empId) {
+  const emp = getEmployeeById(empId);
+  if (!emp) return;
+  if (emp.id === 'gerant' || emp.role === 'GERANT') {
+    showToast(t("لا يمكن حذف حساب المسؤول العام الرئيسي (Gérant)."), "error");
+    return;
+  }
+  window.__deleteTargetEmpId = empId;
+  S.modal = 'adminPasswordConfirm';
+  R();
+};
+
+window.openEmployeeLoginPortal = function() {
+  S.showStaffPortal = true;
+  R();
+};
+
+window.quickImpersonateEmployee = function(empId) {
+  const emp = getEmployeeById(empId);
+  if (!emp) return;
+  loginAsEmployeeSession(emp);
+  const empName = emp.fullName || emp.name || t('الموظف');
+  showToast(`${t('تم التبديل لتجربة الواجهة بصلاحيات: ')}${empName} (${t(getDepartment(emp.department).titleAr)})`, "info", 5000);
+  R();
+};
+
+window.returnToGerantMode = function() {
+  localStorage.removeItem('crm_active_employee_session');
+  localStorage.removeItem('crm_logged_out');
+  
+  // Revert back to the saved Gérant user or default Gérant session
+  let savedGerant = null;
+  try {
+    const raw = localStorage.getItem('crm_active_gerant_user');
+    if (raw) savedGerant = JSON.parse(raw);
+  } catch (e) {}
+
+  const restoredUser = savedGerant || {
+    uid: (auth && auth.currentUser && auth.currentUser.uid) || 'z1FY0kWqOOSe78cFv8rqak0mjV03',
+    email: 'admin@progilic.dz',
+    displayName: t('المسؤول العام (Gérant)'),
+    emailVerified: true,
+    isEmployee: false,
+    role: 'gerant'
+  };
+
+  import('../state/store.js').then(m => {
+    m.setCurrentUser(restoredUser);
+    showToast(`${t('تمت العودة بنجاح إلى حساب المسؤول العام (Gérant): ')}${restoredUser.displayName || restoredUser.email}${t('. كامل الصلاحيات مفعلة.')}`, "success");
     R();
-  };
-
-  window.setEmpSearchQuery = function(q) {
-    window.__empSearchQuery = q;
-    R();
-  };
-
-  window.setEmpStatusFilter = function(st) {
-    window.__empFilterStatus = st;
-    R();
-  };
-
-  window.resetEmpFilters = function() {
-    window.__empFilterDept = 'all';
-    window.__empSearchQuery = '';
-    window.__empFilterStatus = 'all';
-    R();
-  };
-
-  /**
-   * Modal Openers
-   */
-  window.openAddEmployeeModal = function() {
-    window.__editingEmpId = null;
-    S.modal = 'addEmployee';
-    R();
-  };
-
-  window.openEditEmployeeModal = function(empId) {
-    window.__editingEmpId = empId;
-    S.modal = 'editEmployee';
-    R();
-  };
-
-  window.openEditPermissionsModal = function(empId) {
-    window.__permTargetEmpId = empId;
-    S.modal = 'editEmployeePermissions';
-    R();
-  };
-
-  window.openChangePasswordModal = function(empId) {
-    window.__passwordTargetEmpId = empId;
-    S.modal = 'changeEmployeePassword';
-    R();
-  };
-
-  window.viewEmployeeTasks = function(empId) {
-    window.__viewingEmpId = empId;
-    S.modal = 'viewEmployeeTasks';
-    R();
-  };
-
-  window.confirmDeleteEmployee = function(empId) {
-    const emp = getEmployeeById(empId);
-    if (!emp) return;
-    if (emp.id === 'gerant' || emp.role === 'GERANT') {
-      showToast(t("لا يمكن حذف حساب المسؤول العام الرئيسي (Gérant)."), "error");
-      return;
-    }
-    window.__deleteTargetEmpId = empId;
-    S.modal = 'adminPasswordConfirm';
-    R();
-  };
-
-  window.openEmployeeLoginPortal = function() {
-    S.showStaffPortal = true;
-    R();
-  };
-
-  window.quickImpersonateEmployee = function(empId) {
-    const emp = getEmployeeById(empId);
-    if (!emp) return;
-    loginAsEmployeeSession(emp);
-    const empName = emp.fullName || emp.name || t('الموظف');
-    showToast(`${t('تم التبديل لتجربة الواجهة بصلاحيات: ')}${empName} (${t(getDepartment(emp.department).titleAr)})`, "info", 5000);
-    R();
-  };
-
-  window.returnToGerantMode = function() {
-    localStorage.removeItem('crm_active_employee_session');
-    localStorage.removeItem('crm_logged_out');
-    
-    // Revert back to the saved Gérant user or default Gérant session
-    let savedGerant = null;
-    try {
-      const raw = localStorage.getItem('crm_active_gerant_user');
-      if (raw) savedGerant = JSON.parse(raw);
-    } catch (e) {}
-
-    const restoredUser = savedGerant || {
-      uid: (auth && auth.currentUser && auth.currentUser.uid) || 'z1FY0kWqOOSe78cFv8rqak0mjV03',
-      email: 'admin@progilic.dz',
-      displayName: t('المسؤول العام (Gérant)'),
-      emailVerified: true,
-      isEmployee: false,
-      role: 'gerant'
-    };
-
-    import('../state/store.js').then(m => {
-      m.setCurrentUser(restoredUser);
-      showToast(`${t('تمت العودة بنجاح إلى حساب المسؤول العام (Gérant): ')}${restoredUser.displayName || restoredUser.email}${t('. كامل الصلاحيات مفعلة.')}`, "success");
-      R();
-    });
-  };
-}
+  });
+};
 
 /**
  * Renders the Add/Edit Employee Form Modal
@@ -585,82 +581,80 @@ export function renderEmployeeFormModal() {
   `;
 }
 
-if (typeof window !== 'undefined') {
-  /**
-   * Department change handler in Employee Form
-   */
-  window.onEmployeeDeptChanged = function(deptId) {
-    const d = getDepartment(deptId);
-    const posInput = document.getElementById('emp_position');
-    const tasksInput = document.getElementById('emp_tasks');
-    if (posInput) posInput.value = d.defaultPosition;
-    if (tasksInput) tasksInput.value = d.responsibilities.map(t).join(' • ');
+/**
+ * Department change handler in Employee Form
+ */
+window.onEmployeeDeptChanged = function(deptId) {
+  const d = getDepartment(deptId);
+  const posInput = document.getElementById('emp_position');
+  const tasksInput = document.getElementById('emp_tasks');
+  if (posInput) posInput.value = d.defaultPosition;
+  if (tasksInput) tasksInput.value = d.responsibilities.map(t).join(' • ');
+};
+
+window.loadDeptPresetTasks = function() {
+  const deptSelect = document.getElementById('emp_department');
+  const tasksInput = document.getElementById('emp_tasks');
+  if (deptSelect && tasksInput) {
+    const d = getDepartment(deptSelect.value);
+    tasksInput.value = d.responsibilities.map(t).join(' • ');
+    showToast(t("تم تحميل مهام القسم الافتراضية."), "info");
+  }
+};
+
+window.handleSaveEmployee = function(e) {
+  e.preventDefault();
+  const isEdit = S.modal === 'editEmployee';
+  const existing = isEdit ? getEmployeeById(window.__editingEmpId) : null;
+
+  const fullName = document.getElementById('emp_fullName')?.value.trim();
+  const username = document.getElementById('emp_username')?.value.trim().toLowerCase();
+  const department = document.getElementById('emp_department')?.value;
+  const position = document.getElementById('emp_position')?.value.trim();
+  const supervisor = document.getElementById('emp_supervisor')?.value.trim();
+  const passwordVal = document.getElementById('emp_password')?.value.trim();
+  const phone = document.getElementById('emp_phone')?.value.trim();
+  const email = document.getElementById('emp_email')?.value.trim();
+  const tasks = document.getElementById('emp_tasks')?.value.trim();
+  const status = document.getElementById('emp_status')?.value;
+
+  if (!fullName || !username) {
+    showToast(t("يرجى إدخال اسم الموظف واسم المستخدم."), "error");
+    return;
+  }
+
+  const payload = {
+    ...(existing || {}),
+    id: isEdit ? window.__editingEmpId : undefined,
+    fullName,
+    username,
+    department,
+    position,
+    supervisor,
+    phone,
+    email,
+    tasks,
+    status
   };
 
-  window.loadDeptPresetTasks = function() {
-    const deptSelect = document.getElementById('emp_department');
-    const tasksInput = document.getElementById('emp_tasks');
-    if (deptSelect && tasksInput) {
-      const d = getDepartment(deptSelect.value);
-      tasksInput.value = d.responsibilities.map(t).join(' • ');
-      showToast(t("تم تحميل مهام القسم الافتراضية."), "info");
-    }
-  };
+  if (!isEdit && !passwordVal) {
+    showToast(t("يرجى تحديد كلمة مرور للموظف الجديد."), "error");
+    return;
+  }
+  if (passwordVal) {
+    payload.password = passwordVal;
+  }
 
-  window.handleSaveEmployee = function(e) {
-    e.preventDefault();
-    const isEdit = S.modal === 'editEmployee';
-    const existing = isEdit ? getEmployeeById(window.__editingEmpId) : null;
+  // If new employee, apply department default permissions
+  if (!isEdit) {
+    payload.permissions = { ...getDepartment(department).defaultPermissions };
+  }
 
-    const fullName = document.getElementById('emp_fullName')?.value.trim();
-    const username = document.getElementById('emp_username')?.value.trim().toLowerCase();
-    const department = document.getElementById('emp_department')?.value;
-    const position = document.getElementById('emp_position')?.value.trim();
-    const supervisor = document.getElementById('emp_supervisor')?.value.trim();
-    const passwordVal = document.getElementById('emp_password')?.value.trim();
-    const phone = document.getElementById('emp_phone')?.value.trim();
-    const email = document.getElementById('emp_email')?.value.trim();
-    const tasks = document.getElementById('emp_tasks')?.value.trim();
-    const status = document.getElementById('emp_status')?.value;
-
-    if (!fullName || !username) {
-      showToast(t("يرجى إدخال اسم الموظف واسم المستخدم."), "error");
-      return;
-    }
-
-    const payload = {
-      ...(existing || {}),
-      id: isEdit ? window.__editingEmpId : undefined,
-      fullName,
-      username,
-      department,
-      position,
-      supervisor,
-      phone,
-      email,
-      tasks,
-      status
-    };
-
-    if (!isEdit && !passwordVal) {
-      showToast(t("يرجى تحديد كلمة مرور للموظف الجديد."), "error");
-      return;
-    }
-    if (passwordVal) {
-      payload.password = passwordVal;
-    }
-
-    // If new employee, apply department default permissions
-    if (!isEdit) {
-      payload.permissions = { ...getDepartment(department).defaultPermissions };
-    }
-
-    upsertEmployee(payload);
-    showToast(t(isEdit ? "تم تحديث بيانات الموظف بنجاح." : "تم إنشاء حساب الموظف بنجاح."), "success");
-    closeModal();
-    R();
-  };
-}
+  upsertEmployee(payload);
+  showToast(t(isEdit ? "تم تحديث بيانات الموظف بنجاح." : "تم إنشاء حساب الموظف بنجاح."), "success");
+  closeModal();
+  R();
+};
 
 /**
  * Modal to Edit Permissions (Strictly Gérant)
@@ -742,42 +736,40 @@ export function renderEditPermissionsModal() {
   `;
 }
 
-if (typeof window !== 'undefined') {
-  window.applyDeptDefaultPerms = function(deptId) {
-    const d = getDepartment(deptId);
-    PERMISSION_DEFINITIONS.forEach(def => {
-      const el = document.getElementById(`perm_${def.key}`);
-      if (el) {
-        el.checked = Boolean(d.defaultPermissions[def.key]);
-      }
-    });
-    showToast(`${t('تم تطبيق الصلاحيات الافتراضية لقسم')} ${t(d.titleAr)}`, "info");
-  };
+window.applyDeptDefaultPerms = function(deptId) {
+  const d = getDepartment(deptId);
+  PERMISSION_DEFINITIONS.forEach(def => {
+    const el = document.getElementById(`perm_${def.key}`);
+    if (el) {
+      el.checked = Boolean(d.defaultPermissions[def.key]);
+    }
+  });
+  showToast(`${t('تم تطبيق الصلاحيات الافتراضية لقسم')} ${t(d.titleAr)}`, "info");
+};
 
-  window.selectAllPerms = function(enableAll = true) {
-    PERMISSION_DEFINITIONS.forEach(def => {
-      const el = document.getElementById(`perm_${def.key}`);
-      if (el) {
-        el.checked = enableAll;
-      }
-    });
-  };
+window.selectAllPerms = function(enableAll = true) {
+  PERMISSION_DEFINITIONS.forEach(def => {
+    const el = document.getElementById(`perm_${def.key}`);
+    if (el) {
+      el.checked = enableAll;
+    }
+  });
+};
 
-  window.handleSavePermissions = function(e) {
-    e.preventDefault();
-    const empId = window.__permTargetEmpId;
-    const newPerms = {};
-    PERMISSION_DEFINITIONS.forEach(def => {
-      const el = document.getElementById(`perm_${def.key}`);
-      newPerms[def.key] = el ? el.checked : false;
-    });
+window.handleSavePermissions = function(e) {
+  e.preventDefault();
+  const empId = window.__permTargetEmpId;
+  const newPerms = {};
+  PERMISSION_DEFINITIONS.forEach(def => {
+    const el = document.getElementById(`perm_${def.key}`);
+    newPerms[def.key] = el ? el.checked : false;
+  });
 
-    updateEmployeePermissions(empId, newPerms);
-    showToast(t("تم حفظ الصلاحيات المحدثة للموظف بنجاح."), "success");
-    closeModal();
-    R();
-  };
-}
+  updateEmployeePermissions(empId, newPerms);
+  showToast(t("تم حفظ الصلاحيات المحدثة للموظف بنجاح."), "success");
+  closeModal();
+  R();
+};
 
 /**
  * Modal to Change Employee Password
@@ -812,20 +804,18 @@ export function renderChangePasswordModal() {
   `;
 }
 
-if (typeof window !== 'undefined') {
-  window.handleSavePassword = function(e) {
-    e.preventDefault();
-    const newPwd = document.getElementById('new_emp_pwd')?.value.trim();
-    if (!newPwd || newPwd.length < 4) {
-      showToast(t("يرجى إدخال كلمة مرور من 4 أحرف على الأقل."), "error");
-      return;
-    }
-    updateEmployeePassword(window.__passwordTargetEmpId, newPwd);
-    showToast(t("تم تحديث كلمة المرور للموظف بنجاح."), "success");
-    closeModal();
-    R();
-  };
-}
+window.handleSavePassword = function(e) {
+  e.preventDefault();
+  const newPwd = document.getElementById('new_emp_pwd')?.value.trim();
+  if (!newPwd || newPwd.length < 4) {
+    showToast(t("يرجى إدخال كلمة مرور من 4 أحرف على الأقل."), "error");
+    return;
+  }
+  updateEmployeePassword(window.__passwordTargetEmpId, newPwd);
+  showToast(t("تم تحديث كلمة المرور للموظف بنجاح."), "success");
+  closeModal();
+  R();
+};
 
 /**
  * Modal to View Employee Tasks and Details
@@ -949,15 +939,13 @@ export function renderAdminPasswordModal() {
   `;
 }
 
-if (typeof window !== 'undefined') {
-  window.handleAdminPasswordConfirmSubmit = function(e) {
-    e.preventDefault();
-    const pwd = document.getElementById('admin_verification_pwd')?.value || '';
-    if (!pwd.trim()) {
-      showToast(t("يرجى إدخال كلمة مرور المسؤول العام."), "error");
-      return;
-    }
-    const empId = window.__deleteTargetEmpId;
-    window.confirmDeleteEmployeeWithAdminPassword(empId, pwd);
-  };
-}
+window.handleAdminPasswordConfirmSubmit = function(e) {
+  e.preventDefault();
+  const pwd = document.getElementById('admin_verification_pwd')?.value || '';
+  if (!pwd.trim()) {
+    showToast(t("يرجى إدخال كلمة مرور المسؤول العام."), "error");
+    return;
+  }
+  const empId = window.__deleteTargetEmpId;
+  window.confirmDeleteEmployeeWithAdminPassword(empId, pwd);
+};

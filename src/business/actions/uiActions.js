@@ -7,7 +7,7 @@ import { getBackups, deleteBackup } from '../idbStorage.js';
 import { createSnapshotBackup, restoreFromBackup, downloadBackupJSON } from '../backupService.js';
 import { auth, googleProvider, facebookProvider, appleProvider } from '../../firebase/config.js';
 import { signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile } from 'firebase/auth';
-import { gv, gc2, gc, gn, td, formatCsvCell, getProgramStats } from '../../utils/index.js';
+import { gv, gc2, gc, gn, td } from '../../utils/index.js';
 import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
@@ -75,7 +75,7 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية إضافة برامج وتراخيص جديدة.'), 'error');
     return;
   }
-  if ((m === 'editProg' || m === 'editProgram') && !hasPermission('programs.edit')) {
+  if (m === 'editProg' && !hasPermission('programs.edit')) {
     showToast(t('⚠️ لا تملك صلاحية تعديل البرامج والتراخيص.'), 'error');
     return;
   }
@@ -91,7 +91,7 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية تسجيل متطلبات أو ميزات جديدة.'), 'error');
     return;
   }
-  if ((m === 'editRequirement' || m === 'editReq') && !hasPermission('features.edit')) {
+  if (m === 'editRequirement' && !hasPermission('features.edit')) {
     showToast(t('⚠️ لا تملك صلاحية تعديل متطلبات التطوير.'), 'error');
     return;
   }
@@ -103,11 +103,7 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية استعراض النسخ الاحتياطية.'), 'error');
     return;
   }
-  if (m === 'dbPurge' && !isGerant()) {
-    showToast(t('⚠️ تطهير قاعدة البيانات محجوز حصرياً للرئيس (Gérant).'), 'error');
-    return;
-  }
-  if ((m === 'editStaffMember' || m === 'addEmployee') && !isGerant() && !hasPermission('users.edit') && !hasPermission('users.create')) {
+  if (m === 'editStaffMember' && !isGerant() && !hasPermission('users.edit') && !hasPermission('users.create')) {
     showToast(t('⚠️ تعديل وإضافة المستخدمين محجوز حصرياً للرئيس (Gérant).'), 'error');
     return;
   }
@@ -200,7 +196,7 @@ export function exportDashboardReport() {
   const totalClients = clients.length;
   const activeClients = clients.filter(c => c.status === 'نشط').length;
   const totalPrograms = clients.reduce((acc, c) => acc + (c.programs?.length || Number(c.programsCount) || 0), 0);
-  const totalDevices = clients.reduce((total, client) => total + getProgramStats(client).totalInstalls, 0);
+  const totalDevices = clients.reduce((acc, c) => acc + (c.programs?.reduce((pacc, p) => pacc + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 0), 0);
   const openIssues = clients.flatMap(c => c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
   
   let csvContent = '\uFEFF';
@@ -213,22 +209,9 @@ export function exportDashboardReport() {
   
   clients.forEach(c => {
     const progs = (c.programs || []).map(p => p.programName).join(' + ') || c.programNames?.join(' + ') || '';
-    const knownInstallations = getProgramStats(c).totalInstalls;
-    const hasKnownInstallations = (Array.isArray(c.programs) && c.programs.some(program => {
-      const count = Number(program.installationsCount);
-      return Number.isSafeInteger(count) && count > 0;
-    })) || (Number.isSafeInteger(Number(c.installationsCount)) && Number(c.installationsCount) >= 0);
-    const inst = hasKnownInstallations ? knownInstallations : '';
+    const inst = (c.programs || []).reduce((a, p) => a + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 1;
     const iss = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-    csvContent += [
-      formatCsvCell(c.fullName || ''),
-      formatCsvCell(c.wilaya || ''),
-      formatCsvCell(c.status || ''),
-      formatCsvCell(c.score !== undefined ? c.score : 100),
-      formatCsvCell(progs),
-      formatCsvCell(inst),
-      formatCsvCell(iss)
-    ].join(',') + '\n';
+    csvContent += `"${(c.fullName || '').replace(/"/g, '""')}","${c.wilaya || ''}","${c.status || ''}",${c.score || 100},"${progs}",${inst},${iss}\n`;
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -269,14 +252,12 @@ export function exportLicensesCSV() {
         company: c.company || '',
         wilaya: c.wilaya || '',
         phone: c.phone || '',
-        status: c.status || '',
-        platform: p.platform || '',
-        type: p.type || '',
+        status: c.status || 'نشط',
+        platform: p.platform || 'Desktop',
+        type: p.type || 'تجاري',
         version: p.version || '',
-        devices: Number.isSafeInteger(Number(p.installationsCount)) && Number(p.installationsCount) > 0
-          ? Number(p.installationsCount)
-          : '',
-        startDate: p.startDate || ''
+        devices: Number(p.installationsCount) || 1,
+        startDate: p.startDate || c.startDate || ''
       });
     });
   });
@@ -287,18 +268,7 @@ export function exportLicensesCSV() {
   csv += 'اسم العميل,المؤسسة,الولاية,الهاتف,الحالة,المنصة,نوع البرنامج,الإصدار,الأجهزة المرخصة,تاريخ البدء\n';
 
   allLicenses.forEach(l => {
-    csv += [
-      formatCsvCell(l.clientName),
-      formatCsvCell(l.company),
-      formatCsvCell(l.wilaya),
-      formatCsvCell(l.phone),
-      formatCsvCell(l.status),
-      formatCsvCell(l.platform),
-      formatCsvCell(l.type),
-      formatCsvCell(l.version),
-      l.devices,
-      formatCsvCell(l.startDate)
-    ].join(',') + '\n';
+    csv += `"${(l.clientName).replace(/"/g, '""')}","${(l.company).replace(/"/g, '""')}","${l.wilaya}","${l.phone}","${l.status}","${l.platform}","${l.type}","${l.version}",${l.devices},"${l.startDate}"\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -311,41 +281,6 @@ export function exportLicensesCSV() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast(t('تم تصدير تقرير التراخيص بنجاح'));
-}
-
-export function exportLicensedClientsSummary() {
-  if (!isGerant() && !hasPermission('clients.export') && !hasPermission('reports.export') && !hasPermission('reports.view')) {
-    showToast(t('⚠️ ليس لديك صلاحية تصدير ملخص العملاء المرخصين.'), 'error');
-    return;
-  }
-  const dateStr = new Date().toISOString().split('T')[0];
-  const licensedClients = (clients || []).filter(c => Array.isArray(c?.programs) && c.programs.length > 0);
-  let csv = '\uFEFFاسم العميل,المؤسسة,الولاية,الهاتف,الحالة,البرامج المشترك فيها,إجمالي الأجهزة\n';
-
-  licensedClients.forEach(c => {
-    const progList = c.programs.map(p => p.programName || [p.platform, p.type, p.version].filter(Boolean).join(' ')).filter(Boolean).join(' + ');
-    const devices = getProgramStats(c).totalInstalls;
-    csv += [
-      formatCsvCell(c.fullName || ''),
-      formatCsvCell(c.company || ''),
-      formatCsvCell(c.wilaya || ''),
-      formatCsvCell(c.phone || ''),
-      formatCsvCell(c.status || ''),
-      formatCsvCell(progList),
-      devices
-    ].join(',') + '\n';
-  });
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `progilic-licensed-clients-${dateStr}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast(t('تم تصدير ملخص العملاء أصحاب التراخيص بنجاح'));
 }
 
 export function exportGeoReport() {
@@ -369,16 +304,7 @@ export function exportGeoReport() {
 
   Object.entries(wilayaCounts).sort((a,b) => b[1].total - a[1].total).forEach(([w, d]) => {
     const avg = d.total ? Math.round(d.scoreSum / d.total) : 100;
-    csv += [
-      formatCsvCell(w),
-      d.total,
-      d.active,
-      d.prospective,
-      d.stopped,
-      d.progs,
-      d.issues,
-      avg
-    ].join(',') + '\n';
+    csv += `"${w}",${d.total},${d.active},${d.prospective},${d.stopped},${d.progs},${d.issues},${avg}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

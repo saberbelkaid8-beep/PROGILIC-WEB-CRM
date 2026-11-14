@@ -1,25 +1,35 @@
 {
   "appName": "crm",
-  "timestamp": "2026-11-14T09:14:05.566Z",
-  "nodeVersion": "v22.23.2",
+  "timestamp": "2026-10-31T09:10:47.438Z",
+  "nodeVersion": "v22.23.4",
   "platform": "linux",
   "build": {
-    "durationMs": 6086,
-    "durationSeconds": 6.09,
-    "totalFiles": 12,
-    "totalSizeBytes": 2040594,
-    "totalSizeFormatted": "1.95 MB"
+    "durationMs": 4264,
+    "durationSeconds": 4.26,
+    "totalFiles": 23,
+    "totalSizeBytes": 6448530,
+    "totalSizeFormatted": "6.15 MB"
   },
   "dependencies": {
-    "productionCount": 4,
-    "developmentCount": 10,
-    "totalCount": 14
+    "productionCount": 3,
+    "developmentCount": 9,
+    "totalCount": 12
   },
   "artifacts": [
     {
-      "file": "assets/crm-i18n-Dc2i9e_m.js",
-      "sizeBytes": 336021,
-      "sizeFormatted": "328.15 KB"
+      "file": "assets/aistudio/IMG_20261026_215144_238_49d29eb5.png",
+      "sizeBytes": 1330915,
+      "sizeFormatted": "1.27 MB"
+    },
+    {
+      "file": "assets/aistudio/progilic_dashboard_349c4566.html",
+      "sizeBytes": 191560,
+      "sizeFormatted": "187.07 KB"
+    },
+    {
+      "file": "assets/aistudio/screenshot_1_79a32f71.png",
+      "sizeBytes": 135180,
+      "sizeFormatted": "132.01 KB"
     },
     {
       "file": "assets/firebase-auth-CiyuFwGU.js",
@@ -37,14 +47,9 @@
       "sizeFormatted": "658.71 KB"
     },
     {
-      "file": "assets/index-Deej6SJ7.js",
-      "sizeBytes": 674528,
-      "sizeFormatted": "658.72 KB"
-    },
-    {
-      "file": "assets/index-zrRAhl4_.css",
-      "sizeBytes": 72061,
-      "sizeFormatted": "70.37 KB"
+      "file": "assets/index-CmeqWW4a.js",
+      "sizeBytes": 895228,
+      "sizeFormatted": "874.25 KB"
     },
     {
       "file": "assets/search-engine-D7oNtqOG.js",
@@ -58,8 +63,8 @@
     },
     {
       "file": "css/dashboard.css",
-      "sizeBytes": 28245,
-      "sizeFormatted": "27.58 KB"
+      "sizeBytes": 23764,
+      "sizeFormatted": "23.21 KB"
     },
     {
       "file": "css/main.css",
@@ -72,9 +77,59 @@
       "sizeFormatted": "836 B"
     },
     {
+      "file": "current_view_1920.png",
+      "sizeBytes": 630988,
+      "sizeFormatted": "616.2 KB"
+    },
+    {
+      "file": "final_login_desktop.png",
+      "sizeBytes": 481579,
+      "sizeFormatted": "470.29 KB"
+    },
+    {
+      "file": "final_login_mobile.png",
+      "sizeBytes": 112967,
+      "sizeFormatted": "110.32 KB"
+    },
+    {
       "file": "index.html",
-      "sizeBytes": 1791,
-      "sizeFormatted": "1.75 KB"
+      "sizeBytes": 1631,
+      "sizeFormatted": "1.59 KB"
+    },
+    {
+      "file": "pixel_perfect_1920.png",
+      "sizeBytes": 480146,
+      "sizeFormatted": "468.89 KB"
+    },
+    {
+      "file": "pixel_perfect_mobile.png",
+      "sizeBytes": 69825,
+      "sizeFormatted": "68.19 KB"
+    },
+    {
+      "file": "reference_comparison_desktop.png",
+      "sizeBytes": 472080,
+      "sizeFormatted": "461.02 KB"
+    },
+    {
+      "file": "reference_comparison_mobile.png",
+      "sizeBytes": 92994,
+      "sizeFormatted": "90.81 KB"
+    },
+    {
+      "file": "screenshot_desktop.png",
+      "sizeBytes": 480800,
+      "sizeFormatted": "469.53 KB"
+    },
+    {
+      "file": "screenshot_mobile.png",
+      "sizeBytes": 119571,
+      "sizeFormatted": "116.77 KB"
+    },
+    {
+      "file": "test_logo.png",
+      "sizeBytes": 1354,
+      "sizeFormatted": "1.32 KB"
     }
   ]
 }

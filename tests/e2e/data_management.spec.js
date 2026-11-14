@@ -18,9 +18,6 @@ test.describe('Data Management', () => {
     await page.fill('input[name="password"]', testPassword);
     await page.click('button[type="submit"]');
     await expect(page.locator('.hdr')).toBeVisible({ timeout: 15000 });
-    // Switch to clients view where storage bar is rendered
-    await page.locator('button', { hasText: 'العملاء' }).first().click();
-    await expect(page.locator('button', { hasText: 'تصدير JSON' })).toBeVisible({ timeout: 10000 });
   });
 
   test('should export data to JSON', async ({ page }) => {
@@ -56,11 +53,7 @@ test.describe('Data Management', () => {
       buffer
     });
     
-    // Accept custom confirm modal
-    await page.locator('.confirm-ok').click();
-    
-    // Switch to clients view to verify imported client
-    await page.locator('button', { hasText: 'العملاء' }).first().click();
+    // Verify client is imported
     await expect(page.locator('text=Imported Client')).toBeVisible();
   });
 });

@@ -288,18 +288,16 @@ export function renderAiAssistantWidget() {
   `;
 }
 
-if (typeof window !== 'undefined') {
-  window.toggleSpeechRecognition = function() {
-    if (!speechEngineInstance) initAiAssistantWidget();
-    if (speechEngineInstance.isListening) {
-      speechEngineInstance.stop();
-    } else {
-      const speechLang = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
-      speechEngineInstance.setLanguage(speechLang);
-      speechEngineInstance.start();
-    }
-  };
+window.toggleSpeechRecognition = function() {
+  if (!speechEngineInstance) initAiAssistantWidget();
+  if (speechEngineInstance.isListening) {
+    speechEngineInstance.stop();
+  } else {
+    const speechLang = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
+    speechEngineInstance.setLanguage(speechLang);
+    speechEngineInstance.start();
+  }
+};
 
-  window.toggleAiAssistantWidget = toggleAiAssistantWidget;
-  window.submitAiPrompt = submitAiPrompt;
-}
+window.toggleAiAssistantWidget = toggleAiAssistantWidget;
+window.submitAiPrompt = submitAiPrompt;

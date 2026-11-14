@@ -53,11 +53,6 @@
           "maxLength": 30,
           "description": "Contact phone number"
         },
-        "gmailAccount": {
-          "type": "string",
-          "maxLength": 254,
-          "description": "Client Gmail address"
-        },
         "company": {
           "type": "string",
           "maxLength": 100,
@@ -67,16 +62,6 @@
           "type": "string",
           "maxLength": 50,
           "description": "Wilaya location in Algeria"
-        },
-        "commune": {
-          "type": "string",
-          "maxLength": 50,
-          "description": "Commune / Municipality"
-        },
-        "category": {
-          "type": "string",
-          "maxLength": 50,
-          "description": "Client category (e.g. GC)"
         },
         "location": {
           "type": "string",
@@ -130,10 +115,6 @@
           "type": "number",
           "description": "Denormalized count of unresolved issues"
         },
-        "urgentIssuesCount": {
-          "type": "number",
-          "description": "Denormalized count of urgent unresolved issues"
-        },
         "requirementsCount": {
           "type": "number",
           "description": "Denormalized count of feature requests"
@@ -145,22 +126,6 @@
         "installationsCount": {
           "type": "number",
           "description": "Denormalized count of licensed installations/devices"
-        },
-        "programNames": {
-          "type": "array",
-          "description": "Denormalized array of program display names"
-        },
-        "programs": {
-          "type": "array",
-          "description": "Denormalized summary array of licensed programs"
-        },
-        "version": {
-          "type": "number",
-          "description": "Optimistic concurrency version counter"
-        },
-        "source": {
-          "type": "string",
-          "description": "Origin channel (online-crm, trello)"
         },
         "updatedAt": {
           "type": "string",
@@ -175,17 +140,12 @@
       "type": "object",
       "properties": {
         "id": { "type": "number" },
-        "programName": { "type": "string", "maxLength": 200 },
+        "programName": { "type": "string", "maxLength": 100 },
         "platform": { "type": "string", "enum": ["Desktop", "Mobile", "Web", "Hybrid"] },
-        "type": { "type": "string", "maxLength": 100 },
-        "version": { "type": "string", "maxLength": 50 },
+        "type": { "type": "string", "enum": ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"] },
         "installationsCount": { "type": "number" },
         "startDate": { "type": "string" },
-        "endDate": { "type": "string" },
-        "notes": { "type": "string", "maxLength": 1000 },
-        "source": { "type": "string" },
-        "trelloChecklistItemId": { "type": "string" },
-        "lastModifiedBy": { "type": "string" }
+        "endDate": { "type": "string" }
       },
       "required": ["id", "programName", "platform", "type"]
     },
@@ -255,52 +215,6 @@
       },
       "required": ["id", "fullName", "username", "department", "position", "status"]
     },
-    "Activity": {
-      "title": "Tenant Audit Activity",
-      "description": "Immutable chronological audit log event across CRM modules",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "maxLength": 128 },
-        "clientId": { "type": ["number", "null"] },
-        "clientName": { "type": "string", "maxLength": 100 },
-        "type": { "type": "string", "maxLength": 50 },
-        "category": { "type": "string", "maxLength": 30 },
-        "title": { "type": "string", "maxLength": 200 },
-        "description": { "type": "string", "maxLength": 2000 },
-        "timestamp": { "type": "string", "maxLength": 40 },
-        "userName": { "type": "string", "maxLength": 100 },
-        "userRole": { "type": "string", "maxLength": 100 },
-        "userId": { "type": "string", "maxLength": 128 },
-        "actorUid": { "type": "string" },
-        "actorEmail": { "type": "string", "maxLength": 254 },
-        "source": { "type": "string", "maxLength": 20 },
-        "meta": { "type": "object" }
-      },
-      "required": ["id", "clientId", "clientName", "type", "category", "title", "description", "timestamp", "userName", "userRole", "userId", "actorUid", "actorEmail", "source"]
-    },
-    "TrelloSync": {
-      "title": "Trello Sync State",
-      "description": "Distributed lease & idempotency record for Trello checklist items",
-      "type": "object",
-      "properties": {
-        "itemId": { "type": "string", "maxLength": 128 },
-        "status": { "type": "string", "maxLength": 50 },
-        "updatedAt": { "type": "string" }
-      },
-      "required": ["itemId", "status", "updatedAt"]
-    },
-    "TrelloReview": {
-      "title": "Trello Manual Review Queue Item",
-      "description": "Low-confidence or ambiguous Trello checklist entry queued for manual operator resolution",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "maxLength": 128 },
-        "checklistItemId": { "type": "string", "maxLength": 128 },
-        "rawText": { "type": "string", "maxLength": 2000 },
-        "createdAt": { "type": "string" }
-      },
-      "required": ["id", "checklistItemId", "rawText", "createdAt"]
-    },
     "TestConnection": {
       "title": "Test Connection Document",
       "description": "Ping document to test connection status to Firestore backend",
@@ -338,18 +252,6 @@
     "users/{userId}/employees/{employeeId}": {
       "schema": "Employee",
       "description": "Staff members, departments, and access control settings managed by the Gérant"
-    },
-    "users/{userId}/activities/{activityId}": {
-      "schema": "Activity",
-      "description": "Immutable shared tenant audit timeline"
-    },
-    "users/{userId}/trello_sync/{itemId}": {
-      "schema": "TrelloSync",
-      "description": "Trello integration idempotency and distributed lease mappings"
-    },
-    "users/{userId}/trello_review/{itemId}": {
-      "schema": "TrelloReview",
-      "description": "Trello items pending human operator review"
     },
     "test/{docId}": {
       "schema": "TestConnection",

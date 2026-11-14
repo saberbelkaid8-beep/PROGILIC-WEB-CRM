@@ -1,4 +1,4 @@
-import locationData from '../data/algeria-locations.json' with { type: 'json' };
+import locationData from '../data/algeria-locations.json';
 
 export const SCHEMA_VERSION = 3;
 
@@ -44,11 +44,7 @@ export const PLATFORM_PROGRAM_TYPES = {
     "تطبيق VDD (Vendeur Distributeur)",
     "تطبيق التاجر (Commerçant)"
   ],
-  "Web": [
-    "منظومة الويب (Web ERP)",
-    "بوابة العملاء الويب (Web Portal)",
-    "متجر إلكتروني ويب (Web Store)"
-  ]
+  "Web": []
 };
 export const PROGRAM_TYPES = [
   "تجاري (Commercial)",
@@ -56,10 +52,7 @@ export const PROGRAM_TYPES = [
   "توزيع (Distribution)",
   "تطبيق لوحة القيادة (Tableau de bord)",
   "تطبيق VDD (Vendeur Distributeur)",
-  "تطبيق التاجر (Commerçant)",
-  "منظومة الويب (Web ERP)",
-  "بوابة العملاء الويب (Web Portal)",
-  "متجر إلكتروني ويب (Web Store)"
+  "تطبيق التاجر (Commerçant)"
 ];
 export const PROGRAM_VERSIONS = ["V27", "V26", "V24", "V23", "V21", "v18", "v16", "v15", "R+", "arabe"];
 

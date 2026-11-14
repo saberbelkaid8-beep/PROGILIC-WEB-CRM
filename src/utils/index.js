@@ -17,7 +17,7 @@ export function esc(str) {
   });
 }
 
-export const gc = () => clients.find(c => c.id === S.selId || String(c.id) === String(S.selId)) || null;
+export const gc = () => clients.find(c => c.id === S.selId) || null;
 export const init = (n) => { const p = (n || '').trim().split(' '); return p.length >= 2 ? (p[0][0] || '') + (p[1][0] || '') : (n || '').substring(0, 2).toUpperCase() };
 export const fmtD = (d) => {
   if (!d) return '—';
@@ -103,10 +103,11 @@ export function getProgramTypesForPlatform(platform) {
 }
 
 export function programTypeOpts(platform, cur) {
-  const types = platform === 'Web' ? ['الويب'] : getProgramTypesForPlatform(platform);
-  const placeholder = `<option value=""${cur ? '' : ' selected'}>${t(platform ? 'اختر نوع البرنامج' : 'اختر المنصة أولاً')}</option>`;
-  if (!platform) return placeholder;
-  return placeholder + types.map(ty => {
+  const types = getProgramTypesForPlatform(platform || 'Desktop');
+  if (!types || types.length === 0) {
+    return `<option value="">(${t('لا توجد برامج ويب حالياً — قيد التطوير')})</option>`;
+  }
+  return types.map(ty => {
     const isSelected = cur === ty || (cur && ty.startsWith(cur)) || (cur && cur.startsWith(ty.split(' ')[0]));
     return `<option value="${ty}"${isSelected ? ' selected' : ''}>${t(ty)}</option>`;
   }).join('');
@@ -135,10 +136,14 @@ export function updateProgramTypeSelect(platform, targetId = 'fp_ty') {
 export function onClientStatusChange() {
   const st = document.getElementById('f_st')?.value;
   const sdInput = document.getElementById('f_sd');
+  const progSec = document.getElementById('active_client_prog_sec');
   if (st === 'نشط') {
     if (sdInput && !sdInput.value) {
       sdInput.value = new Date().toISOString().split('T')[0];
     }
+    if (progSec) progSec.style.display = 'block';
+  } else {
+    if (progSec) progSec.style.display = 'none';
   }
 }
 
@@ -161,90 +166,36 @@ export function activityIcon(act) {
   return m[act] || '🏪';
 }
 
+const progStatsCache = new WeakMap();
+
 export function getProgramStats(c) {
   if (!c) return { total: 0, totalInstalls: 0, active: 0, expired: 0 };
-  const progs = Array.isArray(c.programs) ? c.programs : [];
+  if (progStatsCache.has(c)) {
+    return progStatsCache.get(c);
+  }
   let res;
-  if (!c._subcollectionsLoaded && progs.length === 0 && c.programsCount !== undefined) {
-    const total = Number(c.programsCount) || 0;
-    const knownInstallations = Number(c.installationsCount);
+  if (!c._subcollectionsLoaded && c.programsCount !== undefined) {
     res = {
-      total,
-      totalInstalls: Number.isFinite(knownInstallations) && knownInstallations >= 0 ? knownInstallations : 0,
-      active: 0,
-      expired: 0,
-      unknown: total
+      total: c.programsCount || 0,
+      totalInstalls: c.installationsCount || 0,
+      active: c.programsCount || 0,
+      expired: 0
     };
   } else {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const totalInstalls = progs.reduce((sum, program) => {
-      const count = Number(program.installationsCount);
-      return Number.isFinite(count) && count > 0 ? sum + count : sum;
-    }, 0);
-    const expired = progs.filter(program => {
-      if (!program.endDate) return false;
-      const endDate = new Date(`${program.endDate}T00:00:00`);
-      return Number.isFinite(endDate.getTime()) && endDate < today;
-    }).length;
-    const active = progs.filter(program => {
-      if (!program.endDate) return false;
-      const endDate = new Date(`${program.endDate}T00:00:00`);
-      return Number.isFinite(endDate.getTime()) && endDate >= today;
-    }).length;
-    res = { total: progs.length, totalInstalls, active, expired, unknown: progs.length - active - expired };
+    const progs = c.programs || [];
+    const totalInstalls = progs.reduce((s, p) => s + (Number(p.installationsCount) || 1), 0);
+    res = { total: progs.length, totalInstalls, active: progs.length, expired: 0 };
   }
+  progStatsCache.set(c, res);
   return res;
 }
 
-export function deduplicateClientLicenses(clientList) {
-  const licenses = new Map();
-  (Array.isArray(clientList) ? clientList : []).forEach(client => {
-    const programs = Array.isArray(client?.programs) ? client.programs : [];
-    programs.forEach((program, index) => {
-      const identity = program?.id != null
-        ? `id:${String(program.id)}`
-        : [
-            program?.platform,
-            program?.programName,
-            program?.version,
-            program?.type
-          ].map(value => String(value || '').trim().toLowerCase()).join('|');
-      const key = `${String(client?.id ?? '')}:${identity === '|||' ? `index:${index}` : identity}`;
-      if (licenses.has(key)) return;
-
-      const knownPlatforms = ['Desktop', 'Mobile', 'Web', 'Hybrid'];
-      licenses.set(key, {
-        ...program,
-        clientId: client?.id,
-        clientName: client?.fullName,
-        clientWilaya: client?.wilaya,
-        normalizedPlatform: knownPlatforms.includes(program?.platform) ? program.platform : 'Unknown'
-      });
-    });
-  });
-  return Array.from(licenses.values());
-}
-
 export function progStatusCls(p) {
-  const status = progStatus(p);
-  return status === 'active' ? 'active-prog' : (status === 'expired' ? 'expired-prog' : '');
+  return 'active-prog';
 }
 
 export function progStatusLabel(p) {
-  const status = progStatus(p);
-  const label = status === 'active' ? t('نشط') : (status === 'expired' ? t('منتهي') : t('غير محدد'));
-  const badgeClass = status === 'active' ? 'bdg-g' : (status === 'expired' ? 'bdg-r' : 'bdg-gr');
-  return `<span class="bdg ${badgeClass}">${label}</span>`;
-}
-
-function progStatus(p) {
-  if (!p?.endDate) return 'unknown';
-  const endDate = new Date(`${p.endDate}T00:00:00`);
-  if (!Number.isFinite(endDate.getTime())) return 'unknown';
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return endDate < today ? 'expired' : 'active';
+  return `<span class="bdg bdg-g">${t('نشط (مدى الحياة)')}</span>`;
 }
 
 export function platformIcon(pl) { const m = { 'Desktop': '🖥', 'Mobile': '📱', 'Web': '🌐', 'Hybrid': '⚡' }; return m[pl] || '💻'; }
@@ -396,5 +347,3 @@ export function countAdvFil() { return [S.fWilaya, S.fCommune, S.fActivity, S.fA
 export function gv(id) { const el = document.getElementById(id); return el ? (el.value || '') : '' }
 export function gc2(id) { const el = document.getElementById(id); return el ? el.checked : false }
 export function gn(id, def = 0) { const el = document.getElementById(id); return el ? Number(el.value) || def : def }
-
-export { formatCsvCell } from './csv.js';

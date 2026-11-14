@@ -5,7 +5,7 @@
 
 import { S, clients, staffUsers, isGerant, hasPermission } from '../state/store.js';
 import { computeScore, computeRiskProfile, computeAlerts } from '../business/intelligence.js';
-import { esc, isClientAtRisk, getProgramStats, deduplicateClientLicenses } from '../utils/index.js';
+import { esc, isClientAtRisk } from '../utils/index.js';
 import { t } from '../utils/i18n.js';
 import { DEPARTMENTS } from '../business/employeeService.js';
 
@@ -180,147 +180,18 @@ export function renderDashboard() {
   const selectedWilaya = S.dbWilaya || 'all';
   const todayObj = new Date();
 
-  // Filter clients by Wilaya if selected (Safely excluding null/undefined records)
-  const validClients = (clients || []).filter(c => c && typeof c === 'object');
-
-  // Support Directory Tab if selected
-  if (S.dbActiveTab === 'directory') {
-    let dirClients = validClients.slice();
-
-    const sq = (S.dbSearchQuery || '').trim().toLowerCase();
-    if (sq) {
-      dirClients = dirClients.filter(c => {
-        const fn = (c.fullName || '').toLowerCase();
-        const co = (c.company || '').toLowerCase();
-        const ph = (c.phone || '').toLowerCase();
-        return fn.includes(sq) || co.includes(sq) || ph.includes(sq);
-      });
-    }
-
-    if (S.dbFilterWilaya && S.dbFilterWilaya !== 'all') {
-      dirClients = dirClients.filter(c => c.wilaya === S.dbFilterWilaya);
-    }
-
-    if (S.dbFilterTier && S.dbFilterTier !== 'all') {
-      dirClients = dirClients.filter(c => {
-        const sc = c.score !== undefined ? Number(c.score) : computeScore(c).total;
-        if (S.dbFilterTier === 'excellent') return sc >= 75;
-        if (S.dbFilterTier === 'good') return sc >= 50 && sc < 75;
-        if (S.dbFilterTier === 'warning') return sc >= 25 && sc < 50;
-        if (S.dbFilterTier === 'critical') return sc < 25;
-        return true;
-      });
-    }
-
-    if (S.dbFilterProg && S.dbFilterProg !== 'all') {
-      if (S.dbFilterProg === 'multi_device') {
-        dirClients = dirClients.filter(c => getProgramStats(c).totalInstalls > 1);
-      } else if (S.dbFilterProg === 'v15_v16') {
-        dirClients = dirClients.filter(c => {
-          const names = [
-            ...(c.programNames || []),
-            ...(c.programs || []).map(p => p.programName || ''),
-            ...(c.programs || []).map(p => p.version || '')
-          ];
-          return names.some(n => /v1[56]/i.test(n) || /15|16/.test(n));
-        });
-      } else {
-        const target = S.dbFilterProg.toLowerCase();
-        dirClients = dirClients.filter(c => {
-          const names = [
-            ...(c.programNames || []),
-            ...(c.programs || []).map(p => p.programName || '')
-          ];
-          return names.some(n => n.toLowerCase().includes(target));
-        });
-      }
-    }
-
-    return `
-      <div class="dashboard-root">
-        <div class="phead">
-          <div>
-            <h1>${t('لوحة القيادة')} — ${t('دليل العملاء')}</h1>
-            <p>${t('إجمالي العملاء')}: ${validClients.length} · ${t('مطابق للبحث والتصفية')}: ${dirClients.length}</p>
-          </div>
-          <div style="flex:1"></div>
-          <div class="chips">
-            <div class="chip" onclick="setDbTab('overview')">${t('المؤشرات التنفيذية')}</div>
-            <div class="chip on" onclick="setDbTab('directory')">${t('دليل العملاء')}</div>
-          </div>
-        </div>
-
-        <div class="card" style="padding:16px;margin-bottom:16px">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-            <input type="text" class="input" placeholder="${t('بحث بالاسم أو الشركة...')}" value="${esc(S.dbSearchQuery || '')}" oninput="updateState({ dbSearchQuery: this.value }); R();" style="flex:2;min-width:200px" />
-            <select class="select" onchange="updateState({ dbFilterWilaya: this.value }); R();" style="flex:1;min-width:140px">
-              <option value="all" ${S.dbFilterWilaya === 'all' ? 'selected' : ''}>${t('كل الولايات')}</option>
-              ${[...new Set(validClients.map(c => c.wilaya).filter(Boolean))].map(w => `<option value="${esc(w)}" ${S.dbFilterWilaya === w ? 'selected' : ''}>${esc(w)}</option>`).join('')}
-            </select>
-            <select class="select" onchange="updateState({ dbFilterTier: this.value }); R();" style="flex:1;min-width:140px">
-              <option value="all" ${S.dbFilterTier === 'all' ? 'selected' : ''}>${t('كل التصنيفات')}</option>
-              <option value="excellent" ${S.dbFilterTier === 'excellent' ? 'selected' : ''}>${t('متميز')}</option>
-              <option value="good" ${S.dbFilterTier === 'good' ? 'selected' : ''}>${t('جيد')}</option>
-              <option value="warning" ${S.dbFilterTier === 'warning' ? 'selected' : ''}>${t('يحتاج متابعة')}</option>
-              <option value="critical" ${S.dbFilterTier === 'critical' ? 'selected' : ''}>${t('خطر عالٍ')}</option>
-            </select>
-            <select class="select" onchange="updateState({ dbFilterProg: this.value }); R();" style="flex:1;min-width:140px">
-              <option value="all" ${S.dbFilterProg === 'all' ? 'selected' : ''}>${t('كل البرامج')}</option>
-              <option value="multi_device" ${S.dbFilterProg === 'multi_device' ? 'selected' : ''}>${t('أجهزة متعددة')}</option>
-              <option value="v15_v16" ${S.dbFilterProg === 'v15_v16' ? 'selected' : ''}>V15 / V16</option>
-              <option value="PROGILIC ERP V24" ${S.dbFilterProg === 'PROGILIC ERP V24' ? 'selected' : ''}>PROGILIC ERP V24</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="card" style="padding:0;overflow:hidden">
-          ${dirClients.length ? `
-            <table class="table" style="width:100%;border-collapse:collapse">
-              <thead>
-                <tr style="background:var(--bg-soft);border-bottom:1px solid var(--border)">
-                  <th style="padding:10px 14px;text-align:start">${t('العميل')}</th>
-                  <th style="padding:10px 14px;text-align:start">${t('الشركة')}</th>
-                  <th style="padding:10px 14px;text-align:start">${t('الولاية')}</th>
-                  <th style="padding:10px 14px;text-align:start">${t('البرامج')}</th>
-                  <th style="padding:10px 14px;text-align:start">${t('النقاط')}</th>
-                  <th style="padding:10px 14px;text-align:start">${t('الحالة')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${dirClients.map(c => `
-                  <tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="selClient(${c.id})">
-                    <td style="padding:10px 14px;font-weight:600">${esc(c.fullName || '')}</td>
-                    <td style="padding:10px 14px;color:var(--muted)">${esc(c.company || '')}</td>
-                    <td style="padding:10px 14px">${esc(c.wilaya || '')}</td>
-                    <td style="padding:10px 14px">${esc((c.programNames || []).join(', ') || (c.programs || []).map(p => p.programName).join(', ') || '—')}</td>
-                    <td style="padding:10px 14px"><span class="num">${c.score !== undefined ? c.score : computeScore(c).total}</span></td>
-                    <td style="padding:10px 14px"><span class="tag">${esc(c.status || '')}</span></td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          ` : `
-            <div style="padding:48px 16px;text-align:center;color:var(--muted)">
-              <div style="font-size:32px;margin-bottom:8px">🔍</div>
-              <div>${t('لا توجد نتائج مطابقة لمعايير البحث والتصفية')}</div>
-            </div>
-          `}
-        </div>
-      </div>
-    `;
-  }
+  // Filter clients by Wilaya if selected
   const cl = selectedWilaya === 'all' 
-    ? validClients 
-    : validClients.filter(c => c.wilaya === selectedWilaya);
+    ? clients 
+    : clients.filter(c => c.wilaya === selectedWilaya);
 
   const totalClients = cl.length;
   const activeClients = cl.filter(c => c.status === 'نشط').length;
   const prospectiveClients = cl.filter(c => c.status === 'محتمل').length;
   const stoppedClients = cl.filter(c => c.status === 'متوقف').length;
 
-  // 1. Programs & Devices (100% parity with Licenses Explorer via shared deduplicator + normalized platforms)
-  const dedupedLicenses = deduplicateClientLicenses(cl);
-  let totalPrograms = dedupedLicenses.length;
+  // 1. Programs & Devices
+  let totalPrograms = 0;
   let totalLicensedDevices = 0;
   let activeProgramsCount = 0;
   let expiringSoonCount = 0;
@@ -329,49 +200,67 @@ export function renderDashboard() {
   const platformCounts = { Desktop: 0, Mobile: 0, Web: 0 };
   const expiringContracts30 = [];
   const expiringContracts7 = [];
-  const clientById = new Map(cl.map(c => [String(c.id), c]));
 
   const now = Date.now();
   const DAY = 86400000;
 
-  dedupedLicenses.forEach(p => {
-    const inst = Number(p.installationsCount);
-    if (Number.isFinite(inst) && inst > 0) totalLicensedDevices += inst;
+  cl.forEach(c => {
+    const progs = c.programs || [];
+    totalPrograms += progs.length || Number(c.programsCount) || (c.programNames?.length || 0);
+    
+    progs.forEach(p => {
+      const inst = Number(p.installationsCount) || 1;
+      totalLicensedDevices += inst;
+      
+      // Determine version or clean program name
+      let vName = (p.version || '').trim().toUpperCase();
+      if (!vName) {
+        const match = (p.programName || '').match(/V\d+/i);
+        vName = match ? match[0].toUpperCase() : (p.programName || 'PROGILIC');
+      }
+      programVersions[vName] = (programVersions[vName] || 0) + 1;
 
-    const vName = (p.version || '').trim().toUpperCase();
-    if (vName) programVersions[vName] = (programVersions[vName] || 0) + 1;
+      const rawPlat = p.platform || 'Desktop';
+      const plat = rawPlat === 'Hybrid' ? 'Desktop' : rawPlat;
+      if (platformCounts[plat] !== undefined) {
+        platformCounts[plat] += 1;
+      } else {
+        platformCounts.Desktop += 1;
+      }
 
-    const plat = p.normalizedPlatform || p.platform;
-    if (platformCounts[plat] !== undefined) {
-      platformCounts[plat] += 1;
-    }
-
-    if (p.endDate) {
-      const endTimestamp = new Date(p.endDate + 'T00:00').getTime();
-      if (Number.isFinite(endTimestamp)) {
-        const dl = Math.floor((endTimestamp - now) / DAY);
-        const ownerClient = clientById.get(String(p.clientId)) || { id: p.clientId, fullName: p.clientName, wilaya: p.clientWilaya };
-        if (dl < 0) {
-          expiredProgramsCount++;
-        } else if (dl <= 30) {
-          expiringSoonCount++;
-          expiringContracts30.push({ client: ownerClient, prog: p, daysLeft: dl });
-          if (dl <= 7) expiringContracts7.push({ client: ownerClient, prog: p, daysLeft: dl });
-        } else {
+      if (p.endDate) {
+        try {
+          const dl = Math.floor((new Date(p.endDate + 'T00:00').getTime() - now) / DAY);
+          if (dl < 0) {
+            expiredProgramsCount++;
+          } else if (dl <= 30) {
+            expiringSoonCount++;
+            expiringContracts30.push({ client: c, prog: p, daysLeft: dl });
+            if (dl <= 7) expiringContracts7.push({ client: c, prog: p, daysLeft: dl });
+          } else {
+            activeProgramsCount++;
+          }
+        } catch (e) {
           activeProgramsCount++;
         }
+      } else {
+        activeProgramsCount++;
       }
-    }
-  });
+    });
 
-  // Include legacy summary counts only when subcollections are NOT loaded yet
-  cl.forEach(c => {
-    const progs = Array.isArray(c.programs) ? c.programs : [];
-    if (!c._subcollectionsLoaded && progs.length === 0) {
-      const summaryPrograms = Number(c.programsCount) || (c.programNames?.length || 0);
-      if (summaryPrograms > 0) totalPrograms += summaryPrograms;
-      const summaryInstallations = Number(c.installationsCount);
-      if (Number.isFinite(summaryInstallations) && summaryInstallations > 0) totalLicensedDevices += summaryInstallations;
+    if (progs.length === 0) {
+      totalLicensedDevices += Number(c.installationsCount) || 1;
+      if (c.endDate) {
+        try {
+          const dl = Math.floor((new Date(c.endDate + 'T00:00').getTime() - now) / DAY);
+          if (dl < 0) {
+            expiredProgramsCount++;
+          } else if (dl <= 30) {
+            expiringContracts30.push({ client: c, daysLeft: dl });
+            if (dl <= 7) expiringContracts7.push({ client: c, daysLeft: dl });
+          }
+        } catch (e) {}
+      }
     }
   });
 
@@ -733,10 +622,6 @@ export function renderDashboard() {
         </div>
         <div style="flex:1"></div>
         <div class="chips">
-          <div class="chip on" onclick="setDbTab('overview')">${t('المؤشرات التنفيذية')}</div>
-          <div class="chip" onclick="setDbTab('directory')">${t('دليل العملاء')}</div>
-        </div>
-        <div class="chips">
           <div class="chip ${period === 1 ? 'on' : ''}" onclick="setDbPeriod(1)">${t('اليوم')}</div>
           <div class="chip ${period === 7 ? 'on' : ''}" onclick="setDbPeriod(7)">${t('7 أيام')}</div>
           <div class="chip ${period === 30 ? 'on' : ''}" onclick="setDbPeriod(30)">${t('30 يومًا')}</div>
@@ -766,10 +651,6 @@ export function renderDashboard() {
             </button>
           ` : ''}
         </div>
-
-        <button class="db-btn" onclick="recoverMissingProgramsAndSyncCRM()" style="background:var(--primary);color:#fff" title="${t('استرجاع ومزامنة البرامج والعملاء المفقودين من التايم لاين')}">
-          📦 ${t('استرجاع ومزامنة البرامج')}
-        </button>
 
         <button class="db-btn" onclick="exportDashboardReport()">
           ${ic('download', 17)} ${t('تصدير التقرير')}

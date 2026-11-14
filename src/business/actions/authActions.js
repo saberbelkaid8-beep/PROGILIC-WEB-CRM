@@ -1,5 +1,4 @@
-import { S, clients, setClients, updateState, currentUser, setCurrentUser, setCurrentStaffUser, loadStaffUsersForTenant } from '../../state/store.js';
-import { createDefaultGerant } from '../../constants/index.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, setCurrentStaffUser } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction, stopRealtimeSync, loadDataFromFirestore } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
@@ -113,7 +112,7 @@ export function loginUser(username, password, fullname = '') {
           isEmployee: false,
         };
         setCurrentUser(activeUser);
-        loadStaffUsersForTenant(user.uid, activeUser);
+        setCurrentStaffUser(null);
         S.showStaffPortal = true;
         try {
           localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
@@ -140,7 +139,7 @@ export function loginUser(username, password, fullname = '') {
                 isEmployee: false,
               };
               setCurrentUser(activeUser);
-              loadStaffUsersForTenant(user.uid, activeUser);
+              setCurrentStaffUser(null);
               S.showStaffPortal = true;
               try {
                 localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
@@ -188,7 +187,7 @@ export function loginUser(username, password, fullname = '') {
           isEmployee: false,
         };
         setCurrentUser(activeUser);
-        loadStaffUsersForTenant(user.uid, activeUser);
+        setCurrentStaffUser(null);
         S.showStaffPortal = true;
         try {
           localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));

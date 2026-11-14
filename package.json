@@ -10,7 +10,6 @@
     "check:integrity": "node scripts/dependency-check.js",
     "verify": "npm run check:integrity && npm run lint && npm run test && npm run build",
     "preview": "vite preview",
-    "start": "node server.js --start",
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -19,11 +18,9 @@
   "dependencies": {
     "@google/genai": "^2.13.0",
     "firebase": "^12.16.0",
-    "firebase-admin": "^14.5.0",
     "minisearch": "^7.2.0"
   },
   "devDependencies": {
-    "@babel/parser": "^7.29.7",
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@playwright/test": "^1.61.1",
     "@vitest/coverage-v8": "^4.1.10",

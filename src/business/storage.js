@@ -1,9 +1,9 @@
-import { td, getProgramStats, formatCsvCell } from '../utils/index.js';
+import { td, getProgramStats } from '../utils/index.js';
 import { showToast } from '../utils/toast.js';
 import { showConfirm } from '../utils/confirm.js';
 import { t } from '../utils/i18n.js';
 import { computeScore } from './intelligence.js';
-import { ActivityType, logActivity, mergeActivities, getPendingActivitiesForTenant } from './timelineService.js';
+import { ActivityType, logActivity } from './timelineService.js';
 import { R } from '../presentation/render-core.js';
 import { 
   S, 
@@ -31,8 +31,6 @@ import {
   getUserData, 
   saveUserData, 
   getClientsPage, 
-  getClientsFromServer,
-  getClientFromServer,
   getClientSubcollections, 
   
   addClientTransaction, 
@@ -45,7 +43,6 @@ import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
-import { getSyncQueue, saveSyncQueue, saveClients, setMeta } from './idbStorage.js';
 
 // Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
@@ -95,11 +92,13 @@ export function migrateSchema(d) {
     if (!c || typeof c !== 'object') return null;
     if (!c.id) c.id = Date.now() + idx + Math.floor(Math.random() * 9999);
     if (!c.fullName && c.name) c.fullName = c.name;
+    if (!c.fullName) c.fullName = `عميل ${idx + 1}`;
     if (!c.company) c.company = '';
     if (!c.phone) c.phone = '';
     if (!c.wilaya) c.wilaya = '';
     if (!c.commune) c.commune = '';
     if (!c.location) c.location = '';
+    if (!c.status) c.status = 'نشط';
     if (!c.startDate) c.startDate = '';
     if (!c.endDate) c.endDate = '';
     if (!c.lastContact) c.lastContact = '';
@@ -125,6 +124,20 @@ export function migrateSchema(d) {
     }
     delete c.monthlyValue;
     if (!Array.isArray(c.programs)) { c.programs = []; }
+    if (c.programs.length === 0 && (c.product || c.contractType)) {
+      const typeMap = { 'شهري': 'تجاري', 'سنوي': 'تجاري', 'تجريبي': 'تجاري', 'مرة واحدة': 'تجاري' };
+      c.programs.push({
+        id: Date.now() + Math.floor(Math.random() * 999),
+        programName: c.product || 'غير محدد',
+        platform: 'Desktop',
+        type: typeMap[c.contractType] || 'تجاري',
+        installationsCount: 1,
+        startDate: c.startDate || '',
+        endDate: c.endDate || ''
+      });
+    }
+    delete c.product; delete c.contractType;
+
     c.issues = c.issues.map(i => {
       if (i.confidence === undefined) i.confidence = 50;
       if (i.source === undefined) i.source = 'غير محدد';
@@ -139,7 +152,15 @@ export function migrateSchema(d) {
 
 // Global sanitize functions for export / data integrity
 export function sanitizeProgram(p) {
-  return p && typeof p === 'object' ? { ...p } : p;
+  return {
+    id: p.id || Date.now() + Math.floor(Math.random() * 999),
+    programName: p.programName || 'غير محدد',
+    platform: p.platform || 'Desktop',
+    type: p.type || 'تجاري',
+    installationsCount: Number(p.installationsCount) || 1,
+    startDate: p.startDate || '',
+    endDate: p.endDate || ''
+  };
 }
 
 export function sanitizeIssue(i) {
@@ -182,259 +203,26 @@ export function sanitizeContact(ch) {
 
 export function sanitizeClient(c) {
   return {
-    ...c,
-    ...(Array.isArray(c.programs) ? { programs: c.programs.map(sanitizeProgram) } : {})
+    id: c.id,
+    fullName: c.fullName || '',
+    phone: c.phone || '',
+    company: c.company || '',
+    wilaya: c.wilaya || '',
+    location: c.location || '',
+    businessType: c.businessType || '',
+    businessField: c.businessField || '',
+    status: c.status || 'نشط',
+    startDate: c.startDate || '',
+    endDate: c.endDate || '',
+    lastContact: c.lastContact || '',
+    notes: c.notes || '',
+    gps: c.gps || { lat: null, lng: null },
+    score: c.score || 100,
+    programs: (c.programs || []).map(sanitizeProgram),
+    issues: (c.issues || []).map(sanitizeIssue),
+    requirements: (c.requirements || []).map(sanitizeReq),
+    contactHistory: (c.contactHistory || []).map(sanitizeContact)
   };
-}
-
-const ACTIVE_QUEUE_STATES = new Set(['pending', 'syncing', 'requires-attention', 'failed']);
-
-function computeProgramSummary(programs = []) {
-  const safeProgs = Array.isArray(programs) ? programs.filter(Boolean) : [];
-  const installationsCount = safeProgs.reduce((total, p) => {
-    const count = Number(p?.installationsCount);
-    return Number.isSafeInteger(count) && count > 0 ? total + count : total;
-  }, 0);
-  const programNames = safeProgs.map(p => p.programName).filter(Boolean);
-  return {
-    programsCount: safeProgs.length,
-    installationsCount,
-    programNames
-  };
-}
-
-function mergeAvailableSubcollectionRecords(remoteItems = [], retainedItems = []) {
-  const records = new Map();
-  const recordKey = (item, index) => {
-    if (item?.id !== undefined && item?.id !== null) return `id:${String(item.id)}`;
-    return `record:${JSON.stringify(item)}:${index}`;
-  };
-
-  (Array.isArray(retainedItems) ? retainedItems : []).forEach((item, index) => {
-    if (item && typeof item === 'object') records.set(recordKey(item, index), item);
-  });
-  (Array.isArray(remoteItems) ? remoteItems : []).forEach((item, index) => {
-    if (item && typeof item === 'object') records.set(recordKey(item, index), item);
-  });
-  return Array.from(records.values());
-}
-
-function getExpectedProgramCount(client) {
-  const count = Number(client?.programsCount);
-  const hasCount = Number.isSafeInteger(count) && count >= 0;
-  const namesCount = Array.isArray(client?.programNames) ? client.programNames.length : 0;
-  const embeddedCount = Array.isArray(client?.programs) ? client.programs.length : 0;
-  if (!hasCount && namesCount === 0 && embeddedCount === 0) return null;
-  return Math.max(hasCount ? count : 0, namesCount, embeddedCount);
-}
-
-export function mergeSubcollectionWithQueue(clientId, collectionName, remoteItems = [], localItems = [], syncQueue = []) {
-  const cidStr = String(clientId);
-  const queue = Array.isArray(syncQueue) ? syncQueue : [];
-  const byId = new Map();
-  const unidentified = new Map();
-
-  for (const [index, item] of (Array.isArray(remoteItems) ? remoteItems : []).entries()) {
-    if (!item || typeof item !== 'object') continue;
-    if (item.id === undefined || item.id === null) {
-      unidentified.set(`${JSON.stringify(item)}:${index}`, { ...item });
-    } else {
-      byId.set(String(item.id), { ...item });
-    }
-  }
-
-  // If client creation is still pending in queue and remote has nothing yet, keep local initial items
-  const hasPendingAddClient = queue.some(
-    q => q && ACTIVE_QUEUE_STATES.has(q.state || 'pending')
-      && q.type === 'ADD_CLIENT'
-      && String(q.payload?.clientData?.id) === cidStr
-  );
-  if (hasPendingAddClient && byId.size === 0 && Array.isArray(localItems)) {
-    for (const item of localItems) {
-      if (!item || item.id === undefined || item.id === null) continue;
-      byId.set(String(item.id), { ...item });
-    }
-  }
-
-  for (const q of queue) {
-    if (!q || !ACTIVE_QUEUE_STATES.has(q.state || 'pending')) continue;
-    const payload = q.payload || {};
-    if (String(payload.clientId) !== cidStr || payload.collectionName !== collectionName) continue;
-    const itemId = String(payload.itemId ?? payload.itemData?.id ?? '');
-    if (!itemId) continue;
-
-    if (q.type === 'SAVE_SUB_ITEM' && payload.itemData) {
-      byId.set(itemId, { ...payload.itemData });
-    } else if (q.type === 'DELETE_SUB_ITEM') {
-      byId.delete(itemId);
-    }
-  }
-
-  return [...byId.values(), ...unidentified.values()];
-}
-
-export function mergeClientSyncState(remoteSummaries = [], localClients = [], syncQueue = [], options = {}) {
-  const isOnline = options.isOnline !== false;
-  const queue = Array.isArray(syncQueue) ? syncQueue : [];
-  const existingList = Array.isArray(localClients) ? localClients.filter(Boolean) : [];
-  const remoteList = Array.isArray(remoteSummaries) ? remoteSummaries.filter(Boolean) : [];
-
-  const pendingDeletes = new Set();
-  const pendingAdds = new Map();
-  const pendingUpdates = new Map();
-  const pendingSubOpsClients = new Map();
-
-  for (const q of queue) {
-    if (!q || !ACTIVE_QUEUE_STATES.has(q.state || 'pending')) continue;
-    const payload = q.payload || {};
-    if (q.type === 'DELETE_CLIENT' && payload.clientId !== undefined) {
-      pendingDeletes.add(String(payload.clientId));
-    } else if (q.type === 'ADD_CLIENT' && payload.clientData?.id !== undefined) {
-      pendingAdds.set(String(payload.clientData.id), { ...payload.clientData, _subcollectionsLoaded: true });
-    } else if (q.type === 'UPDATE_CLIENT' && payload.clientId !== undefined && payload.clientData) {
-      pendingUpdates.set(String(payload.clientId), payload.clientData);
-    } else if ((q.type === 'SAVE_SUB_ITEM' || q.type === 'DELETE_SUB_ITEM') && payload.clientId !== undefined) {
-      const cid = String(payload.clientId);
-      const set = pendingSubOpsClients.get(cid) || new Set();
-      if (payload.collectionName) set.add(payload.collectionName);
-      pendingSubOpsClients.set(cid, set);
-    }
-  }
-
-  // Offline fallback: if offline and remote listener reports empty, preserve non-deleted local cache + pending adds
-  if (remoteList.length === 0 && !isOnline && existingList.length > 0) {
-    const preserved = existingList.filter(c => !pendingDeletes.has(String(c.id)));
-    const preservedIds = new Set(preserved.map(c => String(c.id)));
-    for (const [cid, added] of pendingAdds.entries()) {
-      if (!pendingDeletes.has(cid) && !preservedIds.has(cid)) {
-        preserved.push(added);
-      }
-    }
-    return preserved;
-  }
-
-  const existingById = new Map(existingList.map(c => [String(c.id), c]));
-  const mergedClients = [];
-  const seenIds = new Set();
-
-  for (const newC of remoteList) {
-    const cid = String(newC.id);
-    if (pendingDeletes.has(cid)) {
-      continue;
-    }
-    seenIds.add(cid);
-
-    const existingC = existingById.get(cid);
-    const existingPrograms = Array.isArray(existingC?.programs) ? existingC.programs : [];
-    const pendingSubCols = pendingSubOpsClients.get(cid) || new Set();
-    const remoteHasZeroPrograms = newC.programsCount !== undefined
-      && Number(newC.programsCount) === 0
-      && (!Array.isArray(newC.programNames) || newC.programNames.length === 0)
-      && (!Array.isArray(newC.programs) || newC.programs.length === 0)
-      && existingPrograms.length === 0
-      && !pendingSubCols.has('programs');
-    const remoteHasEmbeddedProgs = Array.isArray(newC.programs) && newC.programs.length > 0;
-
-    let basePrograms = Array.isArray(newC.programs) ? newC.programs : [];
-    let programsLoaded = false;
-
-    if (remoteHasZeroPrograms && !pendingSubCols.has('programs')) {
-      basePrograms = [];
-      programsLoaded = true;
-    } else if (existingC && existingC._subcollectionsLoaded) {
-      const existingPrograms = Array.isArray(existingC.programs) ? existingC.programs : [];
-      const existingNames = existingPrograms.map(p => p?.programName).filter(Boolean);
-      const remoteNames = Array.isArray(newC.programNames) ? newC.programNames : [];
-      const countMatches = newC.programsCount === undefined || Number(newC.programsCount) === existingPrograms.length;
-      const namesMatch = newC.programNames === undefined || JSON.stringify(remoteNames) === JSON.stringify(existingNames);
-      const versionNotNewer = Number(newC.version || 0) <= Number(existingC.version || 0);
-
-      if ((countMatches && namesMatch && versionNotNewer) || pendingSubCols.has('programs')) {
-        basePrograms = existingPrograms;
-        programsLoaded = true;
-      } else if (remoteHasEmbeddedProgs && Number(newC.programsCount ?? newC.programs.length) === newC.programs.length) {
-        basePrograms = newC.programs;
-        programsLoaded = true;
-      } else {
-        // Cloud summary changed on another session; require fresh subcollection read
-        basePrograms = Array.isArray(newC.programs) ? newC.programs : [];
-        programsLoaded = false;
-      }
-    } else if (remoteHasEmbeddedProgs && (newC.programsCount === undefined || Number(newC.programsCount) === newC.programs.length)) {
-      basePrograms = newC.programs;
-      programsLoaded = true;
-    }
-
-    const expectedProgramCount = getExpectedProgramCount(newC);
-    const programSummaryExplicitlyEmpty = newC.programsCount !== undefined
-      && Number(newC.programsCount) === 0
-      && (!Array.isArray(newC.programNames) || newC.programNames.length === 0)
-      && (!Array.isArray(newC.programs) || newC.programs.length === 0)
-      && existingPrograms.length === 0
-      && !pendingSubCols.has('programs');
-    const cloudProgramsAreIncomplete = !programSummaryExplicitlyEmpty && (
-      (expectedProgramCount !== null && expectedProgramCount > basePrograms.length)
-      || existingPrograms.length > basePrograms.length
-    );
-    if (cloudProgramsAreIncomplete) {
-      basePrograms = mergeAvailableSubcollectionRecords(basePrograms, existingPrograms);
-      programsLoaded = false;
-    }
-
-    const finalProgs = mergeSubcollectionWithQueue(cid, 'programs', basePrograms, existingC?.programs, queue);
-    const finalIssues = mergeSubcollectionWithQueue(
-      cid,
-      'issues',
-      (existingC?._subcollectionsLoaded ? existingC.issues : newC.issues) || [],
-      existingC?.issues,
-      queue
-    );
-    const finalReqs = mergeSubcollectionWithQueue(
-      cid,
-      'requirements',
-      (existingC?._subcollectionsLoaded ? existingC.requirements : newC.requirements) || [],
-      existingC?.requirements,
-      queue
-    );
-    const finalContacts = mergeSubcollectionWithQueue(
-      cid,
-      'contacts',
-      (existingC?._subcollectionsLoaded ? existingC.contactHistory : newC.contactHistory) || [],
-      existingC?.contactHistory,
-      queue
-    );
-
-    const pendingUpdate = pendingUpdates.get(cid);
-    const mergedRecord = {
-      ...newC,
-      ...(pendingUpdate ? pendingUpdate : {}),
-      programs: finalProgs,
-      issues: finalIssues,
-      requirements: finalReqs,
-      contactHistory: finalContacts,
-      _subcollectionsLoaded: programsLoaded || pendingSubCols.has('programs')
-    };
-
-    if (mergedRecord._subcollectionsLoaded) {
-      Object.assign(mergedRecord, computeProgramSummary(finalProgs));
-    }
-
-    mergedClients.push(mergedRecord);
-  }
-
-  for (const [cid, addedClient] of pendingAdds.entries()) {
-    if (!seenIds.has(cid) && !pendingDeletes.has(cid)) {
-      const finalProgs = mergeSubcollectionWithQueue(cid, 'programs', addedClient.programs || [], addedClient.programs || [], queue);
-      mergedClients.push({
-        ...addedClient,
-        programs: finalProgs,
-        ...computeProgramSummary(finalProgs),
-        _subcollectionsLoaded: true
-      });
-    }
-  }
-
-  return mergedClients;
 }
 
 // On-Demand Client Subcollection Loader
@@ -445,80 +233,17 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 
   if (c._subcollectionsLoaded) return;
 
-  const tenantUid = activeTenantUid() || currentUser.uid;
   try {
     setSyncing(true);
 
-    const sub = await getClientSubcollections(tenantUid, String(c.firestoreId || clientId));
-    const currentQueue = S.syncQueue || [];
+    const sub = await getClientSubcollections(currentUser.uid, String(clientId));
+    c.programs = sub.programs || [];
+    c.issues = sub.issues || [];
+    c.requirements = sub.requirements || [];
+    c.contactHistory = sub.contactHistory || [];
+    c._subcollectionsLoaded = true;
 
-    const remotePrograms = Array.isArray(sub?.programs) ? sub.programs : [];
-    const expectedPrograms = getExpectedProgramCount(c);
-    const programsExplicitlyEmpty = c.programsCount !== undefined
-      && Number(c.programsCount) === 0
-      && (!Array.isArray(c.programNames) || c.programNames.length === 0)
-      && (!Array.isArray(c.programs) || c.programs.length === 0)
-      && remotePrograms.length === 0;
-    const preservePrograms = !programsExplicitlyEmpty && (
-      (expectedPrograms !== null && expectedPrograms > remotePrograms.length)
-      || (Array.isArray(c.programs) && c.programs.length > remotePrograms.length)
-    );
-    const programBase = preservePrograms
-      ? mergeAvailableSubcollectionRecords(remotePrograms, c.programs)
-      : remotePrograms;
-    const mergedProgs = mergeSubcollectionWithQueue(clientId, 'programs', programBase, c.programs || [], currentQueue);
-    const programsLoaded = !preservePrograms;
-
-    const remoteIssues = Array.isArray(sub?.issues) ? sub.issues : [];
-    const preserveIssues = remoteIssues.length < (Array.isArray(c.issues) ? c.issues.length : 0)
-      || (Number(c.openIssuesCount) > remoteIssues.length);
-    const mergedIssues = mergeSubcollectionWithQueue(
-      clientId,
-      'issues',
-      preserveIssues ? mergeAvailableSubcollectionRecords(remoteIssues, c.issues) : remoteIssues,
-      c.issues || [],
-      currentQueue
-    );
-    const remoteRequirements = Array.isArray(sub?.requirements) ? sub.requirements : [];
-    const preserveRequirements = remoteRequirements.length < (Array.isArray(c.requirements) ? c.requirements.length : 0)
-      || Number(c.requirementsCount) > remoteRequirements.length;
-    const mergedReqs = mergeSubcollectionWithQueue(
-      clientId,
-      'requirements',
-      preserveRequirements ? mergeAvailableSubcollectionRecords(remoteRequirements, c.requirements) : remoteRequirements,
-      c.requirements || [],
-      currentQueue
-    );
-    const remoteContacts = Array.isArray(sub?.contactHistory) ? sub.contactHistory : [];
-    const preserveContacts = remoteContacts.length < (Array.isArray(c.contactHistory) ? c.contactHistory.length : 0);
-    const mergedContacts = mergeSubcollectionWithQueue(
-      clientId,
-      'contacts',
-      preserveContacts ? mergeAvailableSubcollectionRecords(remoteContacts, c.contactHistory) : remoteContacts,
-      c.contactHistory || [],
-      currentQueue
-    );
-
-    const progSummary = programsLoaded ? computeProgramSummary(mergedProgs) : {};
-    const openIssuesCount = preserveIssues
-      ? c.openIssuesCount
-      : mergedIssues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
-
-    const updatedClient = {
-      ...c,
-      programs: mergedProgs,
-      ...progSummary,
-      issues: mergedIssues,
-      openIssuesCount,
-      requirements: mergedReqs,
-      ...(preserveRequirements ? {} : { requirementsCount: mergedReqs.length }),
-      contactHistory: mergedContacts,
-      _subcollectionsLoaded: programsLoaded
-    };
-
-    const nextClients = clients.map(x => (x && String(x.id) === String(clientId)) ? updatedClient : x);
-    setClients(nextClients);
-    Promise.resolve(saveClients(tenantUid, nextClients)).catch(() => {});
+    setClients([...clients]);
     console.log(`Subcollections loaded successfully for client ${clientId}`);
   } catch (err) {
     console.error(`Failed to load subcollections for client ${clientId}:`, err);
@@ -529,71 +254,17 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 
 // Real-Time Sync State Listeners
 let activeUnsubscribers = [];
-let realtimeSyncGeneration = 0;
-
-function mergeLegacyProfileClients(cloudClients, profileClients) {
-  const mergedById = new Map();
-  const arrayFields = ['programs', 'issues', 'requirements', 'contactHistory'];
-
-  (Array.isArray(profileClients) ? profileClients : []).forEach(client => {
-    if (!client || typeof client !== 'object') return;
-    const sourceId = client.id ?? client.firestoreId;
-    if (sourceId === undefined || sourceId === null) return;
-    const numericId = Number(sourceId);
-    const id = Number.isSafeInteger(numericId) ? numericId : sourceId;
-    mergedById.set(String(id), { ...client, id, _subcollectionsLoaded: false });
-  });
-
-  (Array.isArray(cloudClients) ? cloudClients : []).forEach(client => {
-    if (!client || client.id === undefined || client.id === null) return;
-    const key = String(client.id);
-    const profileClient = mergedById.get(key);
-    const mergedClient = { ...profileClient, ...client };
-    arrayFields.forEach(field => {
-      if (Array.isArray(profileClient?.[field]) && profileClient[field].length > 0
-        && (!Array.isArray(client[field]) || client[field].length === 0)) {
-        mergedClient[field] = profileClient[field];
-      }
-    });
-    mergedById.set(key, mergedClient);
-  });
-
-  return Array.from(mergedById.values());
-}
 
 export function startRealtimeSync(userId) {
   stopRealtimeSync();
-  userId = auth?.currentUser?.uid || userId;
-  if (!userId) {
-    setSaveError(true);
-    console.error('[Online Sync] Cannot start Firestore listeners without an authenticated tenant.');
-    return;
-  }
-  const generation = ++realtimeSyncGeneration;
 
   console.log("Starting real-time synchronization for user:", userId);
 
   // 1. Listen to user profile document (for stats and next ID sequence)
   const userDocRef = doc(db, 'users', userId);
-  let latestClientSummaries = [];
-  let legacyProfileClients = [];
-  let receivedServerSnapshot = false;
-  const applyClientSnapshot = (hasPendingWrites = false) => {
-    const summaries = mergeLegacyProfileClients(latestClientSummaries, legacyProfileClients);
-    const mergedClients = mergeClientSyncState(summaries, clients, S.syncQueue || [], { isOnline: S.isOnline });
-    batch(() => {
-      setSyncing(hasPendingWrites);
-      setClients(mergedClients);
-      setLastSyncedTime(new Date());
-      setSaveError(false);
-    });
-    Promise.resolve(saveClients(userId, mergedClients)).catch(() => {});
-  };
-  const unsubUser = onSnapshot(userDocRef, { includeMetadataChanges: true }, (snapshot) => {
-    if (snapshot.metadata?.fromCache) return;
+  const unsubUser = onSnapshot(userDocRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.data();
-      legacyProfileClients = Array.isArray(data.clients) ? data.clients : [];
       batch(() => {
         updateState({
           nid: data.nid || 100,
@@ -602,7 +273,6 @@ export function startRealtimeSync(userId) {
         setLastSyncedTime(new Date());
         setSyncing(snapshot.metadata.hasPendingWrites);
       });
-      if (receivedServerSnapshot) applyClientSnapshot(snapshot.metadata.hasPendingWrites);
     }
   }, (error) => {
     console.error("User profile snapshot listener error:", error);
@@ -611,16 +281,11 @@ export function startRealtimeSync(userId) {
 
   // 2. Listen to clients collection (real-time summaries)
   const clientsCollRef = collection(db, 'users', userId, 'clients');
-  const unsubClients = onSnapshot(clientsCollRef, { includeMetadataChanges: true }, (snapshot) => {
-    if (snapshot.metadata?.fromCache) return;
-    receivedServerSnapshot = true;
-    latestClientSummaries = snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      const numericId = Number(docSnap.id);
+  const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
+    const summaries = snapshot.docs.map(doc => {
+      const data = doc.data();
       return {
         ...data,
-        id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : docSnap.id),
-        firestoreId: docSnap.id,
         programs: data.programs || [],
         issues: data.issues || [],
         requirements: data.requirements || [],
@@ -629,27 +294,44 @@ export function startRealtimeSync(userId) {
         _subcollectionsLoaded: false
       };
     });
-    applyClientSnapshot(snapshot.metadata.hasPendingWrites);
+
+    // Merge summaries with existing clients to preserve already loaded details in memory
+    let mergedClients = summaries.map(newC => {
+      const existingC = clients.find(x => String(x.id) === String(newC.id));
+      if (existingC && existingC._subcollectionsLoaded) {
+        return {
+          ...newC,
+          programs: existingC.programs,
+          issues: existingC.issues,
+          requirements: existingC.requirements,
+          contactHistory: existingC.contactHistory,
+          _subcollectionsLoaded: true
+        };
+      }
+      return newC;
+    });
+
+    // Safety guard: If subcollection listener reports 0 docs, but we already have loaded clients
+    // (e.g. from data.clients in the user doc or IndexedDB), preserve them!
+    if (summaries.length === 0 && clients && clients.length > 0) {
+      console.log(`[Realtime Sync] Subcollection empty but ${clients.length} clients exist in state. Preserving current client list.`);
+      mergedClients = clients;
+    }
+
+    batch(() => {
+      setSyncing(snapshot.metadata.hasPendingWrites);
+      setClients(mergedClients);
+      setLastSyncedTime(new Date());
+      setSaveError(false);
+    });
   }, (error) => {
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
   });
 
-  getClientsFromServer(userId).then(serverClients => {
-    if (generation !== realtimeSyncGeneration || receivedServerSnapshot) return;
-    receivedServerSnapshot = true;
-    latestClientSummaries = serverClients;
-    applyClientSnapshot(false);
-  }).catch(error => {
-    if (generation !== realtimeSyncGeneration) return;
-    console.error('[Online Sync] Initial server refresh for clients failed:', error);
-    setSaveError(true);
-  });
-
   // 3. Listen to employees collection (real-time cross-device sync)
   const employeesCollRef = collection(db, 'users', userId, 'employees');
-  const unsubEmployees = onSnapshot(employeesCollRef, { includeMetadataChanges: true }, (snapshot) => {
-    if (snapshot.metadata?.fromCache) return;
+  const unsubEmployees = onSnapshot(employeesCollRef, (snapshot) => {
     const remoteStaff = snapshot.docs.map(doc => ({
       ...doc.data(),
       id: doc.id
@@ -667,18 +349,16 @@ export function startRealtimeSync(userId) {
 
   // 4. Listen to activities subcollection (real-time cross-device and multi-user audit timeline sync)
   const activitiesCollRef = collection(db, 'users', userId, 'activities');
-  const unsubActivities = onSnapshot(activitiesCollRef, { includeMetadataChanges: true }, (snapshot) => {
-    if (snapshot.metadata?.fromCache) return;
-    const remoteActivities = snapshot.docs.map(docSnap => ({
-      ...docSnap.data(),
-      id: docSnap.data()?.id || docSnap.id
+  const unsubActivities = onSnapshot(activitiesCollRef, (snapshot) => {
+    const remoteActivities = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id
     }));
-    const pendingLocal = getPendingActivitiesForTenant(userId);
-    const mergedActivities = mergeActivities(remoteActivities, pendingLocal);
+    remoteActivities.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
     batch(() => {
-      S.globalActivities = mergedActivities;
+      S.globalActivities = remoteActivities;
       if (S.selId) {
-        S.clientActivities = mergedActivities.filter(a => Number(a.clientId) === Number(S.selId));
+        S.clientActivities = remoteActivities.filter(a => Number(a.clientId) === Number(S.selId));
       }
       setLastSyncedTime(new Date());
     });
@@ -693,7 +373,6 @@ export function startRealtimeSync(userId) {
 }
 
 export function stopRealtimeSync() {
-  realtimeSyncGeneration += 1;
   if (activeUnsubscribers.length > 0) {
     console.log("Stopping real-time synchronization, cleaning up listeners...");
     activeUnsubscribers.forEach(unsub => {
@@ -739,11 +418,9 @@ async function doLoadDataFromFirestore(user) {
 
   try {
     console.log("loadDataFromFirestore: start");
-    stopRealtimeSync();
     batch(() => {
       setSyncing(true);
       setSaveError(false);
-      setClients([]);
     });
 
     // Strict Online Mode: Direct Cloud Firestore loading without local disk cache
@@ -761,9 +438,8 @@ async function doLoadDataFromFirestore(user) {
       console.log("loadDataFromFirestore: before getUserData with 12s timeout");
       
       // Resilient 12-second race timeout: provides ample time for cellular/cold connections while local cache serves UI
-      const fsTimeoutMs = (typeof window !== 'undefined' && (window.__PLAYWRIGHT_TEST__ || window.isPlaywright)) ? 1000 : 12000;
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), fsTimeoutMs)
+        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 12000)
       );
       data = await Promise.race([getUserData(user.uid), timeoutPromise]);
       console.log("loadDataFromFirestore: after getUserData", data);
@@ -801,10 +477,7 @@ async function doLoadDataFromFirestore(user) {
       const baseClients = (data && data.clients && Array.isArray(data.clients) && data.clients.length > 0)
         ? data.clients
         : (clients && clients.length > 0 ? clients : []);
-      const queue = S.syncQueue || [];
-      const mergedClients = queue.length > 0
-        ? mergeClientSyncState(mergeClientLists(baseClients), clients, queue, { isOnline: S.isOnline })
-        : mergeClientLists(baseClients);
+      const mergedClients = mergeClientLists(baseClients);
       const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
 
       console.log(`[Storage] User profile metadata loaded (Clients will be populated via real-time subcollection listener).`);
@@ -815,22 +488,30 @@ async function doLoadDataFromFirestore(user) {
           stats: computedStats
         });
       });
-      Promise.resolve(saveClients(user.uid, mergedClients)).catch(() => {});
 
-      import('./timelineService.js')
-        .then(m => m.syncCrmServicesToTimeline(user.uid))
-        .catch(console.warn);
+      // Strictly Online: No local persistence.
+      import('./timelineService.js').then(m => m.syncCrmServicesToTimeline(user.uid)).catch(console.warn);
 
       // If user doc didn't exist or had older schema or fewer clients, commit to Cloud Firestore
       if (!data || data.v === undefined || Number(data.v) < 3 || (data.clients && data.clients.length < mergedClients.length)) {
-        console.info('[Storage] Legacy schema detected; cloud migration requires explicit approval and a verified backup.');
+        console.log(`[Storage] Syncing merged database (${mergedClients.length} clients) to Cloud Firestore...`);
+        const payload = {
+          v: SCHEMA_VERSION,
+          updatedAt: new Date().toISOString(),
+          nid: computedNid,
+          stats: computedStats
+        };
+        saveUserData(user.uid, payload).catch(console.warn);
+        migrateLegacyDataIfNeeded(user.uid, { clients: mergedClients }, computedNid).catch(err => {
+          console.warn("[Storage] Cloud migration notice:", err);
+        });
       }
     } else {
-      console.warn('[Online Sync] User profile could not be confirmed by Firestore; waiting for server listeners.');
-      setClients([]);
+      // Fetch failed or timed out, make sure we fallback to loaded cache states safely
+      console.log("Using cached stats and sequence ID:", S.stats, S.nid);
       updateState({
-        nid: 100,
-        stats: {
+        nid: S.nid || 100,
+        stats: S.stats || {
           activeClients: 0,
           prospectiveClients: 0,
           stoppedClients: 0,
@@ -972,7 +653,7 @@ export function exportToCSV(){
     const pr=clients.filter(c=>c.status==='محتمل').length;
     const pa=clients.filter(c=>c.status==='متوقف').length;
     const totalProgs=clients.reduce((s,c)=>s+(c.programs||[]).length,0);
-    const totalInst=clients.reduce((total,c)=>total+getProgramStats(c).totalInstalls,0);
+    const totalInst=clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0);
     const avgScore=clients.length?Math.round(clients.reduce((s,c)=>s+computeScore(c).total,0)/clients.length):0;
 
     let csvContent="";
@@ -1044,7 +725,10 @@ export function exportToCSV(){
         sc
       ];
       
-      csvContent+=row.map(v=>formatCsvCell(v)).join(",")+ "\n";
+      csvContent+=row.map(v=>{
+        const str=String(v===null||v===undefined?"":v);
+        return `"${str.replace(/"/g,'""')}"`;
+      }).join(",")+ "\n";
     });
     
     const blob=new Blob(["\uFEFF"+csvContent],{type:'text/csv;charset=utf-8;'});
@@ -1338,11 +1022,7 @@ export function importData(file){
       
       // Perform automated import schema migration onto the subcollections in the background!
       if (currentUser && currentUser.uid) {
-        migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid).then(result => {
-          if (result?.status === 'blocked') {
-            console.info(`[Import] Cloud migration not run: ${result.reason}`);
-          }
-        }).catch(err => {
+        migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid).catch(err => {
           console.warn("Background migration failed (offline), will rely on local persistence:", err);
         });
       }
@@ -1353,7 +1033,7 @@ export function importData(file){
         stoppedClients: d.clients.filter(c => c.status === 'متوقف').length,
         totalClients: d.clients.length,
         totalPrograms: d.clients.reduce((acc, c) => acc + (c.programs || []).length, 0),
-        totalLicensedDevices: d.clients.reduce((total, c) => total + getProgramStats(c).totalInstalls, 0),
+        totalLicensedDevices: d.clients.reduce((acc, c) => acc + (c.programs || []).reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0), 0),
         averageScore: d.clients.length > 0 ? Math.round(d.clients.reduce((acc, c) => acc + (c.score || 100), 0) / d.clients.length) : 100,
         totalOpenIssues: d.clients.reduce((acc, c) => acc + (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length, 0)
       };
@@ -1395,10 +1075,6 @@ export function triggerImportDumOrJson(){
 }
 
 export async function clearAllData(){
-  if (!isGerant() && !hasPermission('clients.delete')) {
-    showToast(t('⚠️ لا تملك صلاحية مسح جميع البيانات. هذه الصلاحية خاصة بالرئيس (Gérant).'), 'error');
-    throw new Error('غير مصرح: صلاحيات الرئيس (Gérant) مطلوبة لمسح جميع البيانات.');
-  }
   const msg1 = S.lang === 'fr'
     ? '⚠️ Êtes-vous certain de vouloir supprimer définitivement toutes les données ?\nCette action est irréversible.'
     : (S.lang === 'en'
@@ -1417,10 +1093,6 @@ export async function clearAllData(){
   
   try {
     setSyncing(true);
-    const uid = activeTenantUid() || currentUser?.uid;
-    if (!uid) {
-      throw new Error('AUTH_REQUIRED');
-    }
 
     const stats = {
       activeClients: 0,
@@ -1433,17 +1105,14 @@ export async function clearAllData(){
       totalOpenIssues: 0
     };
 
-    const CHUNK_SIZE = 400;
-    const allClients = Array.isArray(clients) ? clients : [];
-    for (let i = 0; i < allClients.length; i += CHUNK_SIZE) {
-      const batchOp = writeBatch(db);
-      for (const c of allClients.slice(i, i + CHUNK_SIZE)) {
-        batchOp.delete(doc(db, `users/${uid}/clients/${c.id}`));
-      }
-      await batchOp.commit();
+    const batch = writeBatch(db);
+    // Delete all client docs we have in memory
+    for (const c of clients) {
+      batch.delete(doc(db, `users/${currentUser.uid}/clients/${c.id}`));
     }
+    await batch.commit();
 
-    await saveUserData(uid, {
+    await saveUserData(currentUser.uid, {
       v: SCHEMA_VERSION,
       updatedAt: new Date().toISOString(),
       nid: 100,
@@ -1451,9 +1120,7 @@ export async function clearAllData(){
     });
 
     setClients([]);
-    updateState({ nid: 100, stats, syncQueue: [] });
-    Promise.resolve(saveClients(uid, [])).catch(() => {});
-    Promise.resolve(saveSyncQueue(uid, [])).catch(() => {});
+    updateState({ nid: 100, stats });
     setLastSyncedTime(new Date());
     S.view='list';S.selId=null;S.gi=false;
     R();
@@ -1474,69 +1141,30 @@ let retryTimer = null;
 export async function loadCache() {
   try {
     updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
-    const uid = auth?.currentUser?.uid || currentUser?.tenantId || currentUser?.uid;
+    const uid = currentUser?.uid;
     if (!uid) return;
-    const queuedOperations = await getSyncQueue(uid);
-    const resumableQueue = queuedOperations.map(item => ({
-      ...item,
-      state: item.state === 'syncing' ? 'pending' : item.state || 'pending'
-    }));
-    updateState({ syncQueue: resumableQueue });
-    console.log(`[Online Sync] Restored ${resumableQueue.length} pending operations for tenant ${uid}.`);
+    const cached = await getClients(uid);
+    const merged = mergeClientLists(cached && cached.length > 0 ? cached : clients);
+    const { stats, nid } = computeStats(merged);
+    
+    batch(() => {
+      setClients(merged);
+      updateState({ stats, nid });
+    });
+
+    console.log(`[Offline Cache] Session hydrated with ${merged.length} clients for tenant ${uid}.`);
+    saveClients(uid, merged).catch(console.warn);
+    setMeta(uid, 'stats', stats).catch(console.warn);
+    setMeta(uid, 'nid', nid).catch(console.warn);
   } catch (e) {
-    console.error("[Online Sync] Could not restore pending operation state:", e);
+    console.error("[Offline Cache] Error loading from local cache:", e);
   }
-}
-
-let queuePersistence = Promise.resolve();
-
-function activeTenantUid() {
-  return auth?.currentUser?.uid
-    || currentUser?.tenantId
-    || (currentUser && !currentUser.isEmployee ? currentUser.uid : null)
-    || getActiveTenantId()
-    || currentUser?.uid;
-}
-
-function persistSyncQueue(uid, queue) {
-  const write = queuePersistence.then(() => saveSyncQueue(uid, queue));
-  queuePersistence = write.catch(error => {
-    setSaveError(true);
-    console.error('[Offline Sync] Could not persist the operation queue:', error);
-  });
-  return write;
-}
-
-async function persistFailureState(uid, queue, item) {
-  try {
-    await persistSyncQueue(uid, queue);
-  } catch (error) {
-    item.lastError = `${item.lastError || 'Sync failed'}; failed to persist recovery state: ${error.message || error}`;
-    setSaveError(true);
-    console.error('[Offline Sync] Could not persist failure state:', error);
-  }
-}
-
-function isRetryableSyncError(error) {
-  const retryableCodes = new Set([
-    'aborted',
-    'deadline-exceeded',
-    'network-request-failed',
-    'resource-exhausted',
-    'unavailable'
-  ]);
-  return (typeof navigator !== 'undefined' && !navigator.onLine)
-    || retryableCodes.has(error?.code)
-    || /network|offline|unavailable|timeout/i.test(error?.message || '');
 }
 
 export async function flushSyncQueue() {
   if (_isFlushing) return;
   if (!S.isOnline || !currentUser) return;
-  const uid = activeTenantUid();
-  if (!uid) return;
-
-  await queuePersistence;
+  
   const queue = S.syncQueue || [];
   if (queue.length === 0) {
     setSyncing(false);
@@ -1548,47 +1176,21 @@ export async function flushSyncQueue() {
   setSaveError(false);
   console.log(`[Offline Sync] Starting to flush ${queue.length} pending operations...`);
 
-  const nextQueue = queue.map(item => ({ ...item }));
+  const nextQueue = [...queue];
   let errorOccurred = false;
-  let retryDelay = 1000;
 
   while (nextQueue.length > 0 && S.isOnline) {
     const item = nextQueue[0];
-    if (item.state === 'failed' || item.state === 'requires-attention') {
-      errorOccurred = true;
-      setSaveError(true);
-      break;
-    }
-
-    item.state = 'syncing';
-    item.attempts = Number(item.attempts) || 0;
-    updateState({ syncQueue: [...nextQueue] });
-    try {
-      await persistSyncQueue(uid, nextQueue);
-    } catch (error) {
-      item.state = 'pending';
-      item.lastError = error.message || String(error);
-      updateState({ syncQueue: [...nextQueue] });
-      setSaveError(true);
-      errorOccurred = true;
-      break;
-    }
     try {
       console.log(`[Offline Sync] Processing action: ${item.type}`, item.payload);
       
+      const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || (currentUser && !currentUser.isEmployee ? currentUser.uid : null) || getActiveTenantId() || currentUser?.uid;
       switch (item.type) {
         case 'ADD_CLIENT':
           await addClientTransaction(uid, item.payload.clientData, item.payload.stats);
           break;
         case 'UPDATE_CLIENT':
-          await updateClientTransaction(
-            uid,
-            item.payload.clientId,
-            item.payload.clientData,
-            item.payload.oldStatus,
-            item.payload.stats,
-            item.payload.baseVersion ?? 0
-          );
+          await updateClientTransaction(uid, item.payload.clientId, item.payload.clientData, item.payload.oldStatus, item.payload.stats);
           break;
         case 'DELETE_CLIENT':
           await deleteClientTransaction(uid, item.payload.clientId, item.payload.clientData, item.payload.stats);
@@ -1615,23 +1217,11 @@ export async function flushSyncQueue() {
           );
           break;
         default:
-          throw Object.assign(new Error(`Unknown sync operation: ${item.type}`), { code: 'unsupported-operation' });
+          console.warn(`[Offline Sync] Unknown action type: ${item.type}`);
       }
 
+      // Success! Remove from local queue
       nextQueue.shift();
-      try {
-        await persistSyncQueue(uid, nextQueue);
-      } catch (error) {
-        nextQueue.unshift({
-          ...item,
-          state: 'requires-attention',
-          lastError: `Remote write completed but queue removal could not be saved: ${error.message || error}`
-        });
-        updateState({ syncQueue: [...nextQueue] });
-        setSaveError(true);
-        errorOccurred = true;
-        break;
-      }
       updateState({ syncQueue: nextQueue });
       setLastSyncedTime(new Date());
     } catch (err) {
@@ -1640,9 +1230,6 @@ export async function flushSyncQueue() {
       if (err.code === 'VERSION_CONFLICT' || (err.message && err.message.includes('VERSION_CONFLICT'))) {
         _isFlushing = false;
         errorOccurred = true;
-        item.state = 'requires-attention';
-        item.lastError = err.message;
-        await persistFailureState(uid, nextQueue, item);
         setSaveError(true);
         updateState({ 
           conflictItem: item, 
@@ -1653,25 +1240,21 @@ export async function flushSyncQueue() {
         break; 
       }
       
-      item.attempts++;
-      item.lastError = err.message || String(err);
-      item.errorCode = err.code || 'unknown';
-      if (isRetryableSyncError(err)) {
-        item.state = 'pending';
-        retryDelay = Math.min(60000, 1000 * (2 ** Math.min(item.attempts - 1, 6)));
-        await persistFailureState(uid, nextQueue, item);
-        updateState({ syncQueue: [...nextQueue] });
+      const isNetworkError = !navigator.onLine || 
+                            err.message.includes("network") || 
+                            err.message.includes("failed-precondition") ||
+                            err.message.includes("offline") ||
+                            err.message.includes("Unavailable");
+
+      if (isNetworkError) {
         errorOccurred = true;
         setSaveError(true);
-        break;
+        break; // Stop loop, keep item in queue
       } else {
-        item.state = 'failed';
-        await persistFailureState(uid, nextQueue, item);
-        updateState({ syncQueue: [...nextQueue] });
-        setSaveError(true);
-        showToast(t('فشلت المزامنة نهائياً. احتُفظ بالعملية لمراجعتها.'), 'error');
-        errorOccurred = true;
-        break;
+        // Discard permanent errors
+        console.warn(`[Offline Sync] Non-retryable error on action ${item.type}. Dropping operation.`, err);
+        nextQueue.shift();
+        updateState({ syncQueue: nextQueue });
       }
     }
   }
@@ -1680,14 +1263,13 @@ export async function flushSyncQueue() {
   setSyncing(false);
 
   if (errorOccurred) {
-    if (S.isOnline && nextQueue[0]?.state === 'pending') scheduleRetry(retryDelay);
+    scheduleRetry();
   } else {
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
     }
     console.log("[Offline Sync] All pending operations successfully flushed.");
-    Promise.resolve(saveClients(uid, clients)).catch(() => {});
     
     // Create an automatic rolling snapshot backup after successful sync completion!
     const backupUid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
@@ -1698,7 +1280,7 @@ export async function flushSyncQueue() {
   }
 }
 
-function scheduleRetry(delay = 1000) {
+function scheduleRetry() {
   if (retryTimer) return;
   retryTimer = setTimeout(() => {
     retryTimer = null;
@@ -1707,64 +1289,23 @@ function scheduleRetry(delay = 1000) {
     } else {
       scheduleRetry();
     }
-  }, delay);
-}
-
-export function retryFailedSyncActions() {
-  const queue = (S.syncQueue || []).map(item => (
-    item.state === 'failed' || item.state === 'requires-attention'
-      ? { ...item, state: 'pending', lastError: null }
-      : item
-  ));
-  updateState({ syncQueue: queue });
-  const uid = activeTenantUid();
-  if (!uid) {
-    showToast(t('يلزم تسجيل الدخول لإعادة محاولة المزامنة.'), 'error');
-    return Promise.resolve(false);
-  }
-  return persistSyncQueue(uid, queue)
-    .then(() => flushSyncQueue())
-    .catch(error => {
-      console.error('[Offline Sync] Could not requeue failed operations:', error);
-      showToast(t('تعذر حفظ إعادة المحاولة محلياً.'), 'error');
-      return false;
-    });
+  }, 10000);
 }
 
 export function enqueueSyncAction(type, payload) {
   const currentQueue = S.syncQueue || [];
   const newItem = {
-    id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
     type,
     payload,
-    timestamp: new Date().toISOString(),
-    state: 'pending',
-    attempts: 0,
-    lastError: null
+    timestamp: new Date().toISOString()
   };
-  const nextQueue = [...currentQueue, newItem];
-  updateState({ syncQueue: nextQueue });
-  const uid = activeTenantUid();
-  if (!uid) {
-    setSaveError(true);
-    console.error('[Offline Sync] Cannot persist queued operation without an authenticated tenant.');
-    return Promise.resolve(false);
+  
+  updateState({ syncQueue: [...currentQueue, newItem] });
+  
+  if (S.isOnline) {
+    flushSyncQueue();
   }
-  return persistSyncQueue(uid, nextQueue)
-    .then(() => {
-      if (S.isOnline) return flushSyncQueue();
-      return newItem;
-    })
-    .catch(error => {
-      const failedQueue = (S.syncQueue || []).map(item => item.id === newItem.id
-        ? { ...item, state: 'failed', lastError: `Failed to persist locally: ${error.message || error}` }
-        : item);
-      updateState({ syncQueue: failedQueue });
-      setSaveError(true);
-      showToast(t('تعذر حفظ العملية محلياً؛ يرجى إبقاء التطبيق مفتوحاً حتى اكتمال المزامنة.'), 'error');
-      console.error('[Offline Sync] Operation was not sent because local persistence failed:', error);
-      return false;
-    });
 }
 
 // Strict Online Mode: Local IndexedDB disk caching is disabled. All state is maintained online via Cloud Firestore.
@@ -1792,32 +1333,12 @@ export function resolveConflict(decision) {
   if (!item || !serverData) return;
 
   const currentQueue = S.syncQueue || [];
-  let updatedClientsList = clients;
   
   if (decision === 'server') {
-    // Drop the local change, adopt server data while keeping loaded subcollections unless server explicitly cleared them
-    updatedClientsList = clients.map(c => {
-      if (c.id != item.payload.clientId) return c;
-      const serverMentionsPrograms = serverData.programsCount !== undefined
-        || serverData.programNames !== undefined
-        || serverData.programs !== undefined;
-      const serverClearedPrograms = serverMentionsPrograms
-        && Number(serverData.programsCount || 0) === 0
-        && (!Array.isArray(serverData.programNames) || serverData.programNames.length === 0)
-        && (!Array.isArray(serverData.programs) || serverData.programs.length === 0);
-      const programs = Array.isArray(serverData.programs) && serverData.programs.length > 0
-        ? serverData.programs
-        : (serverClearedPrograms ? [] : (c.programs || []));
-      return {
-        ...c,
-        ...serverData,
-        programs,
-        issues: Array.isArray(serverData.issues) && serverData.issues.length > 0 ? serverData.issues : (c.issues || []),
-        requirements: Array.isArray(serverData.requirements) && serverData.requirements.length > 0 ? serverData.requirements : (c.requirements || []),
-        contactHistory: Array.isArray(serverData.contactHistory) && serverData.contactHistory.length > 0 ? serverData.contactHistory : (c.contactHistory || [])
-      };
-    });
-    setClients(updatedClientsList);
+    // Drop the local change, adopt server data
+    // First, update local state to match server
+    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...serverData } : c);
+    setClients(nextClients);
     
     // Remove item from queue
     const nextQueue = currentQueue.filter(q => q.id !== item.id);
@@ -1829,8 +1350,6 @@ export function resolveConflict(decision) {
       if (q.id === item.id) {
         return {
           ...q,
-          state: 'pending',
-          lastError: null,
           payload: {
             ...q.payload,
             baseVersion: serverData.version || 0
@@ -1841,24 +1360,16 @@ export function resolveConflict(decision) {
     });
     updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
   } else if (decision === 'merge') {
-    // Combine fields safely without losing subcollection data, and bump baseVersion
-    const mergedData = {
-      ...serverData,
-      ...item.payload.clientData,
-      programs: Array.isArray(item.payload.clientData?.programs) && item.payload.clientData.programs.length > 0
-        ? item.payload.clientData.programs
-        : (serverData.programs || [])
-    };
+    // Basic merge: combine fields, preferring local, and bump baseVersion
+    const mergedData = { ...serverData, ...item.payload.clientData };
     
-    updatedClientsList = clients.map(c => c.id == item.payload.clientId ? { ...c, ...mergedData } : c);
-    setClients(updatedClientsList);
+    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...mergedData } : c);
+    setClients(nextClients);
     
     const nextQueue = currentQueue.map(q => {
       if (q.id === item.id) {
         return {
           ...q,
-          state: 'pending',
-          lastError: null,
           payload: {
             ...q.payload,
             clientData: mergedData,
@@ -1872,14 +1383,7 @@ export function resolveConflict(decision) {
   }
   
   R();
-  const uid = activeTenantUid();
-  if (uid) {
-    Promise.resolve(saveClients(uid, updatedClientsList)).catch(() => {});
-    const recomputed = computeStats(updatedClientsList);
-    Promise.resolve(setMeta(uid, 'stats', recomputed.stats)).catch(() => {});
-    persistSyncQueue(uid, S.syncQueue || []).then(() => setTimeout(flushSyncQueue, 500)).catch(error => {
-      console.error('[Offline Sync] Could not persist conflict resolution:', error);
-      showToast(t('تعذر حفظ حل التعارض محلياً.'), 'error');
-    });
-  }
+  setTimeout(() => {
+    flushSyncQueue();
+  }, 500);
 }

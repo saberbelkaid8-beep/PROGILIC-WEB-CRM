@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider, FacebookAuthProvider, OAuthProvider } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
-import firebaseConfig from "../../firebase-applet-config.json" with { type: "json" };
+import firebaseConfig from "../../firebase-applet-config.json";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -13,35 +13,22 @@ setPersistence(auth, browserLocalPersistence).catch(console.error);
 
 // Initialize Firestore with modern multi-tab persistent cache and forced long-polling to prevent iframe/proxy 10s stream timeouts
 let firestoreDb;
-const hasLocalStorage = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
-
-if (hasLocalStorage) {
-  try {
-    firestoreDb = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      }),
-      experimentalForceLongPolling: true
-    }, firebaseConfig.firestoreDatabaseId);
-  } catch (e) {
-    console.warn("Falling back to memory Firestore cache:", e);
-    try {
-      firestoreDb = initializeFirestore(app, {
-        localCache: memoryLocalCache(),
-        experimentalForceLongPolling: true
-      }, firebaseConfig.firestoreDatabaseId);
-    } catch (e2) {
-      console.error("Firestore initialization failed:", e2);
-    }
-  }
-} else {
+try {
+  firestoreDb = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    }),
+    experimentalForceLongPolling: true
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  console.warn("Falling back to memory Firestore cache:", e);
   try {
     firestoreDb = initializeFirestore(app, {
       localCache: memoryLocalCache(),
       experimentalForceLongPolling: true
     }, firebaseConfig.firestoreDatabaseId);
-  } catch (e) {
-    console.error("Memory Firestore initialization failed:", e);
+  } catch (e2) {
+    console.error("Firestore initialization failed:", e2);
   }
 }
 

@@ -36,32 +36,29 @@ function showErrorScreen(error, type = "خطأ غير متوقع") {
   }
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('unhandledrejection', event => {
-    console.warn("Unhandled rejection caught:", event.reason);
-    const reasonStr = String(event.reason || '');
-    if (reasonStr.includes('permission-denied') || reasonStr.includes('insufficient permissions') || (typeof S !== 'undefined' && !S.currentUser)) {
-      return;
-    }
-    const app = document.getElementById('app');
-    if (app && (!app.innerHTML || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
-      showErrorScreen(event.reason, "خطأ مزامنة غير معالج");
-    }
-  });
+window.addEventListener('unhandledrejection', event => {
+  console.warn("Unhandled rejection caught:", event.reason);
+  const reasonStr = String(event.reason || '');
+  if (reasonStr.includes('permission-denied') || reasonStr.includes('insufficient permissions') || (typeof S !== 'undefined' && !S.currentUser)) {
+    return;
+  }
+  const app = document.getElementById('app');
+  if (app && (!app.innerHTML || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
+    showErrorScreen(event.reason, "خطأ مزامنة غير معالج");
+  }
+});
 
-  window.addEventListener('error', event => {
-    console.warn("Uncaught error caught:", event.error || event.message);
-    const reasonStr = String(event.error?.message || event.message || '');
-    if (reasonStr.includes('permission-denied') || reasonStr.includes('insufficient permissions') || (typeof S !== 'undefined' && !S.currentUser)) {
-      return;
-    }
-    const app = document.getElementById('app');
-    if (app && (!app.innerHTML || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
-      showErrorScreen(event.error || event.message, "خطأ تشغيل قاتل");
-    }
-  });
-}
-
+window.addEventListener('error', event => {
+  console.warn("Uncaught error caught:", event.error || event.message);
+  const reasonStr = String(event.error?.message || event.message || '');
+  if (reasonStr.includes('permission-denied') || reasonStr.includes('insufficient permissions') || (typeof S !== 'undefined' && !S.currentUser)) {
+    return;
+  }
+  const app = document.getElementById('app');
+  if (app && (!app.innerHTML || app.innerHTML.includes('Connecting to Secure Cloud Database'))) {
+    showErrorScreen(event.error || event.message, "خطأ تشغيل قاتل");
+  }
+});
 import './css/main.css';
 import './css/components.css';
 import './css/responsive.css';
@@ -77,53 +74,42 @@ import { createDefaultGerant } from './constants/index.js';
 
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
-import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState, loadStaffUsersForTenant } from './state/store.js';
-import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache, retryFailedSyncActions } from './business/storage.js';
+import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState } from './state/store.js';
+import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
-import { runProductionDataCleaning } from './business/cleaningService.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
 subscribe(R);
 
 // Expose all actions and utils to the global window object for inline HTML event handlers
-if (typeof window !== 'undefined') {
-  Object.assign(window, actions);
-  window.S = S;
-  window.updateState = updateState;
-  window.updateActTypeOpts = updateActTypeOpts;
-  window.updateCommunesOpts = updateCommunesOpts;
-  window.updateProgramTypeSelect = updateProgramTypeSelect;
-  window.onClientStatusChange = onClientStatusChange;
-  window.exportData = exportData;
-  window.exportToDump = exportToDump;
-  window.exportToCSV = exportToCSV;
-  window.exportLicensedClientsSummary = actions.exportLicensedClientsSummary;
-  window.runProductionDataCleaning = () => {
-    if (S.currentUser) {
-      runProductionDataCleaning(S.currentUser.uid);
-    }
-  };
-  window.importData = importData;
-  window.importFromDump = importFromDump;
-  window.triggerImportDumOrJson = triggerImportDumOrJson;
-  window.clearAllData = clearAllData;
-  window.toggleLanguage = toggleLanguage;
-  window.setLanguage = setLanguage;
-  window.fetchMachineTranslation = fetchMachineTranslation;
-  window.localizeRenderedDom = localizeRenderedDom;
-  window.setCurrentUser = setCurrentUser;
-  window.setCurrentStaffUser = setCurrentStaffUser;
-  window.R = R;
-  window.setClients = setClients;
-  window.getClients = getClients;
-  window.resolveConflict = resolveConflict;
-  window.mergeDatabase = actions.mergeWithSessionAndUser;
-  window.retrySyncQueue = retryFailedSyncActions;
-}
+Object.assign(window, actions);
+window.S = S;
+window.updateState = updateState;
+window.updateActTypeOpts = updateActTypeOpts;
+window.updateCommunesOpts = updateCommunesOpts;
+window.updateProgramTypeSelect = updateProgramTypeSelect;
+window.onClientStatusChange = onClientStatusChange;
+window.exportData = exportData;
+window.exportToDump = exportToDump;
+window.exportToCSV = exportToCSV;
+window.importData = importData;
+window.importFromDump = importFromDump;
+window.triggerImportDumOrJson = triggerImportDumOrJson;
+window.clearAllData = clearAllData;
+window.toggleLanguage = toggleLanguage;
+window.setLanguage = setLanguage;
+window.fetchMachineTranslation = fetchMachineTranslation;
+window.localizeRenderedDom = localizeRenderedDom;
+window.setCurrentUser = setCurrentUser;
+window.setCurrentStaffUser = setCurrentStaffUser;
+window.R = R;
+window.setClients = setClients;
+window.getClients = getClients;
+window.resolveConflict = resolveConflict;
+window.mergeDatabase = actions.mergeWithSessionAndUser;
 
   // Boot application
   function boot() {
-    if (typeof window === 'undefined') return;
     const curLang = S.lang || 'ar';
     applyLanguageToDocument(curLang);
     actions.initDark();
@@ -231,17 +217,15 @@ if (typeof window !== 'undefined') {
       setCurrentUser(activeGerant);
       // Strictly Online: No local session caching
       
+      // If no user profile has logged in yet, show the Users Login Page so user can select their account
       if (!currentStaffUser) {
-        loadStaffUsersForTenant(user.uid, activeGerant);
         S.showStaffPortal = true;
       }
       
       // Trigger initial render immediately with cached or empty state so screen never stays white
       R();
       try {
-        await loadCache();
         await loadDataFromFirestore(user);
-        await flushSyncQueue();
         actions.loadGlobalActivities().catch(console.warn);
       } catch (loadErr) {
         console.error("loadDataFromFirestore caught gracefully:", loadErr);
@@ -259,68 +243,66 @@ if (typeof window !== 'undefined') {
   });
 }
 
-if (typeof window !== 'undefined') {
-  boot();
+boot();
 
-  // Passive, throttled scroll and resize listeners for high-performance list virtualization
-  let lastScrollY = 0;
-  let scrollTicking = false;
+// Passive, throttled scroll and resize listeners for high-performance list virtualization
+let lastScrollY = 0;
+let scrollTicking = false;
 
-  window.addEventListener('scroll', () => {
-    lastScrollY = window.scrollY;
-    if (!scrollTicking) {
-      window.requestAnimationFrame(() => {
-        if (S.view === 'list') {
-          const threshold = 50; // pixels to cross before triggering a render
-          if (Math.abs(lastScrollY - (S.virtualScrollTop || 0)) > threshold) {
-            S.virtualScrollTop = lastScrollY;
-          }
+window.addEventListener('scroll', () => {
+  lastScrollY = window.scrollY;
+  if (!scrollTicking) {
+    window.requestAnimationFrame(() => {
+      if (S.view === 'list') {
+        const threshold = 50; // pixels to cross before triggering a render
+        if (Math.abs(lastScrollY - (S.virtualScrollTop || 0)) > threshold) {
+          S.virtualScrollTop = lastScrollY;
         }
-        scrollTicking = false;
-      });
-      scrollTicking = true;
-    }
-  }, { passive: true });
-
-  window.addEventListener('resize', () => {
-    if (S.view === 'list') {
-      S.viewportHeight = window.innerHeight;
-    }
-  }, { passive: true });
-
-  // Reset scroll on navigation away from list
-  let lastView = S.view;
-  subscribe(() => {
-    if (S.view !== lastView) {
-      lastView = S.view;
-      if (S.view !== 'list' && S.virtualScrollTop !== 0) {
-        queueMicrotask(() => {
-          if (S.view !== 'list' && S.virtualScrollTop !== 0) {
-            S.virtualScrollTop = 0;
-          }
-        });
       }
-    }
-  });
+      scrollTicking = false;
+    });
+    scrollTicking = true;
+  }
+}, { passive: true });
 
-  // Strict Online Cloud Sync Network Listeners
-  window.addEventListener('online', () => {
-    console.log('[Online Sync] Internet connection detected. Resuming live cloud sync...');
-    updateState({ isOnline: true });
-    if (currentUser && currentUser.uid) {
-      startRealtimeSync(currentUser.uid);
-      flushSyncQueue();
-      actions.loadGlobalActivities().catch(console.warn);
-    }
-    actions.showToast('🟢 تم الاتصال بالسحابة أونلاين - جاري المزامنة الحية لكافة العمليات.', 'success');
-    R();
-  });
+window.addEventListener('resize', () => {
+  if (S.view === 'list') {
+    S.viewportHeight = window.innerHeight;
+  }
+}, { passive: true });
 
-  window.addEventListener('offline', () => {
-    console.warn('[Online Sync] Internet connection lost.');
-    updateState({ isOnline: false });
-    actions.showToast('🔴 انقطع الاتصال بالإنترنت - نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين.', 'error');
-    R();
-  });
-}
+// Reset scroll on navigation away from list
+let lastView = S.view;
+subscribe(() => {
+  if (S.view !== lastView) {
+    lastView = S.view;
+    if (S.view !== 'list' && S.virtualScrollTop !== 0) {
+      queueMicrotask(() => {
+        if (S.view !== 'list' && S.virtualScrollTop !== 0) {
+          S.virtualScrollTop = 0;
+        }
+      });
+    }
+  }
+});
+
+// Strict Online Cloud Sync Network Listeners
+window.addEventListener('online', () => {
+  console.log('[Online Sync] Internet connection detected. Resuming live cloud sync...');
+  updateState({ isOnline: true });
+  if (currentUser && currentUser.uid) {
+    startRealtimeSync(currentUser.uid);
+    flushSyncQueue();
+    actions.loadGlobalActivities().catch(console.warn);
+  }
+  actions.showToast('🟢 تم الاتصال بالسحابة أونلاين - جاري المزامنة الحية لكافة العمليات.', 'success');
+  R();
+});
+
+window.addEventListener('offline', () => {
+  console.warn('[Online Sync] Internet connection lost.');
+  updateState({ isOnline: false });
+  actions.showToast('🔴 انقطع الاتصال بالإنترنت - نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين.', 'error');
+  R();
+});
 

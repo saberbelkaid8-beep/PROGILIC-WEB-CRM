@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeScore } from '../../src/business/intelligence.js';
-import { searchMatch, normalizePhone, deduplicateClientLicenses } from '../../src/utils/index.js';
+import { searchMatch, normalizePhone } from '../../src/utils/index.js';
 import { t, setLanguage, toggleLanguage, SUPPORTED_LANGUAGES } from '../../src/utils/i18n.js';
 import { S } from '../../src/state/store.js';
 
@@ -50,30 +50,6 @@ describe('i18n Trilingual Engine', () => {
 });
 
 describe('Intelligence Utils', () => {
-  it('deduplicates client licenses and annotates their client and platform', () => {
-    const licenses = deduplicateClientLicenses([
-      {
-        id: 'client-1',
-        fullName: 'Client One',
-        wilaya: 'Alger',
-        programs: [
-          { id: 'license-1', platform: 'Desktop', programName: 'App' },
-          { id: 'license-1', platform: 'Desktop', programName: 'App' },
-          { programName: 'Legacy App', platform: 'Other' }
-        ]
-      }
-    ]);
-
-    expect(licenses).toHaveLength(2);
-    expect(licenses[0]).toMatchObject({
-      clientId: 'client-1',
-      clientName: 'Client One',
-      clientWilaya: 'Alger',
-      normalizedPlatform: 'Desktop'
-    });
-    expect(licenses[1].normalizedPlatform).toBe('Unknown');
-  });
-
   it('should normalize phone numbers correctly', () => {
     expect(normalizePhone('0550-12-34-56')).toBe('0550123456');
     expect(normalizePhone('+213 550 12 34 56')).toBe('+213550123456');
