@@ -1,4 +1,4 @@
-import { S, clients, setClients, updateState, currentUser } from '../state/store.js';
+import { S, clients, setClients, updateState, currentUser, isGerant, hasPermission } from '../state/store.js';
 import { createSnapshotBackup, downloadBackupJSON } from './backupService.js';
 import { showToast } from '../utils/toast.js';
 import { writeBatch, doc, collection, getDocs } from 'firebase/firestore';
@@ -151,10 +151,24 @@ export async function executePurge(config, onProgress) {
   if (!currentUser) {
     throw new Error("المستخدم غير مسجل الدخول.");
   }
+  if (!isGerant() && !hasPermission('clients.delete')) {
+    throw new Error("غير مصرح: صلاحيات الرئيس (Gérant) مطلوبة لتنفيذ التصفية أو المحو.");
+  }
 
-  const userId = currentUser.uid;
+  const userId = currentUser.tenantId || currentUser.uid;
   const userEmail = currentUser.email || 'operator';
   const now = new Date();
+
+  const commitChunkedDeletes = async (clientList) => {
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < clientList.length; i += CHUNK_SIZE) {
+      const batchOp = writeBatch(db);
+      for (const c of clientList.slice(i, i + CHUNK_SIZE)) {
+        batchOp.delete(doc(db, `users/${userId}/clients/${c.id}`));
+      }
+      await batchOp.commit();
+    }
+  };
 
   // Progress Stage 1: Auto Backup
   if (onProgress) onProgress({ step: 1, text: "📦 جاري إنشاء النسخة الاحتياطية الوقائية في المتصفح...", pct: 20 });
@@ -178,18 +192,11 @@ export async function executePurge(config, onProgress) {
   let updatedClients = [...clients];
 
   if (targetScope === 'all') {
-    // Delete all client docs and subcollections
-    const batch = writeBatch(db);
-    for (const c of clients) {
-      batch.delete(doc(db, `users/${userId}/clients/${c.id}`));
-    }
-    await batch.commit();
+    await commitChunkedDeletes(clients);
     updatedClients = [];
 
   } else if (targetScope === 'filtered') {
     if (filterType === 'stopped_clients') {
-      const idsToDelete = sim.sampleClients.map(c => c.id);
-      // Delete matching clients
       const toDeleteList = clients.filter(c => {
         if (c.status !== 'متوقف') return false;
         if (!c.lastContact) return true;
@@ -197,11 +204,7 @@ export async function executePurge(config, onProgress) {
         return diffDays >= olderThanDays;
       });
 
-      const batch = writeBatch(db);
-      for (const c of toDeleteList) {
-        batch.delete(doc(db, `users/${userId}/clients/${c.id}`));
-      }
-      await batch.commit();
+      await commitChunkedDeletes(toDeleteList);
 
       const deleteIds = new Set(toDeleteList.map(c => c.id));
       updatedClients = clients.filter(c => !deleteIds.has(c.id));
@@ -233,11 +236,7 @@ export async function executePurge(config, onProgress) {
     });
 
     if (selectiveCollections.clients) {
-      const batch = writeBatch(db);
-      for (const c of clients) {
-        batch.delete(doc(db, `users/${userId}/clients/${c.id}`));
-      }
-      await batch.commit();
+      await commitChunkedDeletes(clients);
       updatedClients = [];
     }
   }
@@ -272,6 +271,7 @@ export async function executePurge(config, onProgress) {
 
   await saveUserData(userId, {
     v: 3,
+    nid: Number.isFinite(Number(S.nid)) ? Number(S.nid) : 1,
     updatedAt: now.toISOString(),
     stats: newStats
   });

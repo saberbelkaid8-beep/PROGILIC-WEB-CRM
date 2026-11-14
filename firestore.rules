@@ -56,9 +56,11 @@ service cloud.firestore {
             'id', 'fullName', 'status', 'phone', 'gmailAccount', 'company', 'wilaya', 'commune', 'location',
             'businessType', 'businessField', 'startDate', 'endDate', 'lastContact', 'notes',
             'gps', 'score', 'openIssuesCount', 'requirementsCount', 'programsCount',
-            'installationsCount', 'updatedAt', '_subcollectionsLoaded', 'version',
+            'installationsCount', 'updatedAt', 'createdAt', '_subcollectionsLoaded', 'version',
             'programNames', 'programs', 'issues', 'requirements', 'contactHistory',
-            'firestoreId', 'category', 'registrationChannel', 'deviceType', 'creatorRole', 'creatorEmail'
+            'firestoreId', 'category', 'registrationChannel', 'deviceType', 'creatorRole', 'creatorEmail',
+            'source', 'urgentIssuesCount', 'trelloCardId', 'trelloListId', 'trelloSyncStatus',
+            'trelloLastSyncedAt', 'trelloOriginCard', 'trelloChecklistItemId', 'lastModifiedBy'
           ])
           && data.id is number
           && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
@@ -92,7 +94,7 @@ service cloud.firestore {
 
     function isValidProgram(data) {
       return data.keys().hasAll(['id', 'programName', 'platform', 'type'])
-          && data.keys().hasOnly(['id', 'programName', 'platform', 'type', 'version', 'installationsCount', 'startDate', 'endDate', 'clientId', 'notes', 'createdAt', 'updatedAt'])
+          && data.keys().hasOnly(['id', 'programName', 'platform', 'type', 'version', 'installationsCount', 'startDate', 'endDate', 'clientId', 'notes', 'createdAt', 'updatedAt', 'source', 'trelloChecklistItemId', 'lastModifiedBy'])
           && data.id is number
           && data.programName is string && data.programName.size() >= 1 && data.programName.size() <= 200
           && data.platform is string && data.platform in ["Desktop", "Mobile", "Web", "Hybrid"]
@@ -100,12 +102,13 @@ service cloud.firestore {
           && (!data.keys().contains('version') || data.version is string && data.version.size() <= 50)
           && (!data.keys().contains('installationsCount') || data.installationsCount is number)
           && (!data.keys().contains('startDate') || data.startDate is string && data.startDate.size() <= 20)
-          && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20);
+          && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20)
+          && (!data.keys().contains('notes') || data.notes is string && data.notes.size() <= 1000);
     }
 
     function isValidIssue(data) {
       return data.keys().hasAll(['id', 'title', 'type', 'priority', 'status'])
-          && data.keys().hasOnly(['id', 'title', 'type', 'priority', 'status', 'repeatCount', 'featureOpp', 'source', 'confidence', 'date', 'notes', 'solution'])
+          && data.keys().hasOnly(['id', 'title', 'type', 'priority', 'status', 'repeatCount', 'featureOpp', 'source', 'confidence', 'date', 'notes', 'solution', 'trelloChecklistItemId', 'lastModifiedBy', 'updatedAt'])
           && data.id is number
           && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
           && data.type is string && data.type in ["خطأ تقني", "أداء", "استفسار", "طلب ميزة", "خطأ مستخدم", "أخرى"]
@@ -113,7 +116,7 @@ service cloud.firestore {
           && data.status is string && data.status in ["مفتوح", "قيد المعالجة", "محلول", "مغلق"]
           && (!data.keys().contains('repeatCount') || data.repeatCount is number)
           && (!data.keys().contains('featureOpp') || data.featureOpp is bool)
-          && (!data.keys().contains('source') || data.source is string && data.source in ["نظام", "عميل", "سوء استخدام", "شبكة", "غير محدد"])
+          && (!data.keys().contains('source') || data.source is string && data.source in ["نظام", "عميل", "سوء استخدام", "شبكة", "غير محدد", "trello"])
           && (!data.keys().contains('confidence') || data.confidence is number)
           && (!data.keys().contains('date') || data.date is string && data.date.size() <= 20)
           && (!data.keys().contains('notes') || data.notes is string && data.notes.size() <= 1000)
@@ -122,7 +125,7 @@ service cloud.firestore {
 
     function isValidRequirement(data) {
       return data.keys().hasAll(['id', 'title', 'priority', 'status', 'impact'])
-          && data.keys().hasOnly(['id', 'title', 'priority', 'status', 'impact', 'type', 'date', 'notes'])
+          && data.keys().hasOnly(['id', 'title', 'priority', 'status', 'impact', 'type', 'date', 'notes', 'source', 'trelloChecklistItemId', 'lastModifiedBy', 'updatedAt'])
           && data.id is number
           && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
           && data.priority is string && data.priority in ["عاجل", "عالية", "متوسطة", "منخفضة"]
@@ -135,7 +138,7 @@ service cloud.firestore {
 
     function isValidContact(data) {
       return data.keys().hasAll(['id', 'date', 'note'])
-          && data.keys().hasOnly(['id', 'date', 'note'])
+          && data.keys().hasOnly(['id', 'date', 'note', 'type', 'source', 'trelloChecklistItemId', 'lastModifiedBy', 'updatedAt'])
           && data.id is number
           && data.date is string && data.date.size() <= 20
           && data.note is string && data.note.size() >= 1 && data.note.size() <= 2000;
@@ -162,7 +165,7 @@ service cloud.firestore {
             'timestamp', 'userName', 'userRole', 'userId', 'actorUid', 'actorEmail', 'source', 'meta'
           ])
           && data.id is string && data.id.size() <= 128
-          && (data.clientId == null || data.clientId is number)
+          && (data.clientId == null || data.clientId is number || (data.clientId is string && data.clientId.size() <= 128))
           && data.clientName is string && data.clientName.size() <= 100
           && data.type is string && data.type.size() <= 50
           && data.category is string && data.category.size() <= 30
@@ -215,7 +218,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false; // Security against general scraping
-      allow create, update, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUser(incoming());
+      allow delete: if isOwner(userId);
     }
 
     // 2. Clients subcollection
@@ -255,16 +259,15 @@ service cloud.firestore {
 
     // 4. Employees Subcollection (Tenant-Isolated PROGILIC Departments & RBAC)
     match /users/{userId}/employees/{employeeId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidEmployee(incoming());
+      allow delete: if isOwner(userId);
     }
 
     // 5. Shared tenant activity audit log; only the authenticated owner can write, and records are immutable.
     match /users/{userId}/activities/{activityId} {
       allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidActivity(incoming(), userId);
-      allow update: if isOwner(userId)
-                    && isValidActivity(incoming(), userId)
-                    && incoming() == existing();
+      allow create, update: if isOwner(userId) && isValidActivity(incoming(), userId);
       allow delete: if false;
     }
 

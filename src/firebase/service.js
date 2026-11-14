@@ -31,14 +31,23 @@ export const OperationType = {
 };
 
 export function handleFirestoreError(error, operationType, path) {
+  if (!auth?.currentUser) {
+    return null;
+  }
   const errInfo = {
     code: error?.code || 'unknown',
     error: error instanceof Error ? error.message : String(error),
     operationType,
-    path
+    path,
+    authInfo: {
+      userId: auth.currentUser.uid,
+      email: auth.currentUser.email || null,
+      emailVerified: Boolean(auth.currentUser.emailVerified),
+      isAnonymous: Boolean(auth.currentUser.isAnonymous)
+    }
   };
   console.error('Firestore operation failed:', JSON.stringify(errInfo));
-  const wrappedError = new Error(`Firestore ${operationType} failed at ${path}: ${errInfo.error}`);
+  const wrappedError = new Error(JSON.stringify(errInfo));
   wrappedError.code = errInfo.code;
   wrappedError.cause = error;
   throw wrappedError;
@@ -155,11 +164,17 @@ export async function addClientTransaction(userId, clientData, globalStats) {
   const userPath = `users/${userId}`;
   const clientId = String(clientData.id);
   const clientPath = `users/${userId}/clients/${clientId}`;
+  let computedNextStats = null;
 
   try {
     await runTransaction(db, async (tx) => {
       const userRef = doc(db, userPath);
       const clientRef = doc(db, clientPath);
+
+      const userSnap = typeof tx.get === 'function' ? await tx.get(userRef) : null;
+      const existingUser = userSnap && typeof userSnap.exists === 'function' && userSnap.exists()
+        ? (userSnap.data() || {})
+        : {};
 
       const progs = Array.isArray(clientData.programs) ? clientData.programs : [];
       const openIssues = Array.isArray(clientData.issues) ? clientData.issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')) : [];
@@ -169,7 +184,21 @@ export async function addClientTransaction(userId, clientData, globalStats) {
         return Number.isSafeInteger(count) && count > 0 ? total + count : total;
       }, 0);
 
-      // Verify and set user metadata update
+      // Update pre-aggregated user stats once cleanly from base stats
+      const baseStats = globalStats || existingUser.stats || {};
+      const nextStats = { ...baseStats };
+      nextStats.totalClients = (nextStats.totalClients || 0) + 1;
+      if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
+      else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
+      else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+
+      if (progs.length > 0) {
+        nextStats.totalPrograms = (nextStats.totalPrograms || 0) + progs.length;
+        nextStats.totalLicensedDevices = (nextStats.totalLicensedDevices || 0) + totalInstalls;
+      }
+      computedNextStats = nextStats;
+
+      // Verify and set client metadata
       tx.set(clientRef, {
         ...clientData,
         version: 1, // OCC: Initial version
@@ -177,14 +206,14 @@ export async function addClientTransaction(userId, clientData, globalStats) {
         requirementsCount: reqs.length,
         programsCount: progs.length,
         installationsCount: totalInstalls,
-        programNames: progs.map(p => p.programName),
+        programNames: progs.map(p => p.programName).filter(Boolean),
         score: clientData.score || 100,
         updatedAt: new Date().toISOString()
       });
 
       // Write initial program subdocuments if created with new client
       progs.forEach(prog => {
-        if (prog && prog.id) {
+        if (prog && prog.id !== undefined && prog.id !== null) {
           const progRef = doc(db, `${clientPath}/programs/${prog.id}`);
           tx.set(progRef, prog, { merge: true });
         }
@@ -210,26 +239,22 @@ export async function addClientTransaction(userId, clientData, globalStats) {
         });
       }
 
-      // Update pre-aggregated user stats
-      const nextStats = { ...globalStats };
-      nextStats.totalClients = (nextStats.totalClients || 0) + 1;
-      if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
-      else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
-      else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
-
-      if (progs.length > 0) {
-        nextStats.totalPrograms = (nextStats.totalPrograms || 0) + progs.length;
-        nextStats.totalLicensedDevices = (nextStats.totalLicensedDevices || 0) + totalInstalls;
-      }
-
-      tx.update(userRef, {
+      const userPayload = {
+        v: existingUser.v || 3,
         stats: nextStats,
-        nid: clientData.id,
+        nid: Math.max(Number(existingUser.nid) || 0, Number(clientData.id) || 0),
         updatedAt: new Date().toISOString()
-      });
+      };
+      if (typeof tx.set === 'function') {
+        tx.set(userRef, userPayload, { merge: true });
+      } else if (typeof tx.update === 'function') {
+        tx.update(userRef, userPayload);
+      }
     });
+    return computedNextStats;
   } catch (error) {
     handleFirestoreError(error, OperationType.TRANSACTION, clientPath);
+    return null;
   }
 }
 
@@ -351,21 +376,35 @@ export async function saveClientSubItemTransaction(userId, clientId, collectionN
       const itemRef = doc(db, itemPath);
       const userRef = doc(db, userPath);
 
+      if (typeof tx.get === 'function') {
+        await tx.get(clientRef);
+      }
+
       // Write subcollection document
       tx.set(itemRef, itemData, { merge: true });
 
       // Update denormalized properties on client document
-      tx.update(clientRef, {
+      const clientPatch = {
         ...counterUpdates,
         updatedAt: new Date().toISOString()
-      });
+      };
+      if (typeof tx.update === 'function') {
+        tx.update(clientRef, clientPatch);
+      } else {
+        tx.set(clientRef, clientPatch, { merge: true });
+      }
 
       // Update global pre-aggregated counters
       if (globalStatsUpdates) {
-        tx.update(userRef, {
+        const userPatch = {
           stats: globalStatsUpdates,
           updatedAt: new Date().toISOString()
-        });
+        };
+        if (typeof tx.update === 'function') {
+          tx.update(userRef, userPatch);
+        } else {
+          tx.set(userRef, userPatch, { merge: true });
+        }
       }
     });
   } catch (error) {
@@ -386,25 +425,81 @@ export async function deleteClientSubItemTransaction(userId, clientId, collectio
       const itemRef = doc(db, itemPath);
       const userRef = doc(db, userPath);
 
+      if (typeof tx.get === 'function') {
+        await tx.get(clientRef);
+      }
+
       // Delete subcollection document
       tx.delete(itemRef);
 
       // Update denormalized properties on client document
-      tx.update(clientRef, {
+      const clientPatch = {
         ...counterUpdates,
         updatedAt: new Date().toISOString()
-      });
+      };
+      if (typeof tx.update === 'function') {
+        tx.update(clientRef, clientPatch);
+      } else {
+        tx.set(clientRef, clientPatch, { merge: true });
+      }
 
       // Update global pre-aggregated counters
       if (globalStatsUpdates) {
-        tx.update(userRef, {
+        const userPatch = {
           stats: globalStatsUpdates,
           updatedAt: new Date().toISOString()
-        });
+        };
+        if (typeof tx.update === 'function') {
+          tx.update(userRef, userPatch);
+        } else {
+          tx.set(userRef, userPatch, { merge: true });
+        }
       }
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.TRANSACTION, itemPath);
+  }
+}
+
+export async function saveClientSubItemsBatch(userId, entries = []) {
+  const safeUserId = sanitizeUserId(userId);
+  if (!safeUserId || !Array.isArray(entries) || entries.length === 0) return 0;
+
+  const CHUNK_SIZE = 100; // <= 2 ops per entry = max 200 ops per Firestore batch
+  let savedCount = 0;
+
+  try {
+    for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+      const chunk = entries.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const entry of chunk) {
+        if (!entry || entry.clientId === undefined || entry.clientId === null || !entry.collectionName || !entry.itemId) {
+          continue;
+        }
+        const clientPath = `users/${safeUserId}/clients/${String(entry.clientId)}`;
+        const itemRef = doc(db, `${clientPath}/${entry.collectionName}/${String(entry.itemId)}`);
+        batch.set(itemRef, entry.itemData || {}, { merge: true });
+
+        if (entry.counterUpdates) {
+          const clientRef = doc(db, clientPath);
+          const patch = {
+            ...entry.counterUpdates,
+            updatedAt: new Date().toISOString()
+          };
+          if (typeof batch.update === 'function') {
+            batch.update(clientRef, patch);
+          } else {
+            batch.set(clientRef, patch, { merge: true });
+          }
+        }
+        savedCount += 1;
+      }
+      await batch.commit();
+    }
+    return savedCount;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `users/${safeUserId}/clients`);
+    return 0;
   }
 }
 
@@ -513,33 +608,83 @@ export function subscribeEmployeesForTenant(tenantId, onUpdate, onError) {
   }
 }
 
-export async function saveTenantActivity(tenantId, activity) {
-  const safeTenantId = sanitizeUserId(tenantId);
-  if (!safeTenantId || !activity?.id) return null;
-  const path = `users/${safeTenantId}/activities/${String(activity.id)}`;
-  const payload = {
-    id: String(activity.id),
-    clientId: activity.clientId ? Number(activity.clientId) : null,
+function normalizeActivityPayload(safeTenantId, activity) {
+  let safeClientId = null;
+  if (activity.clientId !== null && activity.clientId !== undefined) {
+    if (typeof activity.clientId === 'number' && !Number.isNaN(activity.clientId)) {
+      safeClientId = activity.clientId;
+    } else if (typeof activity.clientId === 'string' && activity.clientId.trim() !== '') {
+      const parsed = Number(activity.clientId);
+      safeClientId = !Number.isNaN(parsed) ? parsed : activity.clientId.slice(0, 128);
+    }
+  }
+
+  let safeMeta = {};
+  if (activity.meta && typeof activity.meta === 'object' && !Array.isArray(activity.meta)) {
+    try {
+      safeMeta = JSON.parse(JSON.stringify(activity.meta));
+    } catch (_) {
+      safeMeta = {};
+    }
+  }
+
+  return {
+    id: String(activity.id).slice(0, 128),
+    clientId: safeClientId,
     clientName: String(activity.clientName || '').slice(0, 100),
     type: String(activity.type || 'UNKNOWN').slice(0, 50),
     category: String(activity.category || 'system').slice(0, 30),
     title: String(activity.title || '').slice(0, 200),
     description: String(activity.description || '').slice(0, 2000),
-    timestamp: String(activity.timestamp || new Date().toISOString()),
+    timestamp: String(activity.timestamp || new Date().toISOString()).slice(0, 40),
     userName: String(activity.userName || '').slice(0, 100),
     userRole: String(activity.userRole || '').slice(0, 100),
     userId: String(activity.userId || '').slice(0, 128),
     actorUid: safeTenantId,
     actorEmail: String(activity.actorEmail || (auth && auth.currentUser && auth.currentUser.email) || '').slice(0, 254),
     source: String(activity.source || 'local').slice(0, 20),
-    meta: activity.meta || {}
+    meta: safeMeta
   };
+}
+
+export async function saveTenantActivity(tenantId, activity) {
+  const safeTenantId = sanitizeUserId(tenantId);
+  if (!safeTenantId || !activity?.id) return null;
+  const path = `users/${safeTenantId}/activities/${String(activity.id)}`;
+  const payload = normalizeActivityPayload(safeTenantId, activity);
   try {
     await setDoc(doc(db, path), payload);
     return payload.id;
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
     return null;
+  }
+}
+
+export async function saveTenantActivitiesBatch(tenantId, activities = []) {
+  const safeTenantId = sanitizeUserId(tenantId);
+  if (!safeTenantId || !Array.isArray(activities) || activities.length === 0) return [];
+
+  const CHUNK_SIZE = 200;
+  const savedIds = [];
+  const basePath = `users/${safeTenantId}/activities`;
+
+  try {
+    for (let i = 0; i < activities.length; i += CHUNK_SIZE) {
+      const chunk = activities.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const activity of chunk) {
+        if (!activity?.id) continue;
+        const payload = normalizeActivityPayload(safeTenantId, activity);
+        batch.set(doc(db, `${basePath}/${payload.id}`), payload, { merge: true });
+        savedIds.push(payload.id);
+      }
+      await batch.commit();
+    }
+    return savedIds;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, basePath);
+    return [];
   }
 }
 

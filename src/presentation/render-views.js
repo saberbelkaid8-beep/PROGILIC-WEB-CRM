@@ -69,7 +69,7 @@ export function renderList(){
       <div class="stat-c sg" style="cursor:pointer" onclick="setFil('نشط')" title="${t('تصفية وتحديد')}"><div class="stat-v">${ac}</div><div class="stat-l">${t('نشط')}</div></div>
       <div class="stat-c sb" style="cursor:pointer" onclick="setFil('محتمل')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pr}</div><div class="stat-l">${t('محتمل')}</div></div>
       <div class="stat-c so" style="cursor:pointer" onclick="setFil('متوقف')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pa}</div><div class="stat-l">${t('متوقف')}</div></div>
-      <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+(c.programs||[]).length,0)}</div><div class="stat-l">${t('برامج')} · ${clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number.isFinite(Number(p.installationsCount))?Number(p.installationsCount):0),0),0)} ${t('جهاز')}</div></div>
+      ${(() => { const progTotals = clients.reduce((acc, client) => { const ps = getProgramStats(client); acc.total += ps.total; acc.installs += ps.totalInstalls; return acc; }, { total: 0, installs: 0 }); return `<div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${progTotals.total}</div><div class="stat-l">${t('برامج')} · ${progTotals.installs} ${t('جهاز')}</div></div>`; })()}
     </div>
     <div class="search-row">
       ${hasPermission('search.global') || hasPermission('search.clients') ? `
@@ -175,8 +175,10 @@ export function renderDetail(){
     `;
   }
   if(!c)return`<p style="color:var(--t2)">${t('العميل غير موجود')}</p>`;
-  const oi=c.issues.filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة').length;
-  const fo=c.issues.filter(i=>i.featureOpp).length;
+  const issuesList = Array.isArray(c.issues) ? c.issues : [];
+  const reqsList = Array.isArray(c.requirements) ? c.requirements : [];
+  const oi=issuesList.filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة').length;
+  const fo=issuesList.filter(i=>i.featureOpp).length;
   const sc=computeScore(c);
   const scColor=scoreColor(sc.total);
   console.log("DEBUG RENDER DETAIL: c.id =", c.id, "S.tab =", S.tab, "c._subcollectionsLoaded =", c._subcollectionsLoaded);
@@ -220,9 +222,9 @@ export function renderDetail(){
     </div>
     <div class="tabs-wrap">
       <button class="tabBtn${S.tab==='overview'?' on':''}" onclick="setTab('overview')">${t('نظرة عامة')}</button>
-      ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length || c.programsCount || (c.programNames?.length || 0)}</span></button>` : ''}
-      ${hasPermission('issues.view') ? `<button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">${t('المشاكل')} <span class="tab-count${c.issues.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${c.issues.length}</span></button>` : ''}
-      ${hasPermission('features.view') ? `<button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">${t('المتطلبات')} <span class="tab-count">${c.requirements.length}</span></button>` : ''}
+      ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab==='programs'?' on':''}" onclick="setTab('programs')">${t('البرامج')} <span class="tab-count">${(c.programs||[]).length || (c._subcollectionsLoaded ? 0 : (Number(c.programsCount) || (c.programNames?.length || 0)))}</span></button>` : ''}
+      ${hasPermission('issues.view') ? `<button class="tabBtn${S.tab==='issues'?' on':''}" onclick="setTab('issues')">${t('المشاكل')} <span class="tab-count${issuesList.filter(i=>i.priority==='عاجل'&&i.status!=='محلول'&&i.status!=='مغلق').length>0?' urgent':''}">${issuesList.length}</span></button>` : ''}
+      ${hasPermission('features.view') ? `<button class="tabBtn${S.tab==='requirements'?' on':''}" onclick="setTab('requirements')">${t('المتطلبات')} <span class="tab-count">${reqsList.length}</span></button>` : ''}
       ${hasPermission('contacts.view_history') ? `<button class="tabBtn${S.tab==='contacts'?' on':''}" onclick="setTab('contacts')">${t('📞 التواصل')} <span class="tab-count">${(c.contactHistory||[]).length}</span></button>` : ''}
       ${hasPermission('clients.view_timeline') ? `<button class="tabBtn${S.tab==='timeline'?' on':''}" onclick="setTab('timeline')">${t('⏱️ الخط الزمني')}</button>` : ''}
       ${hasPermission('reports.view') ? `<button class="tabBtn${S.tab==='report'?' on':''}" onclick="setTab('report')">${t('📊 التقرير')}</button>` : ''}

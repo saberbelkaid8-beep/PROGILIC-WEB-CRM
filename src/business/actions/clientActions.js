@@ -98,7 +98,7 @@ export async function delProgram(cid, pid) {
       : 'هل أنت متأكد من حذف هذا البرنامج نهائياً؟');
   const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
-  const c = clients.find(x => x.id === cid); if (!c) return;
+  const c = clients.find(x => x.id === cid || String(x.id) === String(cid)); if (!c) return;
   const progToDelete = (c.programs || []).find(p => p.id === pid);
   if (!progToDelete) return;
 
@@ -383,7 +383,7 @@ export async function saveClient(editId) {
   const stats = { ...(S.stats || {}) };
 
   if (clientEditId !== null) {
-    const oldC = clients.find(c => c.id === clientEditId);
+    const oldC = clients.find(c => c.id === clientEditId || String(c.id) === String(clientEditId));
     if (oldC) {
       const updatedClient = { ...oldC, ...d };
       

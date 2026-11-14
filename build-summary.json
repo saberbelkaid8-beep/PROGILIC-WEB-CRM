@@ -1,14 +1,14 @@
 {
   "appName": "crm",
-  "timestamp": "2026-11-11T17:48:50.800Z",
+  "timestamp": "2026-11-14T09:14:05.566Z",
   "nodeVersion": "v22.23.2",
   "platform": "linux",
   "build": {
-    "durationMs": 13157,
-    "durationSeconds": 13.16,
-    "totalFiles": 28,
-    "totalSizeBytes": 7699576,
-    "totalSizeFormatted": "7.34 MB"
+    "durationMs": 6086,
+    "durationSeconds": 6.09,
+    "totalFiles": 12,
+    "totalSizeBytes": 2040594,
+    "totalSizeFormatted": "1.95 MB"
   },
   "dependencies": {
     "productionCount": 4,
@@ -17,69 +17,39 @@
   },
   "artifacts": [
     {
-      "file": "assets/aistudio/IMG_20261026_215144_238_49d29eb5.png",
-      "sizeBytes": 1330915,
-      "sizeFormatted": "1.27 MB"
+      "file": "assets/crm-i18n-Dc2i9e_m.js",
+      "sizeBytes": 336021,
+      "sizeFormatted": "328.15 KB"
     },
     {
-      "file": "assets/aistudio/PROGILIC_CRM_Comprehensive_Audit_2026-11-05_e2c52a19.pdf",
-      "sizeBytes": 52404,
-      "sizeFormatted": "51.18 KB"
+      "file": "assets/firebase-auth-CiyuFwGU.js",
+      "sizeBytes": 130106,
+      "sizeFormatted": "127.06 KB"
     },
     {
-      "file": "assets/aistudio/TASK_8_REMEDIATION_REPORT__1__3dc0024f.md",
-      "sizeBytes": 4916,
-      "sizeFormatted": "4.8 KB"
+      "file": "assets/firebase-core-y5ioVDZu.js",
+      "sizeBytes": 44461,
+      "sizeFormatted": "43.42 KB"
     },
     {
-      "file": "assets/aistudio/progilic_dashboard_349c4566.html",
-      "sizeBytes": 191560,
-      "sizeFormatted": "187.07 KB"
+      "file": "assets/firebase-firestore-Dv6bMwUu.js",
+      "sizeBytes": 674519,
+      "sizeFormatted": "658.71 KB"
     },
     {
-      "file": "assets/aistudio/screenshot_1_79a32f71.png",
-      "sizeBytes": 135180,
-      "sizeFormatted": "132.01 KB"
+      "file": "assets/index-Deej6SJ7.js",
+      "sizeBytes": 674528,
+      "sizeFormatted": "658.72 KB"
     },
     {
-      "file": "assets/aistudio/te22xt_6c7cd0d7.md",
-      "sizeBytes": 50128,
-      "sizeFormatted": "48.95 KB"
+      "file": "assets/index-zrRAhl4_.css",
+      "sizeBytes": 72061,
+      "sizeFormatted": "70.37 KB"
     },
     {
-      "file": "assets/crm-i18n-DS6k3h-7.js",
-      "sizeBytes": 375751,
-      "sizeFormatted": "366.94 KB"
-    },
-    {
-      "file": "assets/firebase-auth-wTcLs6Rd.js",
-      "sizeBytes": 225069,
-      "sizeFormatted": "219.79 KB"
-    },
-    {
-      "file": "assets/firebase-core-BECP8Mno.js",
-      "sizeBytes": 77655,
-      "sizeFormatted": "75.83 KB"
-    },
-    {
-      "file": "assets/firebase-firestore-CLolvbva.js",
-      "sizeBytes": 1240600,
-      "sizeFormatted": "1.18 MB"
-    },
-    {
-      "file": "assets/index-CmbJYJAt.css",
-      "sizeBytes": 89088,
-      "sizeFormatted": "87 KB"
-    },
-    {
-      "file": "assets/index-s_LhUem2.js",
-      "sizeBytes": 829043,
-      "sizeFormatted": "809.61 KB"
-    },
-    {
-      "file": "assets/search-engine-408GSLV4.js",
-      "sizeBytes": 64084,
-      "sizeFormatted": "62.58 KB"
+      "file": "assets/search-engine-D7oNtqOG.js",
+      "sizeBytes": 18019,
+      "sizeFormatted": "17.6 KB"
     },
     {
       "file": "css/components.css",
@@ -102,59 +72,9 @@
       "sizeFormatted": "836 B"
     },
     {
-      "file": "current_view_1920.png",
-      "sizeBytes": 630988,
-      "sizeFormatted": "616.2 KB"
-    },
-    {
-      "file": "final_login_desktop.png",
-      "sizeBytes": 481579,
-      "sizeFormatted": "470.29 KB"
-    },
-    {
-      "file": "final_login_mobile.png",
-      "sizeBytes": 112967,
-      "sizeFormatted": "110.32 KB"
-    },
-    {
       "file": "index.html",
       "sizeBytes": 1791,
       "sizeFormatted": "1.75 KB"
-    },
-    {
-      "file": "pixel_perfect_1920.png",
-      "sizeBytes": 480146,
-      "sizeFormatted": "468.89 KB"
-    },
-    {
-      "file": "pixel_perfect_mobile.png",
-      "sizeBytes": 69825,
-      "sizeFormatted": "68.19 KB"
-    },
-    {
-      "file": "reference_comparison_desktop.png",
-      "sizeBytes": 472080,
-      "sizeFormatted": "461.02 KB"
-    },
-    {
-      "file": "reference_comparison_mobile.png",
-      "sizeBytes": 92994,
-      "sizeFormatted": "90.81 KB"
-    },
-    {
-      "file": "screenshot_desktop.png",
-      "sizeBytes": 480800,
-      "sizeFormatted": "469.53 KB"
-    },
-    {
-      "file": "screenshot_mobile.png",
-      "sizeBytes": 119571,
-      "sizeFormatted": "116.77 KB"
-    },
-    {
-      "file": "test_logo.png",
-      "sizeBytes": 1354,
-      "sizeFormatted": "1.32 KB"
     }
   ]
 }

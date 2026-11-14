@@ -28,6 +28,43 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+const FORBIDDEN_DIST_PATTERN = /(^|[\\/])assets[\\/]aistudio([\\/]|$)|Paste_|progilic_dashboard_|\.(md|pdf|log|bak)$/i;
+const FORBIDDEN_DEV_IMAGES = new Set([
+  'current_view_1920.png',
+  'final_login_desktop.png',
+  'final_login_mobile.png',
+  'pixel_perfect_1920.png',
+  'pixel_perfect_mobile.png',
+  'reference_comparison_desktop.png',
+  'reference_comparison_mobile.png',
+  'screenshot_desktop.png',
+  'screenshot_mobile.png',
+  'test_logo.png'
+]);
+
+export function sanitizeAndAuditDist(distDir = 'dist') {
+  const aistudioPath = path.join(distDir, 'assets', 'aistudio');
+  if (fs.existsSync(aistudioPath)) {
+    fs.rmSync(aistudioPath, { recursive: true, force: true });
+  }
+  for (const img of FORBIDDEN_DEV_IMAGES) {
+    const imgPath = path.join(distDir, img);
+    if (fs.existsSync(imgPath)) {
+      fs.rmSync(imgPath, { force: true });
+    }
+  }
+
+  const remaining = getFiles(distDir);
+  const violations = remaining
+    .map(file => path.relative(distDir, file.path))
+    .filter(rel => FORBIDDEN_DIST_PATTERN.test(rel) || FORBIDDEN_DEV_IMAGES.has(path.basename(rel)));
+
+  if (violations.length > 0) {
+    throw new Error(`SECURITY_ARTIFACT_LEAK_IN_DIST: Forbidden artifacts found in ${distDir}: ${violations.join(', ')}`);
+  }
+  return remaining;
+}
+
 function main() {
   console.log('\n📊 Starting post-build audit...');
 
@@ -37,23 +74,19 @@ function main() {
     const startTimeStr = fs.readFileSync('.build-start-time', 'utf8');
     const startTime = parseInt(startTimeStr, 10);
     durationMs = Date.now() - startTime;
-    // Clean up temporary file
     try {
       fs.unlinkSync('.build-start-time');
-    } catch (err) {
-      // Ignore
-    }
+    } catch (_) {}
   }
 
-  // 2. Scan Build Artifacts (dist/)
+  // 2. Sanitize & Scan Build Artifacts (dist/)
   const distDir = 'dist';
-  const artifacts = getFiles(distDir);
+  const artifacts = sanitizeAndAuditDist(distDir);
   let totalSize = 0;
   const filesList = [];
 
   artifacts.forEach(file => {
     totalSize += file.size;
-    // Keep paths relative to dist for clean summary representation
     const relativePath = path.relative(distDir, file.path);
     filesList.push({
       file: relativePath,
@@ -102,4 +135,6 @@ function main() {
   console.log(`📝 Summary written to: ${summaryPath}\n`);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve('scripts/postbuild.js')) {
+  main();
+}

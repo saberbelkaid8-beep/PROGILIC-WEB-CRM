@@ -1,20 +1,83 @@
 {
-  "generatedAt": "2026-11-13T20:45:00+01:00",
-  "mode": "repository-only-read-only-audit",
-  "sourceDataAvailable": false,
-  "historicalRecordsScanned": 0,
-  "recoverableCandidates": null,
-  "missingMobileProgramsRecoverable": null,
-  "mobileProgramRestorationStatus": "blocked-no-source-evidence",
-  "productionDataRead": false,
-  "productionDataWritten": false,
-  "productionBackupCreated": false,
-  "recoveryWritesPerformed": 0,
-  "reason": "No historical CRM export or authenticated production/emulator data source was available in the repository session.",
+  "generatedAt": "2026-11-14T08:30:00Z",
+  "mode": "forensic-log-and-repo-audit",
+  "productionDatabaseAccess": "BLOCKED_BY_ENVIRONMENT / REQUIRES_PRODUCTION_ACCESS",
+  "sourceDataAvailable": true,
+  "evidenceSources": [
+    {
+      "source": "public/assets/aistudio/Paste_November_12__2026_-_4_24PM_8fe1222c",
+      "type": "production-browser-console-and-firestore-rpc-log",
+      "tenantUid": "z1FY0kWqOOSe78cFv8rqak0mjV03",
+      "operatorEmail": "progilicservice@gmail.com",
+      "lines": 6749
+    },
+    {
+      "source": "public/assets/aistudio/Paste_November_13__2026_-_1_29PM_9a43d2a5",
+      "type": "production-browser-console-and-firestore-rpc-log",
+      "lines": 14248
+    },
+    {
+      "source": "User conversation CSV export (Request #2)",
+      "type": "explicit-user-supplied-program-table",
+      "note": "Contains customer rows including Mobile ('Mobile - تطبيق V27'), Desktop (V21/V23/V24/V27), and legacy labels requiring manual normalization"
+    },
+    {
+      "source": "src/data/importedClients.js",
+      "type": "repository-data-seed",
+      "recordCount": 0
+    },
+    {
+      "source": "public/assets/aistudio/progilic_dashboard_349c4566.html",
+      "type": "static-html-design-mockup",
+      "note": "Contains static demo figures only; excluded as evidence of real customer accounts"
+    }
+  ],
+  "observedProductionSnapshotNov12": {
+    "getUserDataTotalClientsStat": 959,
+    "getUserDataActiveClientsStat": 866,
+    "getUserDataStoppedClientsStat": 93,
+    "getUserDataTotalProgramsStat": 108,
+    "getUserDataTotalLicensedDevicesStat": 201,
+    "auditedClientDocsCount": 927,
+    "clientsStatDiscrepancy": 32,
+    "timelineTracesObservedAcrossPasses": [0, 2137, 2139],
+    "reconciliationLoopPasses": 30
+  },
+  "observedReconciliationLogCountsNov12": {
+    "uniqueClientsMatchedViaTimelineTrace": 25,
+    "uniqueClientsMatchedViaProgramNamesSummary": 23,
+    "totalUniqueCandidateClientHeaders": 48,
+    "falseSuccessLogsEmitted": 268,
+    "uniqueClientsLoggedAsRecovered": 46,
+    "failedCommitRpcs": 242,
+    "uniqueClientIdsWithPermissionDeniedCommit": 23,
+    "failedClientIds": [
+      "10", "11", "12", "100", "101", "102", "103", "104", "105",
+      "106", "108", "109", "111", "112", "113", "114", "115",
+      "116", "117", "118", "119", "120", "121", "122"
+    ],
+    "rootCauseOfPermissionDenied": "Nov 12 client transaction wrote both subcollection doc (with fabricated startDate='2025-11-15') and updated parent client doc, triggering firestore.rules isValidClient(incoming()) rejection on legacy parent docs with invalid/missing status or non-allowlisted fields, while swallowing Commit errors.",
+    "mobileMentionsInNov12Log": [
+      "GC _ BOUMENDIL ABDELHAMID (Mobile - تطبيق V27)",
+      "KHALOUATI boudawed (programNames recovery)"
+    ]
+  },
+  "observedSyncStormCountsNov13": {
+    "populateTimelineBatchSizesObserved": [775, 771],
+    "batchGetDocumentsErrorsObserved": 1282,
+    "rootCause": "Unbatched per-document saveTenantActivity fan-out + repeated boot/reconciliation loops overwhelming Firestore WebChannel streams."
+  },
+  "phase1AuditSummary": {
+    "liveFirestoreDocumentsAudited": 0,
+    "liveAuditStatus": "BLOCKED_BY_ENVIRONMENT / REQUIRES_PRODUCTION_ACCESS",
+    "productionDataWritten": false,
+    "productionBackupCreated": false,
+    "recoveryWritesPerformed": 0
+  },
   "nextRequiredSteps": [
-    "Obtain authorized read-only access to historical source data",
-    "Create and independently verify a production backup",
-    "Run the read-only candidate classifier against supplied client and Timeline snapshots",
-    "Review candidate evidence and obtain explicit approval before any migration"
+    "Complete Phase 4 code repairs (clientActions, service, validation, modals, dashboard parity, timeline batching)",
+    "Obtain authenticated Firebase Admin / owner credentials in Phase 10 / Phase 2",
+    "Create and verify complete JSON + Firestore export backup before any Phase 2 writes",
+    "Execute Phase 2 batched recovery strictly from verified Timeline meta.program or approved explicit CSV records without date/field fabrication"
   ]
 }

@@ -80,6 +80,7 @@ import { auth } from './firebase/config.js';
 import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState, loadStaffUsersForTenant } from './state/store.js';
 import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache, retryFailedSyncActions } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
+import { runProductionDataCleaning } from './business/cleaningService.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
 subscribe(R);
@@ -96,6 +97,12 @@ if (typeof window !== 'undefined') {
   window.exportData = exportData;
   window.exportToDump = exportToDump;
   window.exportToCSV = exportToCSV;
+  window.exportLicensedClientsSummary = actions.exportLicensedClientsSummary;
+  window.runProductionDataCleaning = () => {
+    if (S.currentUser) {
+      runProductionDataCleaning(S.currentUser.uid);
+    }
+  };
   window.importData = importData;
   window.importFromDump = importFromDump;
   window.triggerImportDumOrJson = triggerImportDumOrJson;

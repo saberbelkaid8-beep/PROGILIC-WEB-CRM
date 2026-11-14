@@ -3,7 +3,7 @@ import { showToast } from '../utils/toast.js';
 import { showConfirm } from '../utils/confirm.js';
 import { t } from '../utils/i18n.js';
 import { computeScore } from './intelligence.js';
-import { ActivityType, logActivity } from './timelineService.js';
+import { ActivityType, logActivity, mergeActivities, getPendingActivitiesForTenant } from './timelineService.js';
 import { R } from '../presentation/render-core.js';
 import { 
   S, 
@@ -185,6 +185,206 @@ export function sanitizeClient(c) {
   };
 }
 
+const ACTIVE_QUEUE_STATES = new Set(['pending', 'syncing', 'requires-attention', 'failed']);
+
+function computeProgramSummary(programs = []) {
+  const safeProgs = Array.isArray(programs) ? programs.filter(Boolean) : [];
+  const installationsCount = safeProgs.reduce((total, p) => {
+    const count = Number(p?.installationsCount);
+    return Number.isSafeInteger(count) && count > 0 ? total + count : total;
+  }, 0);
+  const programNames = safeProgs.map(p => p.programName).filter(Boolean);
+  return {
+    programsCount: safeProgs.length,
+    installationsCount,
+    programNames
+  };
+}
+
+export function mergeSubcollectionWithQueue(clientId, collectionName, remoteItems = [], localItems = [], syncQueue = []) {
+  const cidStr = String(clientId);
+  const queue = Array.isArray(syncQueue) ? syncQueue : [];
+  const byId = new Map();
+
+  for (const item of (Array.isArray(remoteItems) ? remoteItems : [])) {
+    if (!item || item.id === undefined || item.id === null) continue;
+    byId.set(String(item.id), { ...item });
+  }
+
+  // If client creation is still pending in queue and remote has nothing yet, keep local initial items
+  const hasPendingAddClient = queue.some(
+    q => q && ACTIVE_QUEUE_STATES.has(q.state || 'pending')
+      && q.type === 'ADD_CLIENT'
+      && String(q.payload?.clientData?.id) === cidStr
+  );
+  if (hasPendingAddClient && byId.size === 0 && Array.isArray(localItems)) {
+    for (const item of localItems) {
+      if (!item || item.id === undefined || item.id === null) continue;
+      byId.set(String(item.id), { ...item });
+    }
+  }
+
+  for (const q of queue) {
+    if (!q || !ACTIVE_QUEUE_STATES.has(q.state || 'pending')) continue;
+    const payload = q.payload || {};
+    if (String(payload.clientId) !== cidStr || payload.collectionName !== collectionName) continue;
+    const itemId = String(payload.itemId ?? payload.itemData?.id ?? '');
+    if (!itemId) continue;
+
+    if (q.type === 'SAVE_SUB_ITEM' && payload.itemData) {
+      byId.set(itemId, { ...payload.itemData });
+    } else if (q.type === 'DELETE_SUB_ITEM') {
+      byId.delete(itemId);
+    }
+  }
+
+  return Array.from(byId.values());
+}
+
+export function mergeClientSyncState(remoteSummaries = [], localClients = [], syncQueue = [], options = {}) {
+  const isOnline = options.isOnline !== false;
+  const queue = Array.isArray(syncQueue) ? syncQueue : [];
+  const existingList = Array.isArray(localClients) ? localClients.filter(Boolean) : [];
+  const remoteList = Array.isArray(remoteSummaries) ? remoteSummaries.filter(Boolean) : [];
+
+  const pendingDeletes = new Set();
+  const pendingAdds = new Map();
+  const pendingUpdates = new Map();
+  const pendingSubOpsClients = new Map();
+
+  for (const q of queue) {
+    if (!q || !ACTIVE_QUEUE_STATES.has(q.state || 'pending')) continue;
+    const payload = q.payload || {};
+    if (q.type === 'DELETE_CLIENT' && payload.clientId !== undefined) {
+      pendingDeletes.add(String(payload.clientId));
+    } else if (q.type === 'ADD_CLIENT' && payload.clientData?.id !== undefined) {
+      pendingAdds.set(String(payload.clientData.id), { ...payload.clientData, _subcollectionsLoaded: true });
+    } else if (q.type === 'UPDATE_CLIENT' && payload.clientId !== undefined && payload.clientData) {
+      pendingUpdates.set(String(payload.clientId), payload.clientData);
+    } else if ((q.type === 'SAVE_SUB_ITEM' || q.type === 'DELETE_SUB_ITEM') && payload.clientId !== undefined) {
+      const cid = String(payload.clientId);
+      const set = pendingSubOpsClients.get(cid) || new Set();
+      if (payload.collectionName) set.add(payload.collectionName);
+      pendingSubOpsClients.set(cid, set);
+    }
+  }
+
+  // Offline fallback: if offline and remote listener reports empty, preserve non-deleted local cache + pending adds
+  if (remoteList.length === 0 && !isOnline && existingList.length > 0) {
+    const preserved = existingList.filter(c => !pendingDeletes.has(String(c.id)));
+    const preservedIds = new Set(preserved.map(c => String(c.id)));
+    for (const [cid, added] of pendingAdds.entries()) {
+      if (!pendingDeletes.has(cid) && !preservedIds.has(cid)) {
+        preserved.push(added);
+      }
+    }
+    return preserved;
+  }
+
+  const existingById = new Map(existingList.map(c => [String(c.id), c]));
+  const mergedClients = [];
+  const seenIds = new Set();
+
+  for (const newC of remoteList) {
+    const cid = String(newC.id);
+    if (pendingDeletes.has(cid)) {
+      continue;
+    }
+    seenIds.add(cid);
+
+    const existingC = existingById.get(cid);
+    const pendingSubCols = pendingSubOpsClients.get(cid) || new Set();
+    const remoteHasZeroPrograms = Number(newC.programsCount || 0) === 0
+      && (!Array.isArray(newC.programNames) || newC.programNames.length === 0)
+      && (!Array.isArray(newC.programs) || newC.programs.length === 0);
+    const remoteHasEmbeddedProgs = Array.isArray(newC.programs) && newC.programs.length > 0;
+
+    let basePrograms = Array.isArray(newC.programs) ? newC.programs : [];
+    let programsLoaded = false;
+
+    if (remoteHasZeroPrograms && !pendingSubCols.has('programs')) {
+      basePrograms = [];
+      programsLoaded = true;
+    } else if (existingC && existingC._subcollectionsLoaded) {
+      const existingPrograms = Array.isArray(existingC.programs) ? existingC.programs : [];
+      const existingNames = existingPrograms.map(p => p?.programName).filter(Boolean);
+      const remoteNames = Array.isArray(newC.programNames) ? newC.programNames : [];
+      const countMatches = newC.programsCount === undefined || Number(newC.programsCount) === existingPrograms.length;
+      const namesMatch = newC.programNames === undefined || JSON.stringify(remoteNames) === JSON.stringify(existingNames);
+      const versionNotNewer = Number(newC.version || 0) <= Number(existingC.version || 0);
+
+      if ((countMatches && namesMatch && versionNotNewer) || pendingSubCols.has('programs')) {
+        basePrograms = existingPrograms;
+        programsLoaded = true;
+      } else if (remoteHasEmbeddedProgs && Number(newC.programsCount ?? newC.programs.length) === newC.programs.length) {
+        basePrograms = newC.programs;
+        programsLoaded = true;
+      } else {
+        // Cloud summary changed on another session; require fresh subcollection read
+        basePrograms = Array.isArray(newC.programs) ? newC.programs : [];
+        programsLoaded = false;
+      }
+    } else if (remoteHasEmbeddedProgs && (newC.programsCount === undefined || Number(newC.programsCount) === newC.programs.length)) {
+      basePrograms = newC.programs;
+      programsLoaded = true;
+    }
+
+    const finalProgs = mergeSubcollectionWithQueue(cid, 'programs', basePrograms, existingC?.programs, queue);
+    const finalIssues = mergeSubcollectionWithQueue(
+      cid,
+      'issues',
+      (existingC?._subcollectionsLoaded ? existingC.issues : newC.issues) || [],
+      existingC?.issues,
+      queue
+    );
+    const finalReqs = mergeSubcollectionWithQueue(
+      cid,
+      'requirements',
+      (existingC?._subcollectionsLoaded ? existingC.requirements : newC.requirements) || [],
+      existingC?.requirements,
+      queue
+    );
+    const finalContacts = mergeSubcollectionWithQueue(
+      cid,
+      'contacts',
+      (existingC?._subcollectionsLoaded ? existingC.contactHistory : newC.contactHistory) || [],
+      existingC?.contactHistory,
+      queue
+    );
+
+    const pendingUpdate = pendingUpdates.get(cid);
+    const mergedRecord = {
+      ...newC,
+      ...(pendingUpdate ? pendingUpdate : {}),
+      programs: finalProgs,
+      issues: finalIssues,
+      requirements: finalReqs,
+      contactHistory: finalContacts,
+      _subcollectionsLoaded: programsLoaded || pendingSubCols.has('programs')
+    };
+
+    if (mergedRecord._subcollectionsLoaded) {
+      Object.assign(mergedRecord, computeProgramSummary(finalProgs));
+    }
+
+    mergedClients.push(mergedRecord);
+  }
+
+  for (const [cid, addedClient] of pendingAdds.entries()) {
+    if (!seenIds.has(cid) && !pendingDeletes.has(cid)) {
+      const finalProgs = mergeSubcollectionWithQueue(cid, 'programs', addedClient.programs || [], addedClient.programs || [], queue);
+      mergedClients.push({
+        ...addedClient,
+        programs: finalProgs,
+        ...computeProgramSummary(finalProgs),
+        _subcollectionsLoaded: true
+      });
+    }
+  }
+
+  return mergedClients;
+}
+
 // On-Demand Client Subcollection Loader
 export async function loadClientSubcollectionsIfNeeded(clientId) {
   if (!currentUser) return;
@@ -193,30 +393,36 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 
   if (c._subcollectionsLoaded) return;
 
+  const tenantUid = activeTenantUid() || currentUser.uid;
   try {
     setSyncing(true);
 
-    const sub = await getClientSubcollections(currentUser.uid, String(clientId));
-    const remoteProgs = sub?.programs || [];
+    const sub = await getClientSubcollections(tenantUid, String(clientId));
+    const currentQueue = S.syncQueue || [];
 
-    if (remoteProgs.length > 0) {
-      c.programs = remoteProgs;
-    } else {
-      c.programs = Array.isArray(c.programs) ? c.programs : [];
-    }
+    const mergedProgs = mergeSubcollectionWithQueue(clientId, 'programs', sub?.programs || [], c.programs || [], currentQueue);
+    const mergedIssues = mergeSubcollectionWithQueue(clientId, 'issues', sub?.issues || [], c.issues || [], currentQueue);
+    const mergedReqs = mergeSubcollectionWithQueue(clientId, 'requirements', sub?.requirements || [], c.requirements || [], currentQueue);
+    const mergedContacts = mergeSubcollectionWithQueue(clientId, 'contacts', sub?.contactHistory || [], c.contactHistory || [], currentQueue);
 
-    if (sub?.issues && sub.issues.length > 0) c.issues = sub.issues;
-    else if (!c.issues) c.issues = [];
+    const progSummary = computeProgramSummary(mergedProgs);
+    const openIssuesCount = mergedIssues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
 
-    if (sub?.requirements && sub.requirements.length > 0) c.requirements = sub.requirements;
-    else if (!c.requirements) c.requirements = [];
+    const updatedClient = {
+      ...c,
+      programs: mergedProgs,
+      ...progSummary,
+      issues: mergedIssues,
+      openIssuesCount,
+      requirements: mergedReqs,
+      requirementsCount: mergedReqs.length,
+      contactHistory: mergedContacts,
+      _subcollectionsLoaded: true
+    };
 
-    if (sub?.contactHistory && sub.contactHistory.length > 0) c.contactHistory = sub.contactHistory;
-    else if (!c.contactHistory) c.contactHistory = [];
-
-    c._subcollectionsLoaded = true;
-
-    setClients([...clients]);
+    const nextClients = clients.map(x => (x && String(x.id) === String(clientId)) ? updatedClient : x);
+    setClients(nextClients);
+    Promise.resolve(saveClients(tenantUid, nextClients)).catch(() => {});
     console.log(`Subcollections loaded successfully for client ${clientId}`);
   } catch (err) {
     console.error(`Failed to load subcollections for client ${clientId}:`, err);
@@ -254,6 +460,7 @@ export function startRealtimeSync(userId) {
 
   // 2. Listen to clients collection (real-time summaries)
   const clientsCollRef = collection(db, 'users', userId, 'clients');
+<<<<<<< HEAD
   const unsubClients = onSnapshot(clientsCollRef, { includeMetadataChanges: true }, (snapshot) => {
     if (snapshot.metadata?.fromCache) return;
 
@@ -263,6 +470,14 @@ export function startRealtimeSync(userId) {
       return {
         ...data,
         id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : clientDoc.id),
+=======
+  const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
+    const summaries = snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        ...data,
+        id: data.id ?? docSnap.id,
+>>>>>>> d4ccc4c496065282d1a0dbac96cc15d79eae78e8
         programs: data.programs || [],
         issues: data.issues || [],
         requirements: data.requirements || [],
@@ -272,6 +487,7 @@ export function startRealtimeSync(userId) {
       };
     });
 
+<<<<<<< HEAD
     // Merge server summaries with loaded details already held in memory.
     let mergedClients = summaries.map(newC => {
       const existingC = clients.find(x => String(x.id) === String(newC.id));
@@ -291,6 +507,9 @@ export function startRealtimeSync(userId) {
       }
       return newC;
     });
+=======
+    const mergedClients = mergeClientSyncState(summaries, clients, S.syncQueue || [], { isOnline: S.isOnline });
+>>>>>>> d4ccc4c496065282d1a0dbac96cc15d79eae78e8
 
     batch(() => {
       setSyncing(snapshot.metadata.hasPendingWrites);
@@ -298,6 +517,7 @@ export function startRealtimeSync(userId) {
       setLastSyncedTime(new Date());
       setSaveError(false);
     });
+    Promise.resolve(saveClients(userId, mergedClients)).catch(() => {});
   }, (error) => {
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
@@ -324,15 +544,16 @@ export function startRealtimeSync(userId) {
   // 4. Listen to activities subcollection (real-time cross-device and multi-user audit timeline sync)
   const activitiesCollRef = collection(db, 'users', userId, 'activities');
   const unsubActivities = onSnapshot(activitiesCollRef, (snapshot) => {
-    const remoteActivities = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
+    const remoteActivities = snapshot.docs.map(docSnap => ({
+      ...docSnap.data(),
+      id: docSnap.data()?.id || docSnap.id
     }));
-    remoteActivities.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+    const pendingLocal = getPendingActivitiesForTenant(userId);
+    const mergedActivities = mergeActivities(remoteActivities, pendingLocal);
     batch(() => {
-      S.globalActivities = remoteActivities;
+      S.globalActivities = mergedActivities;
       if (S.selId) {
-        S.clientActivities = remoteActivities.filter(a => Number(a.clientId) === Number(S.selId));
+        S.clientActivities = mergedActivities.filter(a => Number(a.clientId) === Number(S.selId));
       }
       setLastSyncedTime(new Date());
     });
@@ -452,7 +673,10 @@ async function doLoadDataFromFirestore(user) {
       const baseClients = (data && data.clients && Array.isArray(data.clients) && data.clients.length > 0)
         ? data.clients
         : (clients && clients.length > 0 ? clients : []);
-      const mergedClients = mergeClientLists(baseClients);
+      const queue = S.syncQueue || [];
+      const mergedClients = queue.length > 0
+        ? mergeClientSyncState(mergeClientLists(baseClients), clients, queue, { isOnline: S.isOnline })
+        : mergeClientLists(baseClients);
       const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
 
       console.log(`[Storage] User profile metadata loaded (Clients will be populated via real-time subcollection listener).`);
@@ -463,6 +687,7 @@ async function doLoadDataFromFirestore(user) {
           stats: computedStats
         });
       });
+      Promise.resolve(saveClients(user.uid, mergedClients)).catch(() => {});
 
       import('./timelineService.js')
         .then(m => m.syncCrmServicesToTimeline(user.uid))
@@ -1042,6 +1267,10 @@ export function triggerImportDumOrJson(){
 }
 
 export async function clearAllData(){
+  if (!isGerant() && !hasPermission('clients.delete')) {
+    showToast(t('⚠️ لا تملك صلاحية مسح جميع البيانات. هذه الصلاحية خاصة بالرئيس (Gérant).'), 'error');
+    throw new Error('غير مصرح: صلاحيات الرئيس (Gérant) مطلوبة لمسح جميع البيانات.');
+  }
   const msg1 = S.lang === 'fr'
     ? '⚠️ Êtes-vous certain de vouloir supprimer définitivement toutes les données ?\nCette action est irréversible.'
     : (S.lang === 'en'
@@ -1060,6 +1289,10 @@ export async function clearAllData(){
   
   try {
     setSyncing(true);
+    const uid = activeTenantUid() || currentUser?.uid;
+    if (!uid) {
+      throw new Error('AUTH_REQUIRED');
+    }
 
     const stats = {
       activeClients: 0,
@@ -1072,14 +1305,17 @@ export async function clearAllData(){
       totalOpenIssues: 0
     };
 
-    const batch = writeBatch(db);
-    // Delete all client docs we have in memory
-    for (const c of clients) {
-      batch.delete(doc(db, `users/${currentUser.uid}/clients/${c.id}`));
+    const CHUNK_SIZE = 400;
+    const allClients = Array.isArray(clients) ? clients : [];
+    for (let i = 0; i < allClients.length; i += CHUNK_SIZE) {
+      const batchOp = writeBatch(db);
+      for (const c of allClients.slice(i, i + CHUNK_SIZE)) {
+        batchOp.delete(doc(db, `users/${uid}/clients/${c.id}`));
+      }
+      await batchOp.commit();
     }
-    await batch.commit();
 
-    await saveUserData(currentUser.uid, {
+    await saveUserData(uid, {
       v: SCHEMA_VERSION,
       updatedAt: new Date().toISOString(),
       nid: 100,
@@ -1087,7 +1323,9 @@ export async function clearAllData(){
     });
 
     setClients([]);
-    updateState({ nid: 100, stats });
+    updateState({ nid: 100, stats, syncQueue: [] });
+    Promise.resolve(saveClients(uid, [])).catch(() => {});
+    Promise.resolve(saveSyncQueue(uid, [])).catch(() => {});
     setLastSyncedTime(new Date());
     S.view='list';S.selId=null;S.gi=false;
     R();
@@ -1225,7 +1463,14 @@ export async function flushSyncQueue() {
           await addClientTransaction(uid, item.payload.clientData, item.payload.stats);
           break;
         case 'UPDATE_CLIENT':
-          await updateClientTransaction(uid, item.payload.clientId, item.payload.clientData, item.payload.oldStatus, item.payload.stats);
+          await updateClientTransaction(
+            uid,
+            item.payload.clientId,
+            item.payload.clientData,
+            item.payload.oldStatus,
+            item.payload.stats,
+            item.payload.baseVersion ?? 0
+          );
           break;
         case 'DELETE_CLIENT':
           await deleteClientTransaction(uid, item.payload.clientId, item.payload.clientData, item.payload.stats);
@@ -1324,6 +1569,7 @@ export async function flushSyncQueue() {
       retryTimer = null;
     }
     console.log("[Offline Sync] All pending operations successfully flushed.");
+    Promise.resolve(saveClients(uid, clients)).catch(() => {});
     
     // Create an automatic rolling snapshot backup after successful sync completion!
     const backupUid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
@@ -1428,12 +1674,32 @@ export function resolveConflict(decision) {
   if (!item || !serverData) return;
 
   const currentQueue = S.syncQueue || [];
+  let updatedClientsList = clients;
   
   if (decision === 'server') {
-    // Drop the local change, adopt server data
-    // First, update local state to match server
-    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...serverData } : c);
-    setClients(nextClients);
+    // Drop the local change, adopt server data while keeping loaded subcollections unless server explicitly cleared them
+    updatedClientsList = clients.map(c => {
+      if (c.id != item.payload.clientId) return c;
+      const serverMentionsPrograms = serverData.programsCount !== undefined
+        || serverData.programNames !== undefined
+        || serverData.programs !== undefined;
+      const serverClearedPrograms = serverMentionsPrograms
+        && Number(serverData.programsCount || 0) === 0
+        && (!Array.isArray(serverData.programNames) || serverData.programNames.length === 0)
+        && (!Array.isArray(serverData.programs) || serverData.programs.length === 0);
+      const programs = Array.isArray(serverData.programs) && serverData.programs.length > 0
+        ? serverData.programs
+        : (serverClearedPrograms ? [] : (c.programs || []));
+      return {
+        ...c,
+        ...serverData,
+        programs,
+        issues: Array.isArray(serverData.issues) && serverData.issues.length > 0 ? serverData.issues : (c.issues || []),
+        requirements: Array.isArray(serverData.requirements) && serverData.requirements.length > 0 ? serverData.requirements : (c.requirements || []),
+        contactHistory: Array.isArray(serverData.contactHistory) && serverData.contactHistory.length > 0 ? serverData.contactHistory : (c.contactHistory || [])
+      };
+    });
+    setClients(updatedClientsList);
     
     // Remove item from queue
     const nextQueue = currentQueue.filter(q => q.id !== item.id);
@@ -1445,8 +1711,8 @@ export function resolveConflict(decision) {
       if (q.id === item.id) {
         return {
           ...q,
-        state: 'pending',
-        lastError: null,
+          state: 'pending',
+          lastError: null,
           payload: {
             ...q.payload,
             baseVersion: serverData.version || 0
@@ -1457,11 +1723,17 @@ export function resolveConflict(decision) {
     });
     updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
   } else if (decision === 'merge') {
-    // Basic merge: combine fields, preferring local, and bump baseVersion
-    const mergedData = { ...serverData, ...item.payload.clientData };
+    // Combine fields safely without losing subcollection data, and bump baseVersion
+    const mergedData = {
+      ...serverData,
+      ...item.payload.clientData,
+      programs: Array.isArray(item.payload.clientData?.programs) && item.payload.clientData.programs.length > 0
+        ? item.payload.clientData.programs
+        : (serverData.programs || [])
+    };
     
-    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...mergedData } : c);
-    setClients(nextClients);
+    updatedClientsList = clients.map(c => c.id == item.payload.clientId ? { ...c, ...mergedData } : c);
+    setClients(updatedClientsList);
     
     const nextQueue = currentQueue.map(q => {
       if (q.id === item.id) {
@@ -1483,8 +1755,13 @@ export function resolveConflict(decision) {
   
   R();
   const uid = activeTenantUid();
-  if (uid) persistSyncQueue(uid, S.syncQueue || []).then(() => setTimeout(flushSyncQueue, 500)).catch(error => {
-    console.error('[Offline Sync] Could not persist conflict resolution:', error);
-    showToast(t('تعذر حفظ حل التعارض محلياً.'), 'error');
-  });
+  if (uid) {
+    Promise.resolve(saveClients(uid, updatedClientsList)).catch(() => {});
+    const recomputed = computeStats(updatedClientsList);
+    Promise.resolve(setMeta(uid, 'stats', recomputed.stats)).catch(() => {});
+    persistSyncQueue(uid, S.syncQueue || []).then(() => setTimeout(flushSyncQueue, 500)).catch(error => {
+      console.error('[Offline Sync] Could not persist conflict resolution:', error);
+      showToast(t('تعذر حفظ حل التعارض محلياً.'), 'error');
+    });
+  }
 }

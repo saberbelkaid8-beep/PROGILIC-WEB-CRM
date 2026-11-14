@@ -232,7 +232,6 @@ function performRender() { try {
   }
   
   const alerts = computeAlerts();
-  try { clients.forEach(c => autoDetectFeatureOpp(c.issues || [])); } catch(e) { console.error("Error in autoDetectFeatureOpp:", e); }
 
   let modalHTML = '';
   if (S.modal) {

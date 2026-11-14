@@ -44,7 +44,11 @@ export const PLATFORM_PROGRAM_TYPES = {
     "تطبيق VDD (Vendeur Distributeur)",
     "تطبيق التاجر (Commerçant)"
   ],
-  "Web": []
+  "Web": [
+    "منظومة الويب (Web ERP)",
+    "بوابة العملاء الويب (Web Portal)",
+    "متجر إلكتروني ويب (Web Store)"
+  ]
 };
 export const PROGRAM_TYPES = [
   "تجاري (Commercial)",
@@ -52,7 +56,10 @@ export const PROGRAM_TYPES = [
   "توزيع (Distribution)",
   "تطبيق لوحة القيادة (Tableau de bord)",
   "تطبيق VDD (Vendeur Distributeur)",
-  "تطبيق التاجر (Commerçant)"
+  "تطبيق التاجر (Commerçant)",
+  "منظومة الويب (Web ERP)",
+  "بوابة العملاء الويب (Web Portal)",
+  "متجر إلكتروني ويب (Web Store)"
 ];
 export const PROGRAM_VERSIONS = ["V27", "V26", "V24", "V23", "V21", "v18", "v16", "v15", "R+", "arabe"];
 
