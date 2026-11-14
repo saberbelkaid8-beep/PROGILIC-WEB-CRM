@@ -17,7 +17,7 @@ export function esc(str) {
   });
 }
 
-export const gc = () => clients.find(c => c.id === S.selId) || null;
+export const gc = () => clients.find(c => c.id === S.selId || String(c.id) === String(S.selId)) || null;
 export const init = (n) => { const p = (n || '').trim().split(' '); return p.length >= 2 ? (p[0][0] || '') + (p[1][0] || '') : (n || '').substring(0, 2).toUpperCase() };
 export const fmtD = (d) => {
   if (!d) return '—';

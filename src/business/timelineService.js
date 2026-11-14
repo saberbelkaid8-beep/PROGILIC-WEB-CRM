@@ -5,13 +5,15 @@
  */
 
 import { currentUser, currentStaffUser, clients, S, hasPermission, getActiveTenantId } from '../state/store.js';
-import { getTenantActivities, saveTenantActivity } from '../firebase/service.js';
+import * as firebaseService from '../firebase/service.js';
 import { auth } from '../firebase/config.js';
 import { addActivity, deleteActivity, getActivities } from './idbStorage.js';
 
 const inMemoryPendingActivities = new Map();
 let activitySyncPromise = null;
 let activityRetryTimer = null;
+let loadGlobalActivitiesPromise = null;
+const inFlightTimelineSyncs = new Map();
 
 function readPendingActivities(uid) {
   return inMemoryPendingActivities.get(uid) || [];
@@ -43,7 +45,11 @@ function scheduleActivityRetry(uid, delay) {
   }, delay);
 }
 
-function mergeActivities(...lists) {
+export function getPendingActivitiesForTenant(uid) {
+  return [...readPendingActivities(uid)];
+}
+
+export function mergeActivities(...lists) {
   const merged = new Map();
   lists.flat().filter(Boolean).forEach(activity => {
     const key = String(activity.id || `${activity.timestamp}-${activity.type}-${activity.clientId || ''}`);
@@ -122,7 +128,7 @@ export async function syncPendingActivities(uid = (auth && auth.currentUser && a
         continue;
       }
       try {
-        const savedId = await saveTenantActivity(uid, activity);
+        const savedId = await firebaseService.saveTenantActivity(uid, activity);
         if (!savedId) {
           throw Object.assign(new Error('Cloud save returned no confirmation.'), { code: 'write-unconfirmed' });
         }
@@ -383,7 +389,7 @@ export async function logActivity(clientId, type, title, description, source = '
       console.error('[Timeline] Could not persist the activity locally:', error);
     }
     try {
-      const saved = await saveTenantActivity(tenantId, activity);
+      const saved = await firebaseService.saveTenantActivity(tenantId, activity);
       if (saved) {
         savedId = saved;
         if (queuedLocally) {
@@ -502,7 +508,7 @@ export async function getTimeline(clientId) {
     ? S.globalActivities.filter(activity => Number(activity.clientId) === Number(clientId))
     : [];
   try {
-    const cloudList = await getTenantActivities(tenantId, clientId);
+    const cloudList = await firebaseService.getTenantActivities(tenantId, clientId);
     return mergeActivities(cloudList || [], localList, stateList);
   } catch (err) {
     console.error(`[Timeline] Failed to get activities for client ${clientId}:`, err);
@@ -515,63 +521,77 @@ export async function getTimeline(clientId) {
  * Loads all CRM-wide activities directly from Cloud Firestore for the Global Timeline view.
  */
 export async function loadGlobalActivities() {
-  const tenantId = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId() || 'offline-tenant';
-  if (tenantId && tenantId !== 'offline-tenant') await migrateLocalActivities(tenantId);
-  try {
-    let cloudActivities = [];
-    let pendingActivities = [];
-    if (tenantId && tenantId !== 'offline-tenant') {
-      try {
-        pendingActivities = await getActivities(tenantId);
-      } catch (error) {
-        console.error('[Timeline] Could not load pending local activities:', error);
-        S.timelineCloudStatus = 'partial';
-      }
-      S.globalActivities = mergeActivities(S.globalActivities || [], pendingActivities);
-      const pendingSyncComplete = await syncPendingActivities(tenantId);
-      const pendingSyncStatus = S.timelineCloudStatus;
-      cloudActivities = await getTenantActivities(tenantId) || [];
-      S.timelineCloudStatus = pendingSyncComplete
-        ? (Array.isArray(cloudActivities) ? 'synced' : 'partial')
-        : (pendingSyncStatus === 'requires-attention' ? 'requires-attention' : (pendingActivities.length ? 'pending' : 'partial'));
-    }
-
-    let inMemActivities = [];
-
-    let merged = mergeActivities(inMemActivities || [], pendingActivities || [], cloudActivities || []);
-    S.globalActivities = merged;
-
-    if (tenantId && tenantId !== 'offline-tenant') {
-      const generated = await syncCrmServicesToTimeline(tenantId);
-      if (generated && generated.length > 0) {
-        merged = mergeActivities(generated, merged);
-        S.globalActivities = merged;
-      }
-    }
-
-    return merged;
-  } catch (err) {
-    console.error("Failed to load global activities:", err);
-    S.timelineCloudStatus = 'partial';
-    return S.globalActivities || [];
+  if (loadGlobalActivitiesPromise) {
+    return loadGlobalActivitiesPromise;
   }
+
+  loadGlobalActivitiesPromise = (async () => {
+    const tenantId = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId() || 'offline-tenant';
+    if (tenantId && tenantId !== 'offline-tenant') await migrateLocalActivities(tenantId);
+    try {
+      let cloudActivities = [];
+      let pendingActivities = [];
+      if (tenantId && tenantId !== 'offline-tenant') {
+        try {
+          pendingActivities = await getActivities(tenantId);
+        } catch (error) {
+          console.error('[Timeline] Could not load pending local activities:', error);
+          S.timelineCloudStatus = 'partial';
+        }
+        S.globalActivities = mergeActivities(S.globalActivities || [], pendingActivities);
+        const pendingSyncComplete = await syncPendingActivities(tenantId);
+        const pendingSyncStatus = S.timelineCloudStatus;
+        cloudActivities = await firebaseService.getTenantActivities(tenantId) || [];
+        S.timelineCloudStatus = pendingSyncComplete
+          ? (Array.isArray(cloudActivities) ? 'synced' : 'partial')
+          : (pendingSyncStatus === 'requires-attention' ? 'requires-attention' : (pendingActivities.length ? 'pending' : 'partial'));
+      }
+
+      const inMemActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
+      let merged = mergeActivities(inMemActivities, pendingActivities || [], cloudActivities || []);
+      S.globalActivities = merged;
+
+      if (tenantId && tenantId !== 'offline-tenant') {
+        const generated = await syncCrmServicesToTimeline(tenantId);
+        if (generated && generated.length > 0) {
+          merged = mergeActivities(generated, S.globalActivities || merged);
+          S.globalActivities = merged;
+        }
+      }
+
+      return merged;
+    } catch (err) {
+      console.error("Failed to load global activities:", err);
+      S.timelineCloudStatus = 'partial';
+      return S.globalActivities || [];
+    }
+  })().finally(() => {
+    loadGlobalActivitiesPromise = null;
+  });
+
+  return loadGlobalActivitiesPromise;
 }
 
 /**
  * Extracts and synchronizes all existing CRM services, software licenses,
  * support tickets, client registrations, and contacts into the Global Timeline.
- * Ensures services for Today, Yesterday, and Day Before Yesterday (as well as historical dates)
- * are fully populated and backed up to Cloud Firestore.
+ * Uses deduplication & chunked batches to prevent Firestore RPC storms.
  */
 export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser && auth.currentUser.uid) || currentUser?.tenantId || currentUser?.uid || getActiveTenantId()) {
   if (!uid) return [];
-  const currentClients = Array.isArray(clients) ? clients : [];
-  if (currentClients.length === 0) return [];
+  const syncKey = String(uid);
+  if (inFlightTimelineSyncs.has(syncKey)) {
+    return inFlightTimelineSyncs.get(syncKey);
+  }
 
-  const existingActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
-  const existingIds = new Set(existingActivities.map(a => String(a.id)));
+  const syncPromise = (async () => {
+    const currentClients = Array.isArray(clients) ? clients : [];
+    if (currentClients.length === 0) return [];
 
-  const generated = [];
+    const existingActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
+    const existingIds = new Set(existingActivities.map(a => String(a.id)));
+
+    const generated = [];
 
   function toIsoTimestamp(dateVal) {
     if (dateVal && String(dateVal).includes('T')) {
@@ -744,20 +764,23 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
 
   if (generated.length > 0) {
     console.log(`[Timeline] Populating ${generated.length} existing CRM services into Global Timeline and Cloud...`);
-    // Merge into local in-memory state
     S.globalActivities = mergeActivities(generated, S.globalActivities || []);
-    
-    // Save to IDB and Cloud Firestore
-    // Strictly Online: No local activity caching.
-    for (const act of generated) {
-      if (typeof navigator === 'undefined' || navigator.onLine) {
-        saveTenantActivity(uid, act).catch(err => {
-          console.warn("[Timeline] Cloud upload notice for generated service:", err);
-        });
+
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      if (Object.hasOwn(firebaseService, 'saveTenantActivitiesBatch') && typeof firebaseService.saveTenantActivitiesBatch === 'function') {
+        try {
+          await firebaseService.saveTenantActivitiesBatch(uid, generated);
+        } catch (err) {
+          console.warn("[Timeline] Batch cloud upload notice for generated services:", err);
+        }
+      } else {
+        for (const act of generated) {
+          firebaseService.saveTenantActivity(uid, act).catch(err => {
+            console.warn("[Timeline] Cloud upload notice for generated service:", err);
+          });
+        }
       }
     }
-
-    // Strictly Online: No caching of activities to localStorage
 
     if (typeof window !== 'undefined' && window.R) {
       window.R();
@@ -765,5 +788,11 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
   }
 
   return generated;
+  })().finally(() => {
+    inFlightTimelineSyncs.delete(syncKey);
+  });
+
+  inFlightTimelineSyncs.set(syncKey, syncPromise);
+  return syncPromise;
 }
 

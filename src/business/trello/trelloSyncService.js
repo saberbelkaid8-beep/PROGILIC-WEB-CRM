@@ -283,7 +283,7 @@ export async function syncTrelloChecklistItem(tenantId, checklistItem, card, boa
       if (serverAdminRepo && typeof serverAdminRepo.createClient === 'function') {
         await serverAdminRepo.createClient(tenantId, targetClient);
       } else {
-        enqueueSyncAction('ADD_CLIENT', { clientId: String(newClientId), clientData: targetClient });
+        enqueueSyncAction('ADD_CLIENT', { clientId: String(newClientId), clientData: targetClient, stats: S?.stats || {} });
       }
       if (typeof setClients === 'function' && Array.isArray(clients)) {
         setClients([targetClient, ...clients]);
@@ -365,21 +365,24 @@ export async function syncTrelloChecklistItem(tenantId, checklistItem, card, boa
       targetClient.lastContact = route.payload.date;
     }
 
-    // Synchronize reactive in-memory clients array if present
+    // Prepare next immutable clients array copy for store sync
+    let nextClientsSnapshot = null;
     if (typeof clients !== 'undefined' && Array.isArray(clients)) {
-      const storeClient = clients.find(c => String(c.id) === String(cid));
-      if (storeClient && storeClient !== targetClient) {
-        if (!Array.isArray(storeClient[clientArrayKey])) storeClient[clientArrayKey] = [];
-        const sIdx = storeClient[clientArrayKey].findIndex(item =>
+      nextClientsSnapshot = clients.map(c => {
+        if (String(c.id) !== String(cid)) return c;
+        const currArr = Array.isArray(c[clientArrayKey]) ? [...c[clientArrayKey]] : [];
+        const sIdx = currArr.findIndex(item =>
           (existingSync?.targetRecordId && String(item.id) === String(existingSync.targetRecordId)) ||
           (item.trelloChecklistItemId && String(item.trelloChecklistItemId) === String(itemId))
         );
-        if (sIdx > -1) {
-          storeClient[clientArrayKey][sIdx] = { ...finalItemRecord };
-        } else {
-          storeClient[clientArrayKey].push({ ...finalItemRecord });
-        }
-      }
+        if (sIdx > -1) currArr[sIdx] = { ...finalItemRecord };
+        else currArr.push({ ...finalItemRecord });
+        return {
+          ...c,
+          [clientArrayKey]: currArr,
+          ...(route.destination === OPERATION_DESTINATION.CONTACTS && route.payload?.date ? { lastContact: route.payload.date } : {})
+        };
+      });
     }
 
     // Execute Atomic Protected Firestore Transaction
@@ -430,8 +433,8 @@ export async function syncTrelloChecklistItem(tenantId, checklistItem, card, boa
       }
     }
 
-    if (typeof setClients === 'function' && Array.isArray(clients)) {
-      setClients([...clients]);
+    if (typeof setClients === 'function' && Array.isArray(nextClientsSnapshot)) {
+      setClients(nextClientsSnapshot);
     }
 
     try {
@@ -521,7 +524,7 @@ export async function resolveReviewItem(tenantId, itemId, resolution) {
   const rawText = reviewRecord?.rawText || customData?.title || 'عملية مراجعة Trello';
 
   if (targetCollection === 'issues') {
-    targetClient.issues = targetClient.issues || [];
+    const nextIssues = [...(targetClient.issues || [])];
     const iss = {
       id: opId,
       title: rawText,
@@ -534,13 +537,14 @@ export async function resolveReviewItem(tenantId, itemId, resolution) {
       trelloChecklistItemId: itemId,
       lastModifiedBy: 'trello'
     };
-    targetClient.issues.push(iss);
+    nextIssues.push(iss);
+    targetClient = { ...targetClient, issues: nextIssues };
     if (serverAdminRepo && typeof serverAdminRepo.saveClientSubItem === 'function') {
       await serverAdminRepo.saveClientSubItem(tenantId, String(cid), 'issues', String(opId), iss);
     }
     enqueueSyncAction('SAVE_SUB_ITEM', { clientId: String(cid), collectionName: 'issues', itemId: String(opId), itemData: iss });
   } else if (targetCollection === 'requirements') {
-    targetClient.requirements = targetClient.requirements || [];
+    const nextReqs = [...(targetClient.requirements || [])];
     const req = {
       id: opId,
       title: rawText,
@@ -554,19 +558,20 @@ export async function resolveReviewItem(tenantId, itemId, resolution) {
       trelloChecklistItemId: itemId,
       lastModifiedBy: 'trello'
     };
-    targetClient.requirements.push(req);
+    nextReqs.push(req);
+    targetClient = { ...targetClient, requirements: nextReqs };
     if (serverAdminRepo && typeof serverAdminRepo.saveClientSubItem === 'function') {
       await serverAdminRepo.saveClientSubItem(tenantId, String(cid), 'requirements', String(opId), req);
     }
     enqueueSyncAction('SAVE_SUB_ITEM', { clientId: String(cid), collectionName: 'requirements', itemId: String(opId), itemData: req });
   } else if (targetCollection === 'programs') {
-    targetClient.programs = targetClient.programs || [];
+    const nextProgs = [...(targetClient.programs || [])];
     const prog = {
       id: opId,
       programName: customData?.programName || 'PROGILIC ERP',
       platform: 'Desktop',
       type: 'تجاري',
-      version: 'v27',
+      version: 'V27',
       installationsCount: 1,
       startDate: today,
       endDate: '',
@@ -574,13 +579,31 @@ export async function resolveReviewItem(tenantId, itemId, resolution) {
       trelloChecklistItemId: itemId,
       lastModifiedBy: 'trello'
     };
-    targetClient.programs.push(prog);
+    nextProgs.push(prog);
+    targetClient = {
+      ...targetClient,
+      programs: nextProgs,
+      programsCount: nextProgs.length,
+      installationsCount: nextProgs.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0),
+      programNames: nextProgs.map(p => p.programName)
+    };
     if (serverAdminRepo && typeof serverAdminRepo.saveClientSubItem === 'function') {
       await serverAdminRepo.saveClientSubItem(tenantId, String(cid), 'programs', String(opId), prog);
     }
-    enqueueSyncAction('SAVE_SUB_ITEM', { clientId: String(cid), collectionName: 'programs', itemId: String(opId), itemData: prog });
+    enqueueSyncAction('SAVE_SUB_ITEM', {
+      clientId: String(cid),
+      collectionName: 'programs',
+      itemId: String(opId),
+      itemData: prog,
+      counterUpdates: {
+        programsCount: nextProgs.length,
+        installationsCount: targetClient.installationsCount,
+        programNames: targetClient.programNames,
+        programs: nextProgs
+      }
+    });
   } else {
-    targetClient.contactHistory = targetClient.contactHistory || [];
+    const nextContacts = [...(targetClient.contactHistory || [])];
     const cont = {
       id: opId,
       type: 'خدمة/أخرى',
@@ -590,8 +613,8 @@ export async function resolveReviewItem(tenantId, itemId, resolution) {
       trelloChecklistItemId: itemId,
       lastModifiedBy: 'trello'
     };
-    targetClient.contactHistory.push(cont);
-    targetClient.lastContact = today;
+    nextContacts.push(cont);
+    targetClient = { ...targetClient, contactHistory: nextContacts, lastContact: today };
     if (serverAdminRepo && typeof serverAdminRepo.saveClientSubItem === 'function') {
       await serverAdminRepo.saveClientSubItem(tenantId, String(cid), 'contacts', String(opId), cont);
     }
@@ -602,7 +625,7 @@ export async function resolveReviewItem(tenantId, itemId, resolution) {
     await serverAdminRepo.upsertClient(tenantId, String(cid), targetClient);
   }
   if (typeof setClients === 'function' && Array.isArray(clients)) {
-    setClients([...clients]);
+    setClients(clients.map(c => String(c.id) === String(cid) ? targetClient : c));
   }
   await deleteReviewItem(tenantId, itemId);
 

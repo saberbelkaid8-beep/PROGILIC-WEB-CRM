@@ -21,8 +21,11 @@ export function validateClient(c) {
     'id', 'fullName', 'status', 'phone', 'gmailAccount', 'company', 'wilaya', 'commune',
     'location', 'businessType', 'businessField', 'startDate', 'endDate', 'lastContact',
     'notes', 'gps', 'score', 'openIssuesCount', 'requirementsCount', 'programsCount',
-    'installationsCount', 'updatedAt', '_subcollectionsLoaded', 'version', 'programNames',
-    'firestoreId', 'category', 'registrationChannel', 'deviceType', 'creatorRole', 'creatorEmail'
+    'installationsCount', 'updatedAt', 'createdAt', '_subcollectionsLoaded', 'version',
+    'programNames', 'firestoreId', 'category', 'registrationChannel', 'deviceType',
+    'creatorRole', 'creatorEmail', 'source', 'urgentIssuesCount', 'trelloCardId',
+    'trelloListId', 'trelloSyncStatus', 'trelloLastSyncedAt', 'trelloOriginCard',
+    'trelloChecklistItemId', 'lastModifiedBy'
   ];
   const doc = Object.fromEntries(allowedFields
     .filter(field => Object.hasOwn(c, field))
@@ -48,7 +51,8 @@ export function validateProgram(p) {
   }
   const allowedFields = [
     'id', 'programName', 'platform', 'type', 'version', 'installationsCount',
-    'startDate', 'endDate', 'clientId', 'notes', 'createdAt', 'updatedAt'
+    'startDate', 'endDate', 'clientId', 'notes', 'createdAt', 'updatedAt',
+    'source', 'trelloChecklistItemId', 'lastModifiedBy'
   ];
   if (Object.keys(p).some(field => !allowedFields.includes(field))) {
     throw new TypeError('Program contains unsupported fields; the record requires manual review.');

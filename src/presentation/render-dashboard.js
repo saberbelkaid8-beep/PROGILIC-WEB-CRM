@@ -5,7 +5,7 @@
 
 import { S, clients, staffUsers, isGerant, hasPermission } from '../state/store.js';
 import { computeScore, computeRiskProfile, computeAlerts } from '../business/intelligence.js';
-import { esc, isClientAtRisk, getProgramStats } from '../utils/index.js';
+import { esc, isClientAtRisk, getProgramStats, deduplicateClientLicenses } from '../utils/index.js';
 import { t } from '../utils/i18n.js';
 import { DEPARTMENTS } from '../business/employeeService.js';
 
@@ -318,8 +318,9 @@ export function renderDashboard() {
   const prospectiveClients = cl.filter(c => c.status === 'محتمل').length;
   const stoppedClients = cl.filter(c => c.status === 'متوقف').length;
 
-  // 1. Programs & Devices
-  let totalPrograms = 0;
+  // 1. Programs & Devices (100% parity with Licenses Explorer via shared deduplicator + normalized platforms)
+  const dedupedLicenses = deduplicateClientLicenses(cl);
+  let totalPrograms = dedupedLicenses.length;
   let totalLicensedDevices = 0;
   let activeProgramsCount = 0;
   let expiringSoonCount = 0;
@@ -328,45 +329,47 @@ export function renderDashboard() {
   const platformCounts = { Desktop: 0, Mobile: 0, Web: 0 };
   const expiringContracts30 = [];
   const expiringContracts7 = [];
+  const clientById = new Map(cl.map(c => [String(c.id), c]));
 
   const now = Date.now();
   const DAY = 86400000;
 
-  cl.forEach(c => {
-    const progs = c.programs || [];
-    totalPrograms += progs.length || Number(c.programsCount) || (c.programNames?.length || 0);
-    
-    progs.forEach(p => {
-      const inst = Number(p.installationsCount);
-      if (Number.isFinite(inst) && inst > 0) totalLicensedDevices += inst;
-      
-      // Determine version or clean program name
-      const vName = (p.version || '').trim().toUpperCase();
-      if (vName) programVersions[vName] = (programVersions[vName] || 0) + 1;
+  dedupedLicenses.forEach(p => {
+    const inst = Number(p.installationsCount);
+    if (Number.isFinite(inst) && inst > 0) totalLicensedDevices += inst;
 
-      const plat = p.platform;
-      if (platformCounts[plat] !== undefined) {
-        platformCounts[plat] += 1;
-      }
+    const vName = (p.version || '').trim().toUpperCase();
+    if (vName) programVersions[vName] = (programVersions[vName] || 0) + 1;
 
-      if (p.endDate) {
-        const endTimestamp = new Date(p.endDate + 'T00:00').getTime();
-        if (Number.isFinite(endTimestamp)) {
-          const dl = Math.floor((endTimestamp - now) / DAY);
-          if (dl < 0) {
-            expiredProgramsCount++;
-          } else if (dl <= 30) {
-            expiringSoonCount++;
-            expiringContracts30.push({ client: c, prog: p, daysLeft: dl });
-            if (dl <= 7) expiringContracts7.push({ client: c, prog: p, daysLeft: dl });
-          } else {
-            activeProgramsCount++;
-          }
+    const plat = p.normalizedPlatform || p.platform;
+    if (platformCounts[plat] !== undefined) {
+      platformCounts[plat] += 1;
+    }
+
+    if (p.endDate) {
+      const endTimestamp = new Date(p.endDate + 'T00:00').getTime();
+      if (Number.isFinite(endTimestamp)) {
+        const dl = Math.floor((endTimestamp - now) / DAY);
+        const ownerClient = clientById.get(String(p.clientId)) || { id: p.clientId, fullName: p.clientName, wilaya: p.clientWilaya };
+        if (dl < 0) {
+          expiredProgramsCount++;
+        } else if (dl <= 30) {
+          expiringSoonCount++;
+          expiringContracts30.push({ client: ownerClient, prog: p, daysLeft: dl });
+          if (dl <= 7) expiringContracts7.push({ client: ownerClient, prog: p, daysLeft: dl });
+        } else {
+          activeProgramsCount++;
         }
       }
-    });
+    }
+  });
 
-    if (progs.length === 0) {
+  // Include legacy summary counts only when subcollections are NOT loaded yet
+  cl.forEach(c => {
+    const progs = Array.isArray(c.programs) ? c.programs : [];
+    if (!c._subcollectionsLoaded && progs.length === 0) {
+      const summaryPrograms = Number(c.programsCount) || (c.programNames?.length || 0);
+      if (summaryPrograms > 0) totalPrograms += summaryPrograms;
       const summaryInstallations = Number(c.installationsCount);
       if (Number.isFinite(summaryInstallations) && summaryInstallations > 0) totalLicensedDevices += summaryInstallations;
     }
@@ -763,6 +766,10 @@ export function renderDashboard() {
             </button>
           ` : ''}
         </div>
+
+        <button class="db-btn" onclick="recoverMissingProgramsAndSyncCRM()" style="background:var(--primary);color:#fff" title="${t('استرجاع ومزامنة البرامج والعملاء المفقودين من التايم لاين')}">
+          📦 ${t('استرجاع ومزامنة البرامج')}
+        </button>
 
         <button class="db-btn" onclick="exportDashboardReport()">
           ${ic('download', 17)} ${t('تصدير التقرير')}

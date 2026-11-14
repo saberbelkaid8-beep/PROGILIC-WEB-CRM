@@ -39,9 +39,21 @@ const MIME_TYPES = {
   '.ttf': 'font/ttf'
 };
 
+function applySecurityHeaders(res, isApi = false) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (isApi) {
+    res.setHeader('Cache-Control', 'no-store');
+  }
+}
+
+const FORBIDDEN_STATIC_PATTERN = /(^|\/)assets\/aistudio(\/|$)|\.(md|pdf|log|bak|map)$|^\/firebase-applet-config\.json$/i;
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
+  applySecurityHeaders(res, pathname.startsWith('/api/'));
 
   // 1a. Liveness Endpoints (/health and /livez) - Process alive probe
   if (pathname === '/health' || pathname === '/livez') {
@@ -178,20 +190,23 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     try {
-      const token = extractBearerToken(req.headers) || parsedUrl.searchParams.get('token');
+      const token = extractBearerToken(req.headers);
       if (!token) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'UNAUTHENTICATED', message: 'Missing Bearer ID token.' }));
+        res.end(JSON.stringify({ error: 'UNAUTHENTICATED', message: 'Missing Bearer ID token in Authorization header.' }));
         return;
       }
       const decoded = await verifyFirebaseIdToken(token);
       assertTrelloAuthorizedPrincipal(decoded, process.env);
 
-      const returnUrl = parsedUrl.searchParams.get('returnUrl') || '/';
+      const rawReturnUrl = parsedUrl.searchParams.get('returnUrl') || '/';
+      const safeReturnUrl = (rawReturnUrl.startsWith('/') && !rawReturnUrl.startsWith('//') && !rawReturnUrl.includes('\\'))
+        ? rawReturnUrl
+        : '/';
       const oauthData = initiateTrelloOAuth({
         uid: decoded.uid,
         email: decoded.email,
-        returnUrl
+        returnUrl: safeReturnUrl
       }, process.env);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -199,7 +214,7 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       const status = err.status || 500;
       res.writeHead(status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message || 'INTERNAL_SERVER_ERROR' }));
+      res.end(JSON.stringify({ error: status >= 500 ? 'INTERNAL_SERVER_ERROR' : (err.message || 'REQUEST_REJECTED') }));
     }
     return;
   }
@@ -211,7 +226,11 @@ const server = http.createServer(async (req, res) => {
       const result = await handleTrelloOAuthCallback(queryParams, process.env);
 
       // Successfully authorized and bound to single account progilicservice@gmail.com
-      const redirectTarget = new URL(result.returnUrl || '/', `http://${req.headers.host || 'localhost'}`);
+      const rawReturn = String(result.returnUrl || '/');
+      const safeReturnPath = (rawReturn.startsWith('/') && !rawReturn.startsWith('//') && !rawReturn.includes('\\'))
+        ? rawReturn
+        : '/';
+      const redirectTarget = new URL(safeReturnPath, `http://${req.headers.host || 'localhost'}`);
       redirectTarget.searchParams.set('trello_auth', 'success');
       if (result.member && result.member.username) {
         redirectTarget.searchParams.set('trello_user', result.member.username);
@@ -222,7 +241,7 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       const status = err.status || 500;
       res.writeHead(status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message || 'OAUTH_CALLBACK_FAILED' }));
+      res.end(JSON.stringify({ error: status >= 500 ? 'OAUTH_CALLBACK_FAILED' : (err.message || 'OAUTH_CALLBACK_FAILED') }));
     }
     return;
   }
@@ -251,10 +270,18 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const parsed = JSON.parse(body || '{}');
+      const promptContent = typeof parsed.prompt === 'string' && parsed.prompt.trim()
+        ? parsed.prompt
+        : (typeof parsed.userMessage === 'string' && parsed.userMessage.trim() ? parsed.userMessage : '');
+      if (!promptContent) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'INVALID_AI_PROMPT' }));
+        return;
+      }
       const ai = new GoogleGenAI({ apiKey, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: parsed.prompt || '',
+        contents: promptContent,
         config: {
           responseMimeType: 'application/json'
         }
@@ -264,7 +291,7 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       const status = err.status || 500;
       res.writeHead(status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message || 'INTERNAL_SERVER_ERROR' }));
+      res.end(JSON.stringify({ error: status >= 500 ? 'INTERNAL_SERVER_ERROR' : (err.message || 'REQUEST_REJECTED') }));
     }
     return;
   }
@@ -276,12 +303,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 6. Static Asset Serving (dist/) with SPA Fallback
+  // 6. Static Asset Serving (dist/) with Forbidden Artifact Guard & SPA Fallback
   if (req.method === 'GET' || req.method === 'HEAD') {
-    let filePath = path.join(DIST_DIR, pathname === '/' ? 'index.html' : pathname);
+    const hasDotSegment = pathname.split('/').some(seg => seg.startsWith('.'));
+    if (hasDotSegment || FORBIDDEN_STATIC_PATTERN.test(pathname)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
+    }
+
+    let filePath = path.resolve(DIST_DIR, pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, ''));
 
     // Prevent directory traversal
-    if (!filePath.startsWith(DIST_DIR)) {
+    if (filePath !== DIST_DIR && !filePath.startsWith(DIST_DIR + path.sep)) {
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('Forbidden');
       return;

@@ -71,7 +71,7 @@ import { cOpts, programTypeOpts, updateProgramTypeSelect } from '../utils/index.
 
 function renderClientModal(){
   const isEdit=S.modal==='editClient';
-  let c={};if(isEdit)c=clients.find(x=>x.id===S.selId)||{};
+  let c={};if(isEdit)c=clients.find(x=>x.id===S.selId || String(x.id) === String(S.selId))||{};
   const curStatus = c.status || (isEdit ? '' : 'نشط');
   return`
     <div class="mhdr">
@@ -150,7 +150,7 @@ function renderClientModal(){
 
 function renderProgramModal(){
   const isEdit=S.modal==='editProgram';
-  const cid=S.selId;const c=clients.find(x=>x.id===cid);if(!c)return'';
+  const cid=S.selId;const c=clients.find(x=>x.id===cid || String(x.id) === String(cid));if(!c)return'';
   let p={};
   if(isEdit){const eid=S.form.eid;p=c.programs.find(x=>x.id===eid)||{};}
   const curPlat = p.platform || '';
@@ -199,7 +199,7 @@ function renderProgramModal(){
 
 function renderIssueModal(){
   const isEdit=S.modal==='editIssue';
-  const cid=S.selId;const c=clients.find(x=>x.id===cid);if(!c)return'';
+  const cid=S.selId;const c=clients.find(x=>x.id===cid || String(x.id) === String(cid));if(!c)return'';
   let i={};if(isEdit){const eid=S.form.eid;i=c.issues.find(x=>x.id===eid)||{};}
   return`
     <div class="mhdr">
@@ -244,7 +244,7 @@ function renderIssueModal(){
 
 function renderReqModal(){
   const isEdit=S.modal==='editReq';
-  const cid=S.selId;const c=clients.find(x=>x.id===cid);if(!c)return'';
+  const cid=S.selId;const c=clients.find(x=>x.id===cid || String(x.id) === String(cid));if(!c)return'';
   let r={};if(isEdit){const eid=S.form.eid;r=c.requirements.find(x=>x.id===eid)||{};}
   return`
     <div class="mhdr">

@@ -75,7 +75,7 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية إضافة برامج وتراخيص جديدة.'), 'error');
     return;
   }
-  if (m === 'editProg' && !hasPermission('programs.edit')) {
+  if ((m === 'editProg' || m === 'editProgram') && !hasPermission('programs.edit')) {
     showToast(t('⚠️ لا تملك صلاحية تعديل البرامج والتراخيص.'), 'error');
     return;
   }
@@ -91,7 +91,7 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية تسجيل متطلبات أو ميزات جديدة.'), 'error');
     return;
   }
-  if (m === 'editRequirement' && !hasPermission('features.edit')) {
+  if ((m === 'editRequirement' || m === 'editReq') && !hasPermission('features.edit')) {
     showToast(t('⚠️ لا تملك صلاحية تعديل متطلبات التطوير.'), 'error');
     return;
   }
@@ -103,7 +103,11 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية استعراض النسخ الاحتياطية.'), 'error');
     return;
   }
-  if (m === 'editStaffMember' && !isGerant() && !hasPermission('users.edit') && !hasPermission('users.create')) {
+  if (m === 'dbPurge' && !isGerant()) {
+    showToast(t('⚠️ تطهير قاعدة البيانات محجوز حصرياً للرئيس (Gérant).'), 'error');
+    return;
+  }
+  if ((m === 'editStaffMember' || m === 'addEmployee') && !isGerant() && !hasPermission('users.edit') && !hasPermission('users.create')) {
     showToast(t('⚠️ تعديل وإضافة المستخدمين محجوز حصرياً للرئيس (Gérant).'), 'error');
     return;
   }
@@ -307,6 +311,41 @@ export function exportLicensesCSV() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast(t('تم تصدير تقرير التراخيص بنجاح'));
+}
+
+export function exportLicensedClientsSummary() {
+  if (!isGerant() && !hasPermission('clients.export') && !hasPermission('reports.export') && !hasPermission('reports.view')) {
+    showToast(t('⚠️ ليس لديك صلاحية تصدير ملخص العملاء المرخصين.'), 'error');
+    return;
+  }
+  const dateStr = new Date().toISOString().split('T')[0];
+  const licensedClients = (clients || []).filter(c => Array.isArray(c?.programs) && c.programs.length > 0);
+  let csv = '\uFEFFاسم العميل,المؤسسة,الولاية,الهاتف,الحالة,البرامج المشترك فيها,إجمالي الأجهزة\n';
+
+  licensedClients.forEach(c => {
+    const progList = c.programs.map(p => p.programName || [p.platform, p.type, p.version].filter(Boolean).join(' ')).filter(Boolean).join(' + ');
+    const devices = getProgramStats(c).totalInstalls;
+    csv += [
+      formatCsvCell(c.fullName || ''),
+      formatCsvCell(c.company || ''),
+      formatCsvCell(c.wilaya || ''),
+      formatCsvCell(c.phone || ''),
+      formatCsvCell(c.status || ''),
+      formatCsvCell(progList),
+      devices
+    ].join(',') + '\n';
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `progilic-licensed-clients-${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(t('تم تصدير ملخص العملاء أصحاب التراخيص بنجاح'));
 }
 
 export function exportGeoReport() {

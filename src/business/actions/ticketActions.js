@@ -33,19 +33,23 @@ export async function saveContact() {
   if (!note.trim()) { showToast(t('الرجاء إدخال ملاحظة التواصل'), 'error'); return; }
   
   const c = gc(); if (!c) return;
-  if (!Array.isArray(c.contactHistory)) c.contactHistory = [];
-  
+  const currentHistory = Array.isArray(c.contactHistory) ? c.contactHistory : [];
+
   const entryId = Date.now();
   const entry = { id: entryId, date, note: note.trim() };
-  
-  const updatedHistory = [...c.contactHistory, entry];
+
+  const updatedHistory = [...currentHistory, entry];
   const latest = updatedHistory.reduce((m, h) => h.date > m ? h.date : m, '');
-  
-  // Optimistic Local Update
-  c.contactHistory.push(entry);
-  if (latest) c.lastContact = latest;
-  setClients([...clients]);
-  
+
+  // Optimistic Immutable Local Update
+  const updatedClient = {
+    ...c,
+    contactHistory: updatedHistory,
+    lastContact: latest || c.lastContact,
+    _subcollectionsLoaded: true
+  };
+  setClients(clients.map(x => String(x.id) === String(c.id) ? updatedClient : x));
+
   // Enqueue Sync Action
   enqueueSyncAction('SAVE_SUB_ITEM', {
     clientId: String(c.id),
@@ -57,9 +61,9 @@ export async function saveContact() {
   });
 
   // Log timeline activity
-  logActivity(c.id, ActivityType.CONTACT_ADDED, "تسجيل تواصل", `تم تسجيل تواصل جديد بتاريخ ${entry.date}. الملاحظة: "${entry.note}".`)
+  logActivity(c.id, ActivityType.CONTACT_ADDED, "تسجيل تواصل", `تم تسجيل تواصل جديد بتاريخ ${entry.date}. الملاحظة: "${entry.note}".`, 'online-crm')
     .catch(err => console.error(err));
-  
+
   S.tab = 'contacts';
   closeModal();
 }
@@ -69,24 +73,28 @@ export async function delContact(cid, hid) {
     showToast(t('⚠️ لا تملك صلاحية حذف سجلات التواصل.'), 'error');
     return;
   }
-  const confirmMsg = S.lang === 'fr' 
+  const confirmMsg = S.lang === 'fr'
     ? 'Êtes-vous certain de vouloir supprimer cet enregistrement ?'
-    : (S.lang === 'en' 
+    : (S.lang === 'en'
       ? 'Are you sure you want to permanently delete this contact record?'
       : 'هل أنت متأكد من حذف هذا السجل نهائياً؟');
   const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
-  const c = clients.find(x => x.id === cid); if (!c) return;
-  
-  const chToDelete = (c.contactHistory || []).find(h => h.id === hid);
-  const nextHistory = (c.contactHistory || []).filter(h => h.id !== hid);
+  const c = clients.find(x => String(x.id) === String(cid)); if (!c) return;
+
+  const chToDelete = (c.contactHistory || []).find(h => String(h.id) === String(hid));
+  const nextHistory = (c.contactHistory || []).filter(h => String(h.id) !== String(hid));
   const latest = nextHistory.reduce((m, h) => h.date > m ? h.date : m, '');
-  
-  // Optimistic Update
-  c.contactHistory = nextHistory;
-  c.lastContact = latest || '';
-  setClients([...clients]);
-  
+
+  // Optimistic Immutable Update
+  const updatedClient = {
+    ...c,
+    contactHistory: nextHistory,
+    lastContact: latest || '',
+    _subcollectionsLoaded: true
+  };
+  setClients(clients.map(x => String(x.id) === String(cid) ? updatedClient : x));
+
   // Enqueue Sync Action
   enqueueSyncAction('DELETE_SUB_ITEM', {
     clientId: String(cid),
@@ -98,9 +106,9 @@ export async function delContact(cid, hid) {
 
   // Log timeline activity
   const dateStr = chToDelete ? chToDelete.date : '';
-  logActivity(cid, ActivityType.CONTACT_DELETED, "حذف سجل تواصل", `تم إزالة سجل تواصل بتاريخ ${dateStr} من أرشيف العميل.`)
+  logActivity(cid, ActivityType.CONTACT_DELETED, "حذف سجل تواصل", `تم إزالة سجل تواصل بتاريخ ${dateStr} من أرشيف العميل.`, 'online-crm')
     .catch(err => console.error(err));
-  
+
   R();
 }
 
@@ -161,16 +169,15 @@ export async function saveIssue(editId) {
   if (rc >= 3 && src !== 'سوء استخدام') d.featureOpp = true;
 
 
-  if (!Array.isArray(c.issues)) c.issues = [];
-
-  let nextIssues = [...c.issues];
+  const currentIssues = Array.isArray(c.issues) ? c.issues : [];
+  let nextIssues = [...currentIssues];
   const stats = { ...(S.stats || {}) };
-  const oldOpenCount = c.issues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
+  const oldOpenCount = currentIssues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
 
   if (eid !== null) {
-    const i = nextIssues.findIndex(x => x.id === eid);
+    const i = nextIssues.findIndex(x => String(x.id) === String(eid));
     if (i > -1) {
-      d.id = eid;
+      d.id = nextIssues[i].id;
       nextIssues[i] = { ...nextIssues[i], ...d };
     }
   } else {
@@ -184,11 +191,16 @@ export async function saveIssue(editId) {
   const tempClient = { ...c, issues: nextIssues };
   const nextScore = computeScore(tempClient).total;
 
-  // Optimistic Local Update
-  c.issues = nextIssues;
-  c.score = nextScore;
+  // Optimistic Immutable Local Update
+  const updatedClient = {
+    ...c,
+    issues: nextIssues,
+    openIssuesCount: nextOpenCount,
+    score: nextScore,
+    _subcollectionsLoaded: true
+  };
   S.stats = stats;
-  setClients([...clients]);
+  setClients(clients.map(x => String(x.id) === String(c.id) ? updatedClient : x));
 
   // Enqueue Sync Action
   enqueueSyncAction('SAVE_SUB_ITEM', {
@@ -196,7 +208,7 @@ export async function saveIssue(editId) {
     collectionName: 'issues',
     itemId: String(d.id),
     itemData: d,
-    counterUpdates: { 
+    counterUpdates: {
       openIssuesCount: nextOpenCount,
       score: nextScore
     },
@@ -205,10 +217,10 @@ export async function saveIssue(editId) {
 
   // Log timeline activity
   if (eid !== null) {
-    logActivity(c.id, ActivityType.ISSUE_EDITED, "تعديل تذكرة مشكلة", `تم تعديل تذكرة المشكلة: "${d.title}".`)
+    logActivity(c.id, ActivityType.ISSUE_EDITED, "تعديل تذكرة مشكلة", `تم تعديل تذكرة المشكلة: "${d.title}".`, 'online-crm')
       .catch(err => console.error(err));
   } else {
-    logActivity(c.id, ActivityType.ISSUE_ADDED, "تسجيل مشكلة جديدة", `تم تسجيل مشكلة بعنوان: "${d.title}" وبأولوية (${d.priority}).`)
+    logActivity(c.id, ActivityType.ISSUE_ADDED, "تسجيل مشكلة جديدة", `تم تسجيل مشكلة بعنوان: "${d.title}" وبأولوية (${d.priority}).`, 'online-crm')
       .catch(err => console.error(err));
   }
 
@@ -231,24 +243,32 @@ export async function markSolved(cid, iid) {
       ? 'E.g.: Software updated and new license installed'
       : 'مثال: تم تحديث البرنامج وتثبيت رخصة جديدة');
   const sol = await showPrompt(promptMsg, t('حل التذكرة'), '', promptPlaceholder); if (sol === null) return;
-  const c = clients.find(x => x.id === cid); if (!c) return;
-  const iss = (c.issues || []).find(x => x.id === iid); if (!iss) return;
+  const c = clients.find(x => String(x.id) === String(cid)); if (!c) return;
+  const currentIssues = Array.isArray(c.issues) ? c.issues : [];
+  const iss = currentIssues.find(x => String(x.id) === String(iid)); if (!iss) return;
 
   const updatedIssue = { ...iss, status: 'محلول', solution: sol || t('تم الحل') };
-  const nextIssues = c.issues.map(i => i.id === iid ? updatedIssue : i);
+  const nextIssues = currentIssues.map(i => String(i.id) === String(iid) ? updatedIssue : i);
   const nextOpenCount = nextIssues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
 
   const stats = { ...(S.stats || {}) };
-  stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) - 1);
+  if (iss.status === 'مفتوح' || iss.status === 'قيد المعالجة') {
+    stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) - 1);
+  }
 
   const tempClient = { ...c, issues: nextIssues };
   const nextScore = computeScore(tempClient).total;
 
-  // Optimistic Local Update
-  c.issues = nextIssues;
-  c.score = nextScore;
+  // Optimistic Immutable Local Update
+  const updatedClient = {
+    ...c,
+    issues: nextIssues,
+    openIssuesCount: nextOpenCount,
+    score: nextScore,
+    _subcollectionsLoaded: true
+  };
   S.stats = stats;
-  setClients([...clients]);
+  setClients(clients.map(x => String(x.id) === String(cid) ? updatedClient : x));
 
   // Enqueue Sync Action
   enqueueSyncAction('SAVE_SUB_ITEM', {
@@ -264,7 +284,7 @@ export async function markSolved(cid, iid) {
   });
 
   // Log timeline activity
-  logActivity(cid, ActivityType.ISSUE_RESOLVED, "حل تذكرة مشكلة", `تم وضع علامة "محلول" على المشكلة: "${iss.title}". وصف الحل: "${sol || 'تم تقديم الدعم وحل المشكلة.'}"`)
+  logActivity(cid, ActivityType.ISSUE_RESOLVED, "حل تذكرة مشكلة", `تم وضع علامة "محلول" على المشكلة: "${iss.title}". وصف الحل: "${sol || 'تم تقديم الدعم وحل المشكلة.'}"`, 'online-crm')
     .catch(err => console.error(err));
 
   R();
@@ -282,11 +302,12 @@ export async function delIssue(cid, iid) {
       : 'هل أنت متأكد من حذف هذه المشكلة نهائياً؟');
   const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
-  const c = clients.find(x => x.id === cid); if (!c) return;
-  const issToDelete = (c.issues || []).find(i => i.id === iid);
+  const c = clients.find(x => String(x.id) === String(cid)); if (!c) return;
+  const currentIssues = Array.isArray(c.issues) ? c.issues : [];
+  const issToDelete = currentIssues.find(i => String(i.id) === String(iid));
   if (!issToDelete) return;
 
-  const nextIssues = c.issues.filter(i => i.id !== iid);
+  const nextIssues = currentIssues.filter(i => String(i.id) !== String(iid));
   const nextOpenCount = nextIssues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
 
   const stats = { ...(S.stats || {}) };
@@ -297,11 +318,16 @@ export async function delIssue(cid, iid) {
   const tempClient = { ...c, issues: nextIssues };
   const nextScore = computeScore(tempClient).total;
 
-  // Optimistic Local Update
-  c.issues = nextIssues;
-  c.score = nextScore;
+  // Optimistic Immutable Local Update
+  const updatedClient = {
+    ...c,
+    issues: nextIssues,
+    openIssuesCount: nextOpenCount,
+    score: nextScore,
+    _subcollectionsLoaded: true
+  };
   S.stats = stats;
-  setClients([...clients]);
+  setClients(clients.map(x => String(x.id) === String(cid) ? updatedClient : x));
 
   // Enqueue Sync Action
   enqueueSyncAction('DELETE_SUB_ITEM', {
@@ -316,7 +342,7 @@ export async function delIssue(cid, iid) {
   });
 
   // Log timeline activity
-  logActivity(cid, ActivityType.ISSUE_DELETED, "حذف تذكرة مشكلة", `تم إزالة تذكرة المشكلة نهائياً: "${issToDelete.title}".`)
+  logActivity(cid, ActivityType.ISSUE_DELETED, "حذف تذكرة مشكلة", `تم إزالة تذكرة المشكلة نهائياً: "${issToDelete.title}".`, 'online-crm')
     .catch(err => console.error(err));
 
   R();
@@ -336,7 +362,7 @@ export async function saveReq(editId) {
   }
   const title = gv('fr_t'); if (!title) { showToast(t('الرجاء إدخال عنوان الطلب'), 'error'); return; }
   const c = gc(); if (!c) return;
-  
+
   const d = {
     title,
     type: gv('fr_ty') || 'ميزة جديدة',
@@ -347,14 +373,12 @@ export async function saveReq(editId) {
     notes: gv('fr_no')
   };
 
-
-  if (!Array.isArray(c.requirements)) c.requirements = [];
-
-  let nextReqs = [...c.requirements];
+  const currentReqs = Array.isArray(c.requirements) ? c.requirements : [];
+  let nextReqs = [...currentReqs];
   if (eid !== null) {
-    const i = nextReqs.findIndex(x => x.id === eid);
+    const i = nextReqs.findIndex(x => String(x.id) === String(eid));
     if (i > -1) {
-      d.id = eid;
+      d.id = nextReqs[i].id;
       nextReqs[i] = { ...nextReqs[i], ...d };
     }
   } else {
@@ -362,9 +386,14 @@ export async function saveReq(editId) {
     nextReqs.push(d);
   }
 
-  // Optimistic Local Update
-  c.requirements = nextReqs;
-  setClients([...clients]);
+  // Optimistic Immutable Local Update
+  const updatedClient = {
+    ...c,
+    requirements: nextReqs,
+    requirementsCount: nextReqs.length,
+    _subcollectionsLoaded: true
+  };
+  setClients(clients.map(x => String(x.id) === String(c.id) ? updatedClient : x));
 
   // Enqueue Sync Action
   enqueueSyncAction('SAVE_SUB_ITEM', {
@@ -378,10 +407,10 @@ export async function saveReq(editId) {
 
   // Log timeline activity
   if (eid !== null) {
-    logActivity(c.id, ActivityType.REQUIREMENT_EDITED, "تعديل طلب ميزة", `تم تحديث متطلب الميزة: "${d.title}".`)
+    logActivity(c.id, ActivityType.REQUIREMENT_EDITED, "تعديل طلب ميزة", `تم تحديث متطلب الميزة: "${d.title}".`, 'online-crm')
       .catch(err => console.error(err));
   } else {
-    logActivity(c.id, ActivityType.REQUIREMENT_ADDED, "تسجيل متطلب جديد", `تم تسجيل متطلب ميزة جديد: "${d.title}" بتأثير (${d.impact}).`)
+    logActivity(c.id, ActivityType.REQUIREMENT_ADDED, "تسجيل متطلب جديد", `تم تسجيل متطلب ميزة جديد: "${d.title}" بتأثير (${d.impact}).`, 'online-crm')
       .catch(err => console.error(err));
   }
 
@@ -400,14 +429,20 @@ export async function delReq(cid, rid) {
       : 'هل أنت متأكد من حذف هذا الطلب نهائياً؟');
   const confirmed = await showConfirm(confirmMsg, t('تأكيد الحذف'));
   if (!confirmed) return;
-  const c = clients.find(x => x.id === cid); if (!c) return;
+  const c = clients.find(x => String(x.id) === String(cid)); if (!c) return;
 
-  const reqToDelete = (c.requirements || []).find(r => r.id === rid);
-  const nextReqs = (c.requirements || []).filter(r => r.id !== rid);
+  const currentReqs = Array.isArray(c.requirements) ? c.requirements : [];
+  const reqToDelete = currentReqs.find(r => String(r.id) === String(rid));
+  const nextReqs = currentReqs.filter(r => String(r.id) !== String(rid));
 
-  // Optimistic Local Update
-  c.requirements = nextReqs;
-  setClients([...clients]);
+  // Optimistic Immutable Local Update
+  const updatedClient = {
+    ...c,
+    requirements: nextReqs,
+    requirementsCount: nextReqs.length,
+    _subcollectionsLoaded: true
+  };
+  setClients(clients.map(x => String(x.id) === String(cid) ? updatedClient : x));
 
   // Enqueue Sync Action
   enqueueSyncAction('DELETE_SUB_ITEM', {
@@ -419,7 +454,7 @@ export async function delReq(cid, rid) {
   });
 
   // Log timeline activity
-  logActivity(cid, ActivityType.REQUIREMENT_DELETED, "حذف طلب متطلب", `تم إزالة طلب المتطلب "${reqToDelete.title}" من حساب العميل.`)
+  logActivity(cid, ActivityType.REQUIREMENT_DELETED, "حذف طلب متطلب", `تم إزالة طلب المتطلب "${reqToDelete?.title || ''}" من حساب العميل.`, 'online-crm')
     .catch(err => console.error(err));
 
   R();
