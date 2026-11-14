@@ -488,12 +488,21 @@ export async function saveClientSubItemTransaction(userId, clientId, collectionN
         tx.set(clientRef, clientRecord);
         tx.set(itemRef, itemData, { merge: true });
       } else {
+        const existingClient = typeof clientSnapshot?.data === 'function'
+          ? clientSnapshot.data()
+          : {};
+        const clientRecord = validateClient({
+          ...existingClient,
+          ...clientPatch,
+          id: Number(existingClient.id ?? recoveryClient?.id ?? clientId)
+        });
+        ['programs', 'issues', 'requirements', 'contactHistory'].forEach(field => {
+          const records = existingClient[field] ?? recoveryClient?.[field];
+          if (Array.isArray(records)) clientRecord[field] = records;
+        });
+
+        tx.set(clientRef, clientRecord);
         tx.set(itemRef, itemData, { merge: true });
-        if (typeof tx.update === 'function') {
-          tx.update(clientRef, clientPatch);
-        } else {
-          tx.set(clientRef, clientPatch, { merge: true });
-        }
       }
 
       // Update global pre-aggregated counters

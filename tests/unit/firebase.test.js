@@ -388,6 +388,42 @@ describe('Firebase Service', () => {
     );
   });
 
+  it('removes unsupported legacy client fields when saving a license and retains embedded records', async () => {
+    const existingProgram = { id: 700, programName: 'Existing ERP' };
+    mockTxOps.get.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        id: 101,
+        fullName: 'Legacy customer',
+        status: 'نشط',
+        legacyUnsupportedField: 'old-value',
+        programs: [existingProgram]
+      })
+    });
+
+    await saveClientSubItemTransaction(
+      'test-uid',
+      '101',
+      'programs',
+      '701',
+      { id: 701, programName: 'New ERP', platform: 'Desktop', type: 'Commercial' },
+      { programsCount: 2 },
+      null
+    );
+
+    const clientWrite = mockTxOps.set.mock.calls.find(([reference]) =>
+      reference.path === 'users/test-uid/clients/101'
+    );
+    expect(clientWrite[1]).toMatchObject({
+      id: 101,
+      fullName: 'Legacy customer',
+      status: 'نشط',
+      programsCount: 2,
+      programs: [existingProgram]
+    });
+    expect(clientWrite[1]).not.toHaveProperty('legacyUnsupportedField');
+  });
+
   it('saveTenantActivitiesBatch commits 450 activities in 3 chunked writeBatch calls instead of 450 individual setDoc calls', async () => {
     const activities = Array.from({ length: 450 }, (_, idx) => ({
       id: `act_client_${idx + 1}`,

@@ -294,7 +294,8 @@ export async function saveProgram(editId) {
     );
   } catch (error) {
     console.error('[Programs] Failed to save license:', error);
-    showToast(t('تعذر حفظ الترخيص. لم يتم تسجيل العملية.'), 'error');
+    const errorCode = typeof error?.code === 'string' ? error.code : 'unknown';
+    showToast(`${t('تعذر حفظ الترخيص. لم يتم تسجيل العملية.')} (${errorCode})`, 'error');
     return;
   }
 
@@ -523,7 +524,8 @@ export async function saveClient(editId) {
       await addClientTransaction(tenantId, newClient, stats);
     } catch (error) {
       console.error('[Customers] Failed to save customer and initial license:', error);
-      showToast(t('تعذر حفظ العميل والترخيص. لم يتم تسجيل العملية.'), 'error');
+      const errorCode = typeof error?.code === 'string' ? error.code : 'unknown';
+      showToast(`${t('تعذر حفظ العميل والترخيص. لم يتم تسجيل العملية.')} (${errorCode})`, 'error');
       return;
     }
 
