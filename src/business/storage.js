@@ -531,6 +531,36 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 let activeUnsubscribers = [];
 let realtimeSyncGeneration = 0;
 
+function mergeLegacyProfileClients(cloudClients, profileClients) {
+  const mergedById = new Map();
+  const arrayFields = ['programs', 'issues', 'requirements', 'contactHistory'];
+
+  (Array.isArray(profileClients) ? profileClients : []).forEach(client => {
+    if (!client || typeof client !== 'object') return;
+    const sourceId = client.id ?? client.firestoreId;
+    if (sourceId === undefined || sourceId === null) return;
+    const numericId = Number(sourceId);
+    const id = Number.isSafeInteger(numericId) ? numericId : sourceId;
+    mergedById.set(String(id), { ...client, id, _subcollectionsLoaded: false });
+  });
+
+  (Array.isArray(cloudClients) ? cloudClients : []).forEach(client => {
+    if (!client || client.id === undefined || client.id === null) return;
+    const key = String(client.id);
+    const profileClient = mergedById.get(key);
+    const mergedClient = { ...profileClient, ...client };
+    arrayFields.forEach(field => {
+      if (Array.isArray(profileClient?.[field]) && profileClient[field].length > 0
+        && (!Array.isArray(client[field]) || client[field].length === 0)) {
+        mergedClient[field] = profileClient[field];
+      }
+    });
+    mergedById.set(key, mergedClient);
+  });
+
+  return Array.from(mergedById.values());
+}
+
 export function startRealtimeSync(userId) {
   stopRealtimeSync();
   userId = auth?.currentUser?.uid || userId;
@@ -545,10 +575,25 @@ export function startRealtimeSync(userId) {
 
   // 1. Listen to user profile document (for stats and next ID sequence)
   const userDocRef = doc(db, 'users', userId);
+  let latestClientSummaries = [];
+  let legacyProfileClients = [];
+  let receivedServerSnapshot = false;
+  const applyClientSnapshot = (hasPendingWrites = false) => {
+    const summaries = mergeLegacyProfileClients(latestClientSummaries, legacyProfileClients);
+    const mergedClients = mergeClientSyncState(summaries, clients, S.syncQueue || [], { isOnline: S.isOnline });
+    batch(() => {
+      setSyncing(hasPendingWrites);
+      setClients(mergedClients);
+      setLastSyncedTime(new Date());
+      setSaveError(false);
+    });
+    Promise.resolve(saveClients(userId, mergedClients)).catch(() => {});
+  };
   const unsubUser = onSnapshot(userDocRef, { includeMetadataChanges: true }, (snapshot) => {
     if (snapshot.metadata?.fromCache) return;
     if (snapshot.exists()) {
       const data = snapshot.data();
+      legacyProfileClients = Array.isArray(data.clients) ? data.clients : [];
       batch(() => {
         updateState({
           nid: data.nid || 100,
@@ -557,6 +602,7 @@ export function startRealtimeSync(userId) {
         setLastSyncedTime(new Date());
         setSyncing(snapshot.metadata.hasPendingWrites);
       });
+      if (receivedServerSnapshot) applyClientSnapshot(snapshot.metadata.hasPendingWrites);
     }
   }, (error) => {
     console.error("User profile snapshot listener error:", error);
@@ -565,11 +611,10 @@ export function startRealtimeSync(userId) {
 
   // 2. Listen to clients collection (real-time summaries)
   const clientsCollRef = collection(db, 'users', userId, 'clients');
-  let receivedServerSnapshot = false;
   const unsubClients = onSnapshot(clientsCollRef, { includeMetadataChanges: true }, (snapshot) => {
     if (snapshot.metadata?.fromCache) return;
     receivedServerSnapshot = true;
-    const summaries = snapshot.docs.map(docSnap => {
+    latestClientSummaries = snapshot.docs.map(docSnap => {
       const data = docSnap.data();
       const numericId = Number(docSnap.id);
       return {
@@ -584,16 +629,7 @@ export function startRealtimeSync(userId) {
         _subcollectionsLoaded: false
       };
     });
-
-    const mergedClients = mergeClientSyncState(summaries, clients, S.syncQueue || [], { isOnline: S.isOnline });
-
-    batch(() => {
-      setSyncing(snapshot.metadata.hasPendingWrites);
-      setClients(mergedClients);
-      setLastSyncedTime(new Date());
-      setSaveError(false);
-    });
-    Promise.resolve(saveClients(userId, mergedClients)).catch(() => {});
+    applyClientSnapshot(snapshot.metadata.hasPendingWrites);
   }, (error) => {
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
@@ -602,14 +638,8 @@ export function startRealtimeSync(userId) {
   getClientsFromServer(userId).then(serverClients => {
     if (generation !== realtimeSyncGeneration || receivedServerSnapshot) return;
     receivedServerSnapshot = true;
-    const mergedClients = mergeClientSyncState(serverClients, clients, S.syncQueue || [], { isOnline: S.isOnline });
-    batch(() => {
-      setClients(mergedClients);
-      setSyncing(false);
-      setLastSyncedTime(new Date());
-      setSaveError(false);
-    });
-    Promise.resolve(saveClients(userId, mergedClients)).catch(() => {});
+    latestClientSummaries = serverClients;
+    applyClientSnapshot(false);
   }).catch(error => {
     if (generation !== realtimeSyncGeneration) return;
     console.error('[Online Sync] Initial server refresh for clients failed:', error);

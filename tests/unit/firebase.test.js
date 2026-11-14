@@ -149,7 +149,6 @@ describe('Firebase Service', () => {
 
     await expect(getClientFromServer('test-uid', '12345')).resolves.toMatchObject({
       id: 12345,
-      _recoverySource: 'legacy-user-profile',
       programs: [{ id: 7 }]
     });
   });
@@ -251,6 +250,69 @@ describe('Firebase Service', () => {
     expect(listeners[1][1]).toEqual({ includeMetadataChanges: true });
 
     stopRealtimeSync();
+  });
+
+  it('keeps clients embedded in the legacy user profile when the clients collection is empty', async () => {
+    const { startRealtimeSync, stopRealtimeSync } = await import('../../src/business/storage.js');
+    const listeners = [];
+    const legacyClient = { id: 55, fullName: 'Profile-only customer', status: 'نشط' };
+    getDocsFromServer.mockResolvedValue({ docs: [] });
+    getDocFromServer.mockImplementation(async reference => reference.path === 'users/test-tenant'
+      ? { exists: () => true, data: () => ({ clients: [legacyClient] }) }
+      : { exists: () => false });
+    onSnapshot.mockImplementation((...args) => {
+      listeners.push(args);
+      return vi.fn();
+    });
+
+    startRealtimeSync('test-tenant');
+    listeners[0][2]({
+      metadata: { fromCache: false, hasPendingWrites: false },
+      exists: () => true,
+      data: () => ({ clients: [legacyClient] })
+    });
+    listeners[1][2]({
+      metadata: { fromCache: false, hasPendingWrites: false },
+      docs: []
+    });
+
+    expect(clients).toEqual([expect.objectContaining({
+      id: 55,
+      fullName: 'Profile-only customer'
+    })]);
+    stopRealtimeSync();
+  });
+
+  it('merges legacy profile clients with cloud records while preferring cloud fields', async () => {
+    const { getClientsFromServer } = await import('../../src/firebase/service.js');
+    getDocsFromServer.mockResolvedValue({
+      docs: [{
+        id: '101',
+        data: () => ({ id: 101, fullName: 'Cloud customer', status: 'نشط' })
+      }]
+    });
+    getDocFromServer.mockImplementation(async reference => reference.path === 'users/test-uid'
+      ? {
+          exists: () => true,
+          data: () => ({
+            clients: [
+              { id: 101, fullName: 'Old name', programs: [{ id: 7, programName: 'ERP' }] },
+              { id: 202, fullName: 'Profile-only customer' }
+            ]
+          })
+        }
+      : { exists: () => false });
+
+    const result = await getClientsFromServer('test-uid');
+    expect(result).toHaveLength(2);
+    expect(result).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 101,
+        fullName: 'Cloud customer',
+        programs: [{ id: 7, programName: 'ERP' }]
+      }),
+      expect.objectContaining({ id: 202, fullName: 'Profile-only customer' })
+    ]));
   });
 
   it('should deduplicate concurrent loadDataFromFirestore calls', async () => {

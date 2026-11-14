@@ -131,7 +131,7 @@ export async function getClientsFromServer(userId) {
   const path = `users/${userId}/clients`;
   try {
     const snapshot = await getDocsFromServer(collection(db, path));
-    return snapshot.docs.map(clientDoc => {
+    const cloudClients = snapshot.docs.map(clientDoc => {
       const data = clientDoc.data();
       const numericId = Number(clientDoc.id);
       return {
@@ -140,6 +140,33 @@ export async function getClientsFromServer(userId) {
         firestoreId: clientDoc.id
       };
     });
+    const userData = await getUserData(userId);
+    const legacyClients = Array.isArray(userData?.clients) ? userData.clients : [];
+    const mergedById = new Map();
+
+    legacyClients.forEach(client => {
+      if (!client || typeof client !== 'object') return;
+      const sourceId = client.id ?? client.firestoreId;
+      if (sourceId === undefined || sourceId === null) return;
+      const numericId = Number(sourceId);
+      const id = Number.isSafeInteger(numericId) ? numericId : sourceId;
+      mergedById.set(String(id), { ...client, id, _subcollectionsLoaded: false });
+    });
+
+    cloudClients.forEach(client => {
+      const key = String(client.id);
+      const legacyClient = mergedById.get(key);
+      const mergedClient = { ...legacyClient, ...client };
+      ['programs', 'issues', 'requirements', 'contactHistory'].forEach(field => {
+        if (Array.isArray(legacyClient?.[field]) && legacyClient[field].length > 0
+          && (!Array.isArray(client[field]) || client[field].length === 0)) {
+          mergedClient[field] = legacyClient[field];
+        }
+      });
+      mergedById.set(key, mergedClient);
+    });
+
+    return Array.from(mergedById.values());
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
   }
@@ -167,20 +194,7 @@ export async function getClientFromServer(userId, clientId) {
     );
     if (matchingClient) return matchingClient;
 
-    const userData = await getUserData(userId);
-    const legacyClient = Array.isArray(userData?.clients)
-      ? userData.clients.find(client =>
-          String(client?.id) === String(clientId) || String(client?.firestoreId) === String(clientId)
-        )
-      : null;
-    if (!legacyClient) return null;
-
-    const numericId = Number(legacyClient.id);
-    return {
-      ...legacyClient,
-      id: Number.isSafeInteger(numericId) ? numericId : legacyClient.id,
-      _recoverySource: 'legacy-user-profile'
-    };
+    return null;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
   }
