@@ -1,9 +1,5 @@
 import { 
   doc, 
-<<<<<<< HEAD
-  getDoc, 
-=======
->>>>>>> f8e59ee (FIX)
   getDocFromServer,
   setDoc, 
   updateDoc, 
@@ -128,9 +124,6 @@ export async function getClientsPage(userId, limitVal = 100, lastDoc = null) {
   }
 }
 
-<<<<<<< HEAD
-export async function getClientById(userId, clientId) {
-=======
 export async function getClientsFromServer(userId) {
   userId = sanitizeUserId(userId);
   if (!userId) return [];
@@ -152,7 +145,6 @@ export async function getClientsFromServer(userId) {
 }
 
 export async function getClientFromServer(userId, clientId) {
->>>>>>> f8e59ee (FIX)
   userId = sanitizeUserId(userId);
   if (!userId || !clientId) return null;
   const path = `users/${userId}/clients/${clientId}`;
@@ -170,6 +162,8 @@ export async function getClientFromServer(userId, clientId) {
     handleFirestoreError(error, OperationType.GET, path);
   }
 }
+
+export const getClientById = getClientFromServer;
 
 // Fetches all subcollections (programs, issues, requirements, contacts) of a client to reconstruct the legacy interface
 export async function getClientSubcollections(userId, clientId) {

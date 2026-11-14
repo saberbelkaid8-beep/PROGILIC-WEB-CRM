@@ -197,6 +197,35 @@ export function getProgramStats(c) {
   return res;
 }
 
+export function deduplicateClientLicenses(clientList) {
+  const licenses = new Map();
+  (Array.isArray(clientList) ? clientList : []).forEach(client => {
+    const programs = Array.isArray(client?.programs) ? client.programs : [];
+    programs.forEach((program, index) => {
+      const identity = program?.id != null
+        ? `id:${String(program.id)}`
+        : [
+            program?.platform,
+            program?.programName,
+            program?.version,
+            program?.type
+          ].map(value => String(value || '').trim().toLowerCase()).join('|');
+      const key = `${String(client?.id ?? '')}:${identity === '|||' ? `index:${index}` : identity}`;
+      if (licenses.has(key)) return;
+
+      const knownPlatforms = ['Desktop', 'Mobile', 'Web', 'Hybrid'];
+      licenses.set(key, {
+        ...program,
+        clientId: client?.id,
+        clientName: client?.fullName,
+        clientWilaya: client?.wilaya,
+        normalizedPlatform: knownPlatforms.includes(program?.platform) ? program.platform : 'Unknown'
+      });
+    });
+  });
+  return Array.from(licenses.values());
+}
+
 export function progStatusCls(p) {
   const status = progStatus(p);
   return status === 'active' ? 'active-prog' : (status === 'expired' ? 'expired-prog' : '');

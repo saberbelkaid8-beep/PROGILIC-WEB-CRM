@@ -57,20 +57,11 @@ vi.mock('firebase/firestore', () => ({
   memoryLocalCache: vi.fn(),
   doc: vi.fn((_db, path) => ({ path })),
   getDoc: vi.fn(),
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> f8e59ee (FIX)
-  getDocFromServer: vi.fn(),
-  setDoc: vi.fn(),
-  collection: vi.fn(),
-=======
   getDocFromServer: vi.fn(() => Promise.resolve({ exists: () => false })),
   setDoc: vi.fn(() => Promise.resolve()),
   updateDoc: vi.fn(() => Promise.resolve()),
   deleteDoc: vi.fn(() => Promise.resolve()),
   collection: vi.fn((_db, path) => ({ path })),
->>>>>>> d4ccc4c496065282d1a0dbac96cc15d79eae78e8
   query: vi.fn(),
   where: vi.fn(),
   orderBy: vi.fn(),
@@ -78,33 +69,15 @@ vi.mock('firebase/firestore', () => ({
   startAfter: vi.fn(),
   deleteField: vi.fn(),
   getDocs: vi.fn(),
-<<<<<<< HEAD
   runTransaction: vi.fn(async (_db, fn) => fn(mockTxOps)),
   writeBatch: vi.fn(() => mockBatchOps),
-=======
-  getDocsFromServer: vi.fn(),
-  writeBatch: vi.fn(() => ({
-    set: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    commit: vi.fn()
-  })),
->>>>>>> f8e59ee (FIX)
+  getDocsFromServer: vi.fn(() => Promise.resolve({ docs: [] })),
   enableMultiTabIndexedDbPersistence: vi.fn(() => Promise.resolve()),
   onSnapshot: vi.fn(() => () => {})
 }));
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { getDoc, getDocFromServer, onSnapshot, setDoc } from 'firebase/firestore';
+import { getDocFromServer, getDocsFromServer, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { clients, setClients } from '../../src/state/store.js';
-=======
-import { getDoc, setDoc, writeBatch } from 'firebase/firestore';
->>>>>>> d4ccc4c496065282d1a0dbac96cc15d79eae78e8
-=======
-import { getDocFromServer, getDocsFromServer, onSnapshot, setDoc } from 'firebase/firestore';
-import { clients, setClients } from '../../src/state/store.js';
->>>>>>> f8e59ee (FIX)
 
 describe('Firebase Service', () => {
   beforeEach(() => {

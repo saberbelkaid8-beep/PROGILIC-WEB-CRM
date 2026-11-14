@@ -15,11 +15,7 @@ import { t } from '../../utils/i18n.js';
 import { hasPermission } from '../../state/store.js';
 import { 
   addClientTransaction, 
-<<<<<<< HEAD
-  getClientById,
-=======
   getClientFromServer,
->>>>>>> f8e59ee (FIX)
   updateClientTransaction, 
   deleteClientTransaction, 
   saveClientSubItemTransaction, 
@@ -51,21 +47,9 @@ export async function selClient(id) {
 
   let client = clients.find(item => String(item.id) === String(id));
   if (!client) {
-<<<<<<< HEAD
-    const tenantId = getActiveTenantId();
-    try {
-      client = tenantId ? await getClientById(tenantId, String(id)) : null;
-      if (client) {
-        setClients([
-          ...clients.filter(item => String(item.id) !== String(client.id)),
-          client
-        ]);
-      }
-=======
     try {
       const tenantId = getActiveTenantId();
       client = tenantId ? await getClientFromServer(tenantId, String(id)) : null;
->>>>>>> f8e59ee (FIX)
     } catch (error) {
       console.error(`[Customers] Could not fetch client ${id} from Firestore:`, error);
       showToast(t('تعذر جلب بيانات العميل من السحابة. تحقق من الاتصال ثم أعد المحاولة.'), 'error');
@@ -74,19 +58,12 @@ export async function selClient(id) {
       R();
       return;
     }
-<<<<<<< HEAD
-  }
-
-  if (!client) {
-    S.view = 'list';
-    S.selId = null;
-    showToast(t('العميل غير موجود في قاعدة البيانات السحابية.'), 'error');
-    R();
-    return;
-=======
 
     if (client) {
-      setClients([...clients, client]);
+      setClients([
+        ...clients.filter(item => String(item.id) !== String(client.id)),
+        client
+      ]);
     } else {
       showToast(t('العميل غير موجود في قاعدة البيانات السحابية.'), 'error');
       S.view = 'list';
@@ -94,7 +71,6 @@ export async function selClient(id) {
       R();
       return;
     }
->>>>>>> f8e59ee (FIX)
   }
 
   await loadClientSubcollectionsIfNeeded(client.id);
