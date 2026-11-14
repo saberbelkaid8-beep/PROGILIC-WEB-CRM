@@ -1,11 +1,12 @@
 import { 
   doc, 
-  getDoc, 
+  getDocFromServer,
   setDoc, 
   updateDoc, 
   deleteDoc, 
   collection, 
   getDocs, 
+  getDocsFromServer,
   query, 
   where, 
   orderBy, 
@@ -60,7 +61,7 @@ export async function getUserData(userId) {
   const path = `users/${userId}`;
   try {
     const docRef = doc(db, path);
-    const snap = await getDoc(docRef);
+    const snap = await getDocFromServer(docRef);
     return snap.exists() ? snap.data() : null;
   } catch (error) {
     return handleFirestoreError(error, OperationType.GET, path);
@@ -96,13 +97,60 @@ export async function getClientsPage(userId, limitVal = 100, lastDoc = null) {
     } else {
       q = query(collRef, orderBy('id'), limit(limitVal));
     }
-    const snap = await getDocs(q);
+    const snap = await getDocsFromServer(q);
     return {
       docs: snap.docs,
-      clients: snap.docs.map(d => ({ ...d.data(), firestoreId: d.id }))
+      clients: snap.docs.map(clientDoc => {
+        const data = clientDoc.data();
+        const numericId = Number(clientDoc.id);
+        return {
+          ...data,
+          id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : clientDoc.id),
+          firestoreId: clientDoc.id
+        };
+      })
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function getClientsFromServer(userId) {
+  userId = sanitizeUserId(userId);
+  if (!userId) return [];
+  const path = `users/${userId}/clients`;
+  try {
+    const snapshot = await getDocsFromServer(collection(db, path));
+    return snapshot.docs.map(clientDoc => {
+      const data = clientDoc.data();
+      const numericId = Number(clientDoc.id);
+      return {
+        ...data,
+        id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : clientDoc.id),
+        firestoreId: clientDoc.id
+      };
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function getClientFromServer(userId, clientId) {
+  userId = sanitizeUserId(userId);
+  if (!userId || !clientId) return null;
+  const path = `users/${userId}/clients/${clientId}`;
+  try {
+    const snapshot = await getDocFromServer(doc(db, path));
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data();
+    const numericId = Number(snapshot.id);
+    return {
+      ...data,
+      id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : snapshot.id),
+      firestoreId: snapshot.id
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
   }
 }
 
@@ -112,10 +160,10 @@ export async function getClientSubcollections(userId, clientId) {
   const basePath = `users/${userId}/clients/${clientId}`;
   try {
     const [progsSnap, issuesSnap, reqsSnap, contactsSnap] = await Promise.all([
-      getDocs(collection(db, `${basePath}/programs`)),
-      getDocs(collection(db, `${basePath}/issues`)),
-      getDocs(collection(db, `${basePath}/requirements`)),
-      getDocs(collection(db, `${basePath}/contacts`))
+      getDocsFromServer(collection(db, `${basePath}/programs`)),
+      getDocsFromServer(collection(db, `${basePath}/issues`)),
+      getDocsFromServer(collection(db, `${basePath}/requirements`)),
+      getDocsFromServer(collection(db, `${basePath}/contacts`))
     ]);
 
     return {
@@ -532,7 +580,7 @@ export async function getTenantActivities(tenantId, clientId = null) {
     const activitiesQuery = clientId === null
       ? activitiesRef
       : query(activitiesRef, where('clientId', '==', Number(clientId)));
-    const snapshot = await getDocs(activitiesQuery);
+    const snapshot = await getDocsFromServer(activitiesQuery);
     return snapshot.docs.map(activityDoc => ({
       ...activityDoc.data(),
       id: activityDoc.data().id || activityDoc.id

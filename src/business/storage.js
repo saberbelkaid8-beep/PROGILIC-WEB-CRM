@@ -31,6 +31,8 @@ import {
   getUserData, 
   saveUserData, 
   getClientsPage, 
+  getClientsFromServer,
+  getClientFromServer,
   getClientSubcollections, 
   
   addClientTransaction, 
@@ -43,7 +45,7 @@ import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
-import { getClients, saveClients, setMeta, getSyncQueue, saveSyncQueue } from './idbStorage.js';
+import { getSyncQueue, saveSyncQueue } from './idbStorage.js';
 
 // Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
@@ -227,15 +229,68 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 
 // Real-Time Sync State Listeners
 let activeUnsubscribers = [];
+let realtimeSyncGeneration = 0;
+
+function normalizeClientSummary(data, documentId) {
+  const numericId = Number(documentId);
+  return {
+    ...data,
+    id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : documentId),
+    programs: data.programs || [],
+    issues: data.issues || [],
+    requirements: data.requirements || [],
+    contactHistory: data.contactHistory || [],
+    gps: data.gps || { lat: null, lng: null },
+    _subcollectionsLoaded: false
+  };
+}
+
+function applyClientSummaries(summaries, hasPendingWrites = false) {
+  let mergedClients = summaries.map(newClient => {
+    const existing = clients.find(client => String(client.id) === String(newClient.id));
+    if (!existing) return newClient;
+
+    const hasExistingPrograms = Array.isArray(existing.programs) && existing.programs.length > 0;
+    const hasNewPrograms = Array.isArray(newClient.programs) && newClient.programs.length > 0;
+    return {
+      ...newClient,
+      programs: hasExistingPrograms ? existing.programs : (hasNewPrograms ? newClient.programs : []),
+      issues: existing.issues?.length ? existing.issues : (newClient.issues || []),
+      requirements: existing.requirements?.length ? existing.requirements : (newClient.requirements || []),
+      contactHistory: existing.contactHistory?.length ? existing.contactHistory : (newClient.contactHistory || []),
+      _subcollectionsLoaded: Boolean(existing._subcollectionsLoaded || hasExistingPrograms || hasNewPrograms)
+    };
+  });
+
+  if (summaries.length === 0 && clients.length > 0) {
+    // Keep legacy clients that are stored on the server profile until their approved migration.
+    mergedClients = clients;
+  }
+
+  batch(() => {
+    setSyncing(hasPendingWrites);
+    setClients(mergedClients);
+    setLastSyncedTime(new Date());
+    setSaveError(false);
+  });
+}
 
 export function startRealtimeSync(userId) {
   stopRealtimeSync();
+  userId = auth?.currentUser?.uid || userId;
+  if (!userId) {
+    setSaveError(true);
+    console.error('[Online Sync] Cannot start Firestore listeners without an authenticated tenant.');
+    return;
+  }
+  const generation = ++realtimeSyncGeneration;
 
   console.log("Starting real-time synchronization for user:", userId);
 
   // 1. Listen to user profile document (for stats and next ID sequence)
   const userDocRef = doc(db, 'users', userId);
-  const unsubUser = onSnapshot(userDocRef, (snapshot) => {
+  const unsubUser = onSnapshot(userDocRef, { includeMetadataChanges: true }, (snapshot) => {
+    if (snapshot.metadata?.fromCache) return;
     if (snapshot.exists()) {
       const data = snapshot.data();
       batch(() => {
@@ -254,61 +309,31 @@ export function startRealtimeSync(userId) {
 
   // 2. Listen to clients collection (real-time summaries)
   const clientsCollRef = collection(db, 'users', userId, 'clients');
-  const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
-    const summaries = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        ...data,
-        programs: data.programs || [],
-        issues: data.issues || [],
-        requirements: data.requirements || [],
-        contactHistory: data.contactHistory || [],
-        gps: data.gps || { lat: null, lng: null },
-        _subcollectionsLoaded: false
-      };
-    });
-
-    // Merge summaries with existing clients to preserve already loaded details in memory
-    let mergedClients = summaries.map(newC => {
-      const existingC = clients.find(x => String(x.id) === String(newC.id));
-      if (existingC) {
-        const hasExistingProgs = Array.isArray(existingC.programs) && existingC.programs.length > 0;
-        const hasNewProgs = Array.isArray(newC.programs) && newC.programs.length > 0;
-        const finalProgs = hasExistingProgs ? existingC.programs : (hasNewProgs ? newC.programs : []);
-
-        return {
-          ...newC,
-          programs: finalProgs,
-          issues: (Array.isArray(existingC.issues) && existingC.issues.length > 0) ? existingC.issues : (newC.issues || []),
-          requirements: (Array.isArray(existingC.requirements) && existingC.requirements.length > 0) ? existingC.requirements : (newC.requirements || []),
-          contactHistory: (Array.isArray(existingC.contactHistory) && existingC.contactHistory.length > 0) ? existingC.contactHistory : (newC.contactHistory || []),
-          _subcollectionsLoaded: Boolean(existingC._subcollectionsLoaded || hasExistingProgs || hasNewProgs)
-        };
-      }
-      return newC;
-    });
-
-    // Safety guard: If subcollection listener reports 0 docs, but we already have loaded clients
-    // (e.g. from data.clients in the user doc or IndexedDB), preserve them!
-    if (summaries.length === 0 && clients && clients.length > 0) {
-      console.log(`[Realtime Sync] Subcollection empty but ${clients.length} clients exist in state. Preserving current client list.`);
-      mergedClients = clients;
-    }
-
-    batch(() => {
-      setSyncing(snapshot.metadata.hasPendingWrites);
-      setClients(mergedClients);
-      setLastSyncedTime(new Date());
-      setSaveError(false);
-    });
+  let receivedServerSnapshot = false;
+  const unsubClients = onSnapshot(clientsCollRef, { includeMetadataChanges: true }, (snapshot) => {
+    if (snapshot.metadata?.fromCache) return;
+    receivedServerSnapshot = true;
+    const summaries = snapshot.docs.map(clientDoc => normalizeClientSummary(clientDoc.data(), clientDoc.id));
+    applyClientSummaries(summaries, snapshot.metadata?.hasPendingWrites || false);
   }, (error) => {
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
   });
 
+  getClientsFromServer(userId).then(serverClients => {
+    if (generation !== realtimeSyncGeneration || receivedServerSnapshot) return;
+    receivedServerSnapshot = true;
+    applyClientSummaries(serverClients, false);
+  }).catch(error => {
+    if (generation !== realtimeSyncGeneration) return;
+    console.error('[Online Sync] Initial server refresh for clients failed:', error);
+    setSaveError(true);
+  });
+
   // 3. Listen to employees collection (real-time cross-device sync)
   const employeesCollRef = collection(db, 'users', userId, 'employees');
-  const unsubEmployees = onSnapshot(employeesCollRef, (snapshot) => {
+  const unsubEmployees = onSnapshot(employeesCollRef, { includeMetadataChanges: true }, (snapshot) => {
+    if (snapshot.metadata?.fromCache) return;
     const remoteStaff = snapshot.docs.map(doc => ({
       ...doc.data(),
       id: doc.id
@@ -326,7 +351,8 @@ export function startRealtimeSync(userId) {
 
   // 4. Listen to activities subcollection (real-time cross-device and multi-user audit timeline sync)
   const activitiesCollRef = collection(db, 'users', userId, 'activities');
-  const unsubActivities = onSnapshot(activitiesCollRef, (snapshot) => {
+  const unsubActivities = onSnapshot(activitiesCollRef, { includeMetadataChanges: true }, (snapshot) => {
+    if (snapshot.metadata?.fromCache) return;
     const remoteActivities = snapshot.docs.map(doc => ({
       ...doc.data(),
       id: doc.id
@@ -350,6 +376,7 @@ export function startRealtimeSync(userId) {
 }
 
 export function stopRealtimeSync() {
+  realtimeSyncGeneration += 1;
   if (activeUnsubscribers.length > 0) {
     console.log("Stopping real-time synchronization, cleaning up listeners...");
     activeUnsubscribers.forEach(unsub => {
@@ -395,9 +422,11 @@ async function doLoadDataFromFirestore(user) {
 
   try {
     console.log("loadDataFromFirestore: start");
+    stopRealtimeSync();
     batch(() => {
       setSyncing(true);
       setSaveError(false);
+      setClients([]);
     });
 
     // Strict Online Mode: Direct Cloud Firestore loading without local disk cache
@@ -452,9 +481,7 @@ async function doLoadDataFromFirestore(user) {
     }
 
     if (!fetchFailed) {
-      const baseClients = (data && data.clients && Array.isArray(data.clients) && data.clients.length > 0)
-        ? data.clients
-        : (clients && clients.length > 0 ? clients : []);
+      const baseClients = data && Array.isArray(data.clients) ? data.clients : [];
       const mergedClients = mergeClientLists(baseClients);
       const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
 
@@ -476,11 +503,11 @@ async function doLoadDataFromFirestore(user) {
         console.info('[Storage] Legacy schema detected; cloud migration requires explicit approval and a verified backup.');
       }
     } else {
-      // Fetch failed or timed out, make sure we fallback to loaded cache states safely
-      console.log("Using cached stats and sequence ID:", S.stats, S.nid);
+      console.warn('[Online Sync] User profile could not be confirmed by Firestore; waiting for server listeners.');
+      setClients([]);
       updateState({
-        nid: S.nid || 100,
-        stats: S.stats || {
+        nid: 100,
+        stats: {
           activeClients: 0,
           prospectiveClients: 0,
           stoppedClients: 0,
@@ -1111,34 +1138,24 @@ let retryTimer = null;
 export async function loadCache() {
   try {
     updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
-    const uid = auth.currentUser?.uid || currentUser?.tenantId || currentUser?.uid;
+    const uid = auth?.currentUser?.uid || currentUser?.tenantId || currentUser?.uid;
     if (!uid) return;
-    const [cached, queuedOperations] = await Promise.all([getClients(uid), getSyncQueue(uid)]);
-    const merged = mergeClientLists(cached && cached.length > 0 ? cached : clients);
-    const { stats, nid } = computeStats(merged);
+    const queuedOperations = await getSyncQueue(uid);
     const resumableQueue = queuedOperations.map(item => ({
       ...item,
       state: item.state === 'syncing' ? 'pending' : item.state || 'pending'
     }));
-    
-    batch(() => {
-      setClients(merged);
-      updateState({ stats, nid, syncQueue: resumableQueue });
-    });
-
-    console.log(`[Offline Cache] Session hydrated with ${merged.length} clients for tenant ${uid}.`);
-    saveClients(uid, merged).catch(console.warn);
-    setMeta(uid, 'stats', stats).catch(console.warn);
-    setMeta(uid, 'nid', nid).catch(console.warn);
+    updateState({ syncQueue: resumableQueue });
+    console.log(`[Online Sync] Restored ${resumableQueue.length} pending operations for tenant ${uid}.`);
   } catch (e) {
-    console.error("[Offline Cache] Error loading from local cache:", e);
+    console.error("[Online Sync] Could not restore pending operation state:", e);
   }
 }
 
 let queuePersistence = Promise.resolve();
 
 function activeTenantUid() {
-  return auth.currentUser?.uid
+  return auth?.currentUser?.uid
     || currentUser?.tenantId
     || (currentUser && !currentUser.isEmployee ? currentUser.uid : null)
     || getActiveTenantId()
