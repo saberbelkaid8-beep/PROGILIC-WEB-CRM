@@ -329,17 +329,19 @@ describe('Firebase Service', () => {
     await Promise.all([p1, p2]);
   });
 
-  it('saveClientSubItemTransaction reads only clientRef without redundant users/{uid} BatchGetDocuments read', async () => {
+  it('reads client and user documents before saving license transaction writes', async () => {
     await saveClientSubItemTransaction(
       'test-uid',
       '101',
       'programs',
       '5001',
       { id: 5001, programName: 'Desktop - تجاري V27', platform: 'Desktop', type: 'تجاري', version: 'V27' },
-      { programsCount: 1 }
+      { programsCount: 1 },
+      { totalPrograms: 1 }
     );
-    expect(mockTxOps.get).toHaveBeenCalledTimes(1);
-    expect(mockTxOps.get).toHaveBeenCalledWith({ path: 'users/test-uid/clients/101' });
+    expect(mockTxOps.get).toHaveBeenCalledTimes(2);
+    expect(mockTxOps.get).toHaveBeenNthCalledWith(1, { path: 'users/test-uid/clients/101' });
+    expect(mockTxOps.get).toHaveBeenNthCalledWith(2, { path: 'users/test-uid' });
   });
 
   it('restores a missing client from its complete local record in the same transaction', async () => {
@@ -422,6 +424,38 @@ describe('Firebase Service', () => {
       programs: [existingProgram]
     });
     expect(clientWrite[1]).not.toHaveProperty('legacyUnsupportedField');
+  });
+
+  it('rewrites legacy user metadata to satisfy Firestore rules during license saves', async () => {
+    const legacyClients = [{ id: 101, fullName: 'Legacy customer', status: 'نشط' }];
+    mockTxOps.get
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({ id: 101, fullName: 'Legacy customer', status: 'نشط' })
+      })
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({ clients: legacyClients, unsupportedLegacyField: true })
+      });
+
+    await saveClientSubItemTransaction(
+      'test-uid',
+      '101',
+      'programs',
+      '702',
+      { id: 702, programName: 'ERP', platform: 'Desktop', type: 'Commercial' },
+      { programsCount: 1 },
+      { totalPrograms: 1 }
+    );
+
+    const userWrite = mockTxOps.set.mock.calls.find(([reference]) => reference.path === 'users/test-uid');
+    expect(userWrite[1]).toMatchObject({
+      v: 3,
+      nid: 101,
+      stats: { totalPrograms: 1 },
+      clients: legacyClients
+    });
+    expect(userWrite[1]).not.toHaveProperty('unsupportedLegacyField');
   });
 
   it('saveTenantActivitiesBatch commits 450 activities in 3 chunked writeBatch calls instead of 450 individual setDoc calls', async () => {

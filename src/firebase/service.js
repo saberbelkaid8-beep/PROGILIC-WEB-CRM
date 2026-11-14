@@ -458,6 +458,12 @@ export async function saveClientSubItemTransaction(userId, clientId, collectionN
       };
 
       const clientSnapshot = typeof tx.get === 'function' ? await tx.get(clientRef) : null;
+      const userSnapshot = globalStatsUpdates && typeof tx.get === 'function'
+        ? await tx.get(userRef)
+        : null;
+      const existingUser = userSnapshot && typeof userSnapshot.exists === 'function' && userSnapshot.exists()
+        ? userSnapshot.data() || {}
+        : {};
       const clientExists = typeof clientSnapshot?.exists === 'function' ? clientSnapshot.exists() : true;
 
       if (!clientExists) {
@@ -507,15 +513,17 @@ export async function saveClientSubItemTransaction(userId, clientId, collectionN
 
       // Update global pre-aggregated counters
       if (globalStatsUpdates) {
-        const userPatch = {
+        const existingNid = Number(existingUser.nid);
+        const userRecord = {
+          v: Number(existingUser.v) >= 1 ? Number(existingUser.v) : 3,
+          nid: Math.max(Number.isFinite(existingNid) ? existingNid : 0, Number(clientId) || 100),
           stats: globalStatsUpdates,
           updatedAt: new Date().toISOString()
         };
-        if (typeof tx.update === 'function') {
-          tx.update(userRef, userPatch);
-        } else {
-          tx.set(userRef, userPatch, { merge: true });
-        }
+        if (typeof existingUser.tenantId === 'string') userRecord.tenantId = existingUser.tenantId;
+        if (typeof existingUser.email === 'string') userRecord.email = existingUser.email;
+        if (Array.isArray(existingUser.clients)) userRecord.clients = existingUser.clients;
+        tx.set(userRef, userRecord);
       }
     });
   } catch (error) {

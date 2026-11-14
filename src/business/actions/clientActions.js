@@ -65,7 +65,8 @@ export async function selClient(id) {
         client
       ]);
     } else {
-      showToast(t('العميل غير موجود في قاعدة البيانات السحابية.'), 'error');
+      console.warn('[Customers] No cloud client matched the requested CRM ID:', String(id));
+      showToast(`${t('العميل غير موجود في قاعدة البيانات السحابية.')} (#${String(id)})`, 'error');
       S.view = 'list';
       S.selId = null;
       R();
