@@ -18,6 +18,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from './config.js';
+import { validateClient } from './validation.js';
 
 export const OperationType = {
   CREATE: 'create',
@@ -150,13 +151,35 @@ export async function getClientFromServer(userId, clientId) {
   const path = `users/${userId}/clients/${clientId}`;
   try {
     const snapshot = await getDocFromServer(doc(db, path));
-    if (!snapshot.exists()) return null;
-    const data = snapshot.data();
-    const numericId = Number(snapshot.id);
+    if (snapshot.exists()) {
+      const data = snapshot.data();
+      const numericId = Number(snapshot.id);
+      return {
+        ...data,
+        id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : snapshot.id),
+        firestoreId: snapshot.id
+      };
+    }
+
+    const serverClients = await getClientsFromServer(userId);
+    const matchingClient = serverClients.find(client =>
+      String(client.id) === String(clientId) || String(client.firestoreId) === String(clientId)
+    );
+    if (matchingClient) return matchingClient;
+
+    const userData = await getUserData(userId);
+    const legacyClient = Array.isArray(userData?.clients)
+      ? userData.clients.find(client =>
+          String(client?.id) === String(clientId) || String(client?.firestoreId) === String(clientId)
+        )
+      : null;
+    if (!legacyClient) return null;
+
+    const numericId = Number(legacyClient.id);
     return {
-      ...data,
-      id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : snapshot.id),
-      firestoreId: snapshot.id
+      ...legacyClient,
+      id: Number.isSafeInteger(numericId) ? numericId : legacyClient.id,
+      _recoverySource: 'legacy-user-profile'
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
@@ -177,11 +200,20 @@ export async function getClientSubcollections(userId, clientId) {
       getDocsFromServer(collection(db, `${basePath}/contacts`))
     ]);
 
+    const mapDocuments = snapshot => snapshot.docs.map(document => {
+      const data = document.data() || {};
+      const numericId = Number(document.id);
+      return {
+        ...data,
+        id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : document.id)
+      };
+    });
+
     return {
-      programs: progsSnap.docs.map(d => d.data()),
-      issues: issuesSnap.docs.map(d => d.data()),
-      requirements: reqsSnap.docs.map(d => d.data()),
-      contactHistory: contactsSnap.docs.map(d => d.data())
+      programs: mapDocuments(progsSnap),
+      issues: mapDocuments(issuesSnap),
+      requirements: mapDocuments(reqsSnap),
+      contactHistory: mapDocuments(contactsSnap)
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, basePath);
@@ -394,7 +426,7 @@ export async function deleteClientTransaction(userId, clientId, clientData, glob
 }
 
 // Generic helper to save an item inside a client subcollection and run transaction to update denormalized counters
-export async function saveClientSubItemTransaction(userId, clientId, collectionName, itemId, itemData, counterUpdates, globalStatsUpdates) {
+export async function saveClientSubItemTransaction(userId, clientId, collectionName, itemId, itemData, counterUpdates, globalStatsUpdates, recoveryClient = null) {
   userId = sanitizeUserId(userId);
   const clientPath = `users/${userId}/clients/${clientId}`;
   const itemPath = `${clientPath}/${collectionName}/${itemId}`;
@@ -406,22 +438,48 @@ export async function saveClientSubItemTransaction(userId, clientId, collectionN
       const itemRef = doc(db, itemPath);
       const userRef = doc(db, userPath);
 
-      if (typeof tx.get === 'function') {
-        await tx.get(clientRef);
-      }
-
-      // Write subcollection document
-      tx.set(itemRef, itemData, { merge: true });
-
-      // Update denormalized properties on client document
       const clientPatch = {
         ...counterUpdates,
         updatedAt: new Date().toISOString()
       };
-      if (typeof tx.update === 'function') {
-        tx.update(clientRef, clientPatch);
+
+      const clientSnapshot = typeof tx.get === 'function' ? await tx.get(clientRef) : null;
+      const clientExists = typeof clientSnapshot?.exists === 'function' ? clientSnapshot.exists() : true;
+
+      if (!clientExists) {
+        if (!recoveryClient) {
+          const missingClientError = new Error(`Cannot save ${collectionName} record: client ${clientId} is missing from Firestore.`);
+          missingClientError.code = 'client-not-found';
+          throw missingClientError;
+        }
+
+        const clientIdNumber = Number(recoveryClient.id);
+        if (!Number.isSafeInteger(clientIdNumber)) {
+          throw new TypeError('Cannot restore the missing client: its CRM ID is invalid.');
+        }
+
+        const clientRecord = validateClient({
+          ...recoveryClient,
+          id: clientIdNumber,
+          ...counterUpdates,
+          version: Math.max(Number(recoveryClient.version) || 0, 1),
+          _subcollectionsLoaded: true,
+          updatedAt: clientPatch.updatedAt
+        });
+        clientRecord.programs = Array.isArray(recoveryClient.programs) ? recoveryClient.programs : [];
+        clientRecord.issues = Array.isArray(recoveryClient.issues) ? recoveryClient.issues : [];
+        clientRecord.requirements = Array.isArray(recoveryClient.requirements) ? recoveryClient.requirements : [];
+        clientRecord.contactHistory = Array.isArray(recoveryClient.contactHistory) ? recoveryClient.contactHistory : [];
+
+        tx.set(clientRef, clientRecord);
+        tx.set(itemRef, itemData, { merge: true });
       } else {
-        tx.set(clientRef, clientPatch, { merge: true });
+        tx.set(itemRef, itemData, { merge: true });
+        if (typeof tx.update === 'function') {
+          tx.update(clientRef, clientPatch);
+        } else {
+          tx.set(clientRef, clientPatch, { merge: true });
+        }
       }
 
       // Update global pre-aggregated counters

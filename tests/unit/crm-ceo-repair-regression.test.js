@@ -536,4 +536,45 @@ describe('CEO Repair Regression Suite — Client Programs, Sync, Zero Fabricatio
       expect(utilsToast.showToast).toHaveBeenCalledTimes(4);
     });
   });
+
+  it('saves a program using the existing Firestore document ID and passes a full client recovery record', async () => {
+    const client = {
+      id: 2002,
+      firestoreId: 'legacy-client-document',
+      fullName: 'عميل قديم',
+      status: 'نشط',
+      programs: [],
+      programsCount: 0,
+      installationsCount: 0,
+      programNames: [],
+      issues: [],
+      requirements: [],
+      contactHistory: []
+    };
+    setClients([client]);
+    S.selId = client.id;
+    mountFormInputs({
+      fp_pl: 'Desktop',
+      fp_ty: 'تجاري',
+      fp_ver: 'V27',
+      fp_ic: '2'
+    });
+
+    await saveProgram(null);
+
+    expect(service.saveClientSubItemTransaction).toHaveBeenCalledWith(
+      'ceo-tenant-1',
+      'legacy-client-document',
+      'programs',
+      expect.any(String),
+      expect.objectContaining({ programName: 'Desktop - تجاري V27' }),
+      expect.objectContaining({ programsCount: 1 }),
+      expect.any(Object),
+      expect.objectContaining({
+        id: client.id,
+        fullName: client.fullName,
+        programs: [expect.objectContaining({ programName: 'Desktop - تجاري V27' })]
+      })
+    );
+  });
 });

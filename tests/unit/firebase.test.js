@@ -118,6 +118,56 @@ describe('Firebase Service', () => {
     expect(getDocFromServer).toHaveBeenCalled();
   });
 
+  it('finds a client when its Firestore document ID differs from its CRM ID', async () => {
+    const { getClientFromServer } = await import('../../src/firebase/service.js');
+    getDocFromServer.mockResolvedValueOnce({ exists: () => false });
+    getDocsFromServer.mockResolvedValueOnce({
+      docs: [{
+        id: 'legacy-document-key',
+        data: () => ({ id: 12345, fullName: 'Legacy customer', status: 'نشط' })
+      }]
+    });
+
+    await expect(getClientFromServer('test-uid', '12345')).resolves.toMatchObject({
+      id: 12345,
+      firestoreId: 'legacy-document-key',
+      fullName: 'Legacy customer'
+    });
+  });
+
+  it('falls back to a full client record embedded in the legacy user document', async () => {
+    const { getClientFromServer } = await import('../../src/firebase/service.js');
+    getDocFromServer.mockImplementation(async reference => reference.path === 'users/test-uid'
+      ? {
+          exists: () => true,
+          data: () => ({
+            clients: [{ id: 12345, fullName: 'Legacy customer', status: 'نشط', programs: [{ id: 7 }] }]
+          })
+        }
+      : { exists: () => false });
+    getDocsFromServer.mockResolvedValue({ docs: [] });
+
+    await expect(getClientFromServer('test-uid', '12345')).resolves.toMatchObject({
+      id: 12345,
+      _recoverySource: 'legacy-user-profile',
+      programs: [{ id: 7 }]
+    });
+  });
+
+  it('uses Firestore document IDs when subcollection records omit their own IDs', async () => {
+    const { getClientSubcollections } = await import('../../src/firebase/service.js');
+    getDocsFromServer
+      .mockResolvedValueOnce({ docs: [{ id: '77', data: () => ({ programName: 'ERP' }) }] })
+      .mockResolvedValueOnce({ docs: [{ id: '88', data: () => ({ title: 'Issue' }) }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    await expect(getClientSubcollections('test-uid', '12345')).resolves.toMatchObject({
+      programs: [{ id: 77, programName: 'ERP' }],
+      issues: [{ id: 88, title: 'Issue' }]
+    });
+  });
+
   it('updates clients only from server-confirmed realtime snapshots', async () => {
     const { startRealtimeSync, stopRealtimeSync } = await import('../../src/business/storage.js');
     const listeners = [];
@@ -228,6 +278,52 @@ describe('Firebase Service', () => {
     );
     expect(mockTxOps.get).toHaveBeenCalledTimes(1);
     expect(mockTxOps.get).toHaveBeenCalledWith({ path: 'users/test-uid/clients/101' });
+  });
+
+  it('restores a missing client from its complete local record in the same transaction', async () => {
+    mockTxOps.get.mockResolvedValueOnce({ exists: () => false });
+    const program = {
+      id: 5001,
+      programName: 'Desktop - Commercial V27',
+      platform: 'Desktop',
+      type: 'Commercial',
+      version: 'V27'
+    };
+    const recoveryClient = {
+      id: 101,
+      fullName: 'Recovered customer',
+      status: 'نشط',
+      programs: [program],
+      issues: [],
+      requirements: [],
+      contactHistory: []
+    };
+
+    await saveClientSubItemTransaction(
+      'test-uid',
+      '101',
+      'programs',
+      '5001',
+      program,
+      { programsCount: 1, installationsCount: 0, programNames: [program.programName] },
+      { totalPrograms: 1 },
+      recoveryClient
+    );
+
+    expect(mockTxOps.set).toHaveBeenCalledWith(
+      { path: 'users/test-uid/clients/101' },
+      expect.objectContaining({
+        id: 101,
+        fullName: 'Recovered customer',
+        programsCount: 1,
+        programs: [program]
+      })
+    );
+    expect(mockTxOps.set).toHaveBeenCalledWith(
+      { path: 'users/test-uid/clients/101/programs/5001' },
+      program,
+      { merge: true }
+    );
   });
 
   it('saveTenantActivitiesBatch commits 450 activities in 3 chunked writeBatch calls instead of 450 individual setDoc calls', async () => {

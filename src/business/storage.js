@@ -45,7 +45,7 @@ import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
-import { getSyncQueue, saveSyncQueue, saveClients } from './idbStorage.js';
+import { getSyncQueue, saveSyncQueue, saveClients, setMeta } from './idbStorage.js';
 
 // Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
@@ -203,14 +203,44 @@ function computeProgramSummary(programs = []) {
   };
 }
 
+function mergeAvailableSubcollectionRecords(remoteItems = [], retainedItems = []) {
+  const records = new Map();
+  const recordKey = (item, index) => {
+    if (item?.id !== undefined && item?.id !== null) return `id:${String(item.id)}`;
+    return `record:${JSON.stringify(item)}:${index}`;
+  };
+
+  (Array.isArray(retainedItems) ? retainedItems : []).forEach((item, index) => {
+    if (item && typeof item === 'object') records.set(recordKey(item, index), item);
+  });
+  (Array.isArray(remoteItems) ? remoteItems : []).forEach((item, index) => {
+    if (item && typeof item === 'object') records.set(recordKey(item, index), item);
+  });
+  return Array.from(records.values());
+}
+
+function getExpectedProgramCount(client) {
+  const count = Number(client?.programsCount);
+  const hasCount = Number.isSafeInteger(count) && count >= 0;
+  const namesCount = Array.isArray(client?.programNames) ? client.programNames.length : 0;
+  const embeddedCount = Array.isArray(client?.programs) ? client.programs.length : 0;
+  if (!hasCount && namesCount === 0 && embeddedCount === 0) return null;
+  return Math.max(hasCount ? count : 0, namesCount, embeddedCount);
+}
+
 export function mergeSubcollectionWithQueue(clientId, collectionName, remoteItems = [], localItems = [], syncQueue = []) {
   const cidStr = String(clientId);
   const queue = Array.isArray(syncQueue) ? syncQueue : [];
   const byId = new Map();
+  const unidentified = new Map();
 
-  for (const item of (Array.isArray(remoteItems) ? remoteItems : [])) {
-    if (!item || item.id === undefined || item.id === null) continue;
-    byId.set(String(item.id), { ...item });
+  for (const [index, item] of (Array.isArray(remoteItems) ? remoteItems : []).entries()) {
+    if (!item || typeof item !== 'object') continue;
+    if (item.id === undefined || item.id === null) {
+      unidentified.set(`${JSON.stringify(item)}:${index}`, { ...item });
+    } else {
+      byId.set(String(item.id), { ...item });
+    }
   }
 
   // If client creation is still pending in queue and remote has nothing yet, keep local initial items
@@ -240,7 +270,7 @@ export function mergeSubcollectionWithQueue(clientId, collectionName, remoteItem
     }
   }
 
-  return Array.from(byId.values());
+  return [...byId.values(), ...unidentified.values()];
 }
 
 export function mergeClientSyncState(remoteSummaries = [], localClients = [], syncQueue = [], options = {}) {
@@ -295,10 +325,14 @@ export function mergeClientSyncState(remoteSummaries = [], localClients = [], sy
     seenIds.add(cid);
 
     const existingC = existingById.get(cid);
+    const existingPrograms = Array.isArray(existingC?.programs) ? existingC.programs : [];
     const pendingSubCols = pendingSubOpsClients.get(cid) || new Set();
-    const remoteHasZeroPrograms = Number(newC.programsCount || 0) === 0
+    const remoteHasZeroPrograms = newC.programsCount !== undefined
+      && Number(newC.programsCount) === 0
       && (!Array.isArray(newC.programNames) || newC.programNames.length === 0)
-      && (!Array.isArray(newC.programs) || newC.programs.length === 0);
+      && (!Array.isArray(newC.programs) || newC.programs.length === 0)
+      && existingPrograms.length === 0
+      && !pendingSubCols.has('programs');
     const remoteHasEmbeddedProgs = Array.isArray(newC.programs) && newC.programs.length > 0;
 
     let basePrograms = Array.isArray(newC.programs) ? newC.programs : [];
@@ -329,6 +363,22 @@ export function mergeClientSyncState(remoteSummaries = [], localClients = [], sy
     } else if (remoteHasEmbeddedProgs && (newC.programsCount === undefined || Number(newC.programsCount) === newC.programs.length)) {
       basePrograms = newC.programs;
       programsLoaded = true;
+    }
+
+    const expectedProgramCount = getExpectedProgramCount(newC);
+    const programSummaryExplicitlyEmpty = newC.programsCount !== undefined
+      && Number(newC.programsCount) === 0
+      && (!Array.isArray(newC.programNames) || newC.programNames.length === 0)
+      && (!Array.isArray(newC.programs) || newC.programs.length === 0)
+      && existingPrograms.length === 0
+      && !pendingSubCols.has('programs');
+    const cloudProgramsAreIncomplete = !programSummaryExplicitlyEmpty && (
+      (expectedProgramCount !== null && expectedProgramCount > basePrograms.length)
+      || existingPrograms.length > basePrograms.length
+    );
+    if (cloudProgramsAreIncomplete) {
+      basePrograms = mergeAvailableSubcollectionRecords(basePrograms, existingPrograms);
+      programsLoaded = false;
     }
 
     const finalProgs = mergeSubcollectionWithQueue(cid, 'programs', basePrograms, existingC?.programs, queue);
@@ -399,16 +449,60 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
   try {
     setSyncing(true);
 
-    const sub = await getClientSubcollections(tenantUid, String(clientId));
+    const sub = await getClientSubcollections(tenantUid, String(c.firestoreId || clientId));
     const currentQueue = S.syncQueue || [];
 
-    const mergedProgs = mergeSubcollectionWithQueue(clientId, 'programs', sub?.programs || [], c.programs || [], currentQueue);
-    const mergedIssues = mergeSubcollectionWithQueue(clientId, 'issues', sub?.issues || [], c.issues || [], currentQueue);
-    const mergedReqs = mergeSubcollectionWithQueue(clientId, 'requirements', sub?.requirements || [], c.requirements || [], currentQueue);
-    const mergedContacts = mergeSubcollectionWithQueue(clientId, 'contacts', sub?.contactHistory || [], c.contactHistory || [], currentQueue);
+    const remotePrograms = Array.isArray(sub?.programs) ? sub.programs : [];
+    const expectedPrograms = getExpectedProgramCount(c);
+    const programsExplicitlyEmpty = c.programsCount !== undefined
+      && Number(c.programsCount) === 0
+      && (!Array.isArray(c.programNames) || c.programNames.length === 0)
+      && (!Array.isArray(c.programs) || c.programs.length === 0)
+      && remotePrograms.length === 0;
+    const preservePrograms = !programsExplicitlyEmpty && (
+      (expectedPrograms !== null && expectedPrograms > remotePrograms.length)
+      || (Array.isArray(c.programs) && c.programs.length > remotePrograms.length)
+    );
+    const programBase = preservePrograms
+      ? mergeAvailableSubcollectionRecords(remotePrograms, c.programs)
+      : remotePrograms;
+    const mergedProgs = mergeSubcollectionWithQueue(clientId, 'programs', programBase, c.programs || [], currentQueue);
+    const programsLoaded = !preservePrograms;
 
-    const progSummary = computeProgramSummary(mergedProgs);
-    const openIssuesCount = mergedIssues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
+    const remoteIssues = Array.isArray(sub?.issues) ? sub.issues : [];
+    const preserveIssues = remoteIssues.length < (Array.isArray(c.issues) ? c.issues.length : 0)
+      || (Number(c.openIssuesCount) > remoteIssues.length);
+    const mergedIssues = mergeSubcollectionWithQueue(
+      clientId,
+      'issues',
+      preserveIssues ? mergeAvailableSubcollectionRecords(remoteIssues, c.issues) : remoteIssues,
+      c.issues || [],
+      currentQueue
+    );
+    const remoteRequirements = Array.isArray(sub?.requirements) ? sub.requirements : [];
+    const preserveRequirements = remoteRequirements.length < (Array.isArray(c.requirements) ? c.requirements.length : 0)
+      || Number(c.requirementsCount) > remoteRequirements.length;
+    const mergedReqs = mergeSubcollectionWithQueue(
+      clientId,
+      'requirements',
+      preserveRequirements ? mergeAvailableSubcollectionRecords(remoteRequirements, c.requirements) : remoteRequirements,
+      c.requirements || [],
+      currentQueue
+    );
+    const remoteContacts = Array.isArray(sub?.contactHistory) ? sub.contactHistory : [];
+    const preserveContacts = remoteContacts.length < (Array.isArray(c.contactHistory) ? c.contactHistory.length : 0);
+    const mergedContacts = mergeSubcollectionWithQueue(
+      clientId,
+      'contacts',
+      preserveContacts ? mergeAvailableSubcollectionRecords(remoteContacts, c.contactHistory) : remoteContacts,
+      c.contactHistory || [],
+      currentQueue
+    );
+
+    const progSummary = programsLoaded ? computeProgramSummary(mergedProgs) : {};
+    const openIssuesCount = preserveIssues
+      ? c.openIssuesCount
+      : mergedIssues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length;
 
     const updatedClient = {
       ...c,
@@ -417,9 +511,9 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
       issues: mergedIssues,
       openIssuesCount,
       requirements: mergedReqs,
-      requirementsCount: mergedReqs.length,
+      ...(preserveRequirements ? {} : { requirementsCount: mergedReqs.length }),
       contactHistory: mergedContacts,
-      _subcollectionsLoaded: true
+      _subcollectionsLoaded: programsLoaded
     };
 
     const nextClients = clients.map(x => (x && String(x.id) === String(clientId)) ? updatedClient : x);
@@ -481,6 +575,7 @@ export function startRealtimeSync(userId) {
       return {
         ...data,
         id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : docSnap.id),
+        firestoreId: docSnap.id,
         programs: data.programs || [],
         issues: data.issues || [],
         requirements: data.requirements || [],

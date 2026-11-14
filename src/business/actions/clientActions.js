@@ -124,7 +124,7 @@ export async function delProgram(cid, pid) {
   try {
     await deleteClientSubItemTransaction(
       tenantId,
-      String(cid),
+      String(c.firestoreId || c.id),
       'programs',
       String(pid),
       {
@@ -270,19 +270,27 @@ export async function saveProgram(editId) {
     return;
   }
   try {
+    const counterUpdates = {
+      programsCount: nextProgs.length,
+      installationsCount: nextInstalls,
+      endDate: nextEndDate,
+      programNames: nextProgs.map(p => p.programName).filter(Boolean)
+    };
+    const recoveryClient = {
+      ...c,
+      programs: nextProgs,
+      ...counterUpdates
+    };
+
     await saveClientSubItemTransaction(
       tenantId,
-      String(c.id),
+      String(c.firestoreId || c.id),
       'programs',
       String(d.id),
       d,
-      {
-        programsCount: nextProgs.length,
-        installationsCount: nextInstalls,
-        endDate: nextEndDate,
-        programNames: nextProgs.map(p => p.programName).filter(Boolean)
-      },
-      stats
+      counterUpdates,
+      stats,
+      recoveryClient
     );
   } catch (error) {
     console.error('[Programs] Failed to save license:', error);

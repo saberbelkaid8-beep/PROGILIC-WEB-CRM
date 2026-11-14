@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   mergeSubcollectionWithQueue,
   mergeClientSyncState,
+  loadClientSubcollectionsIfNeeded,
   enqueueSyncAction,
   flushSyncQueue,
   resolveConflict,
@@ -39,6 +40,7 @@ vi.mock('../../src/firebase/service.js', () => ({
   saveClientSubItemTransaction: vi.fn(),
   deleteClientSubItemTransaction: vi.fn(),
   deleteClientTransaction: vi.fn(),
+  getClientSubcollections: vi.fn(),
   saveTenantActivity: vi.fn(async (_uid, act) => act.id),
   saveTenantActivitiesBatch: vi.fn(async (_uid, acts) => acts.map(a => a.id))
 }));
@@ -120,6 +122,79 @@ describe('Phase 5 — Cloud & Local Synchronization Integrity Suite', () => {
       expect(result.length).toBe(1);
       expect(result[0].id).toBe('p2');
     });
+
+    it('does not replace cached programs with an empty cloud subcollection when the summary says they exist', async () => {
+      const program = { id: 45, programName: 'Cached ERP', platform: 'Desktop', type: 'Commercial' };
+      setClients([{
+        id: 101,
+        fullName: 'Customer',
+        programs: [program],
+        programsCount: 1,
+        programNames: ['Cached ERP'],
+        _subcollectionsLoaded: false
+      }]);
+      firebaseService.getClientSubcollections.mockResolvedValue({
+        programs: [],
+        issues: [],
+        requirements: [],
+        contactHistory: []
+      });
+
+      await loadClientSubcollectionsIfNeeded(101);
+
+      expect(clients[0].programs).toEqual([program]);
+      expect(clients[0].programsCount).toBe(1);
+      expect(clients[0]._subcollectionsLoaded).toBe(false);
+    });
+
+    it('keeps the existing program summary when cloud details are missing', async () => {
+      setClients([{
+        id: 102,
+        fullName: 'Customer',
+        programs: [],
+        programsCount: 2,
+        programNames: ['ERP', 'Mobile'],
+        _subcollectionsLoaded: false
+      }]);
+      firebaseService.getClientSubcollections.mockResolvedValue({
+        programs: [],
+        issues: [],
+        requirements: [],
+        contactHistory: []
+      });
+
+      await loadClientSubcollectionsIfNeeded(102);
+
+      expect(clients[0].programs).toEqual([]);
+      expect(clients[0].programsCount).toBe(2);
+      expect(clients[0].programNames).toEqual(['ERP', 'Mobile']);
+      expect(clients[0]._subcollectionsLoaded).toBe(false);
+    });
+
+    it('uses the cloud document ID to load client subcollections', async () => {
+      setClients([{
+        id: 103,
+        firestoreId: 'legacy-document-key',
+        fullName: 'Customer',
+        programs: [],
+        programsCount: 0,
+        programNames: [],
+        _subcollectionsLoaded: false
+      }]);
+      firebaseService.getClientSubcollections.mockResolvedValue({
+        programs: [],
+        issues: [],
+        requirements: [],
+        contactHistory: []
+      });
+
+      await loadClientSubcollectionsIfNeeded(103);
+
+      expect(firebaseService.getClientSubcollections).toHaveBeenCalledWith(
+        'tenant-phase5',
+        'legacy-document-key'
+      );
+    });
   });
 
   describe('2. mergeClientSyncState & Snapshot Reconciliation', () => {
@@ -174,6 +249,19 @@ describe('Phase 5 — Cloud & Local Synchronization Integrity Suite', () => {
       const merged = mergeClientSyncState(remoteSummaries, localClients, []);
       expect(merged[0]._subcollectionsLoaded).toBe(false);
       expect(merged[0].programsCount).toBe(3);
+    });
+
+    it('retains cached programs when the cloud summary claims records missing from the snapshot', () => {
+      const cachedProgram = { id: 7, programName: 'Cached ERP' };
+      const merged = mergeClientSyncState(
+        [{ id: 1, fullName: 'Customer', programsCount: 2, programNames: ['Cached ERP', 'Mobile'] }],
+        [{ id: 1, fullName: 'Customer', programsCount: 2, programs: [cachedProgram], _subcollectionsLoaded: true }],
+        []
+      );
+
+      expect(merged[0].programs).toEqual([cachedProgram]);
+      expect(merged[0].programsCount).toBe(2);
+      expect(merged[0]._subcollectionsLoaded).toBe(false);
     });
   });
 
