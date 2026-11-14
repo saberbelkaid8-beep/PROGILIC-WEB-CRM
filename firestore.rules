@@ -50,6 +50,13 @@ service cloud.firestore {
           && (!data.keys().contains('email') || data.email is string);
     }
 
+    function isLicenseStatsUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['stats', 'updatedAt'])
+          && request.resource.data.stats is map
+          && (request.resource.data.updatedAt is string || request.resource.data.updatedAt is timestamp);
+    }
+
     function isValidClient(data) {
       return data.keys().hasAll(['id', 'fullName', 'status'])
           && data.keys().hasOnly([
@@ -90,6 +97,21 @@ service cloud.firestore {
           && (!data.keys().contains('requirements') || data.requirements is list)
           && (!data.keys().contains('contactHistory') || data.contactHistory is list)
           && (!data.keys().contains('updatedAt') || (data.updatedAt is string || data.updatedAt is timestamp));
+    }
+
+    function isLicenseSummaryUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['programsCount', 'installationsCount', 'endDate', 'programNames', 'updatedAt'])
+          && request.resource.data.id == resource.data.id
+          && (!request.resource.data.keys().contains('programsCount')
+              || request.resource.data.programsCount is number && request.resource.data.programsCount >= 0)
+          && (!request.resource.data.keys().contains('installationsCount')
+              || request.resource.data.installationsCount is number && request.resource.data.installationsCount >= 0)
+          && (!request.resource.data.keys().contains('endDate')
+              || request.resource.data.endDate is string && request.resource.data.endDate.size() <= 20)
+          && (!request.resource.data.keys().contains('programNames') || request.resource.data.programNames is list)
+          && (!request.resource.data.keys().contains('updatedAt')
+              || request.resource.data.updatedAt is string || request.resource.data.updatedAt is timestamp);
     }
 
     function isValidProgram(data) {
@@ -218,14 +240,16 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false; // Security against general scraping
-      allow create, update: if isOwner(userId) && isValidUser(incoming());
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && (isValidUser(incoming()) || isLicenseStatsUpdate());
       allow delete: if isOwner(userId);
     }
 
     // 2. Clients subcollection
     match /users/{userId}/clients/{clientId} {
       allow get, list: if isOwner(userId);
-      allow create, update: if isOwner(userId) && isValidClient(incoming());
+      allow create: if isOwner(userId) && isValidClient(incoming());
+      allow update: if isOwner(userId) && (isValidClient(incoming()) || isLicenseSummaryUpdate());
       allow delete: if isOwner(userId);
 
       // Subcollection: programs

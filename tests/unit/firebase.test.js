@@ -17,6 +17,7 @@ const mockBatchOps = vi.hoisted(() => ({
 const mockTxOps = vi.hoisted(() => ({
   get: vi.fn(async () => ({ exists: () => true, data: () => ({ id: 1, fullName: 'Client 1', status: 'نشط' }) })),
   set: vi.fn(),
+  update: vi.fn(),
   delete: vi.fn()
 }));
 
@@ -390,7 +391,7 @@ describe('Firebase Service', () => {
     );
   });
 
-  it('removes unsupported legacy client fields when saving a license and retains embedded records', async () => {
+  it('updates only license summary fields on an existing client', async () => {
     const existingProgram = { id: 700, programName: 'Existing ERP' };
     mockTxOps.get.mockResolvedValueOnce({
       exists: () => true,
@@ -413,21 +414,20 @@ describe('Firebase Service', () => {
       null
     );
 
-    const clientWrite = mockTxOps.set.mock.calls.find(([reference]) =>
-      reference.path === 'users/test-uid/clients/101'
+    expect(mockTxOps.update).toHaveBeenCalledWith(
+      { path: 'users/test-uid/clients/101' },
+      expect.objectContaining({
+        programsCount: 2,
+        updatedAt: expect.any(String)
+      })
     );
-    expect(clientWrite[1]).toMatchObject({
-      id: 101,
-      fullName: 'Legacy customer',
-      status: 'نشط',
-      programsCount: 2,
-      programs: [existingProgram]
-    });
-    expect(clientWrite[1]).not.toHaveProperty('legacyUnsupportedField');
+    expect(mockTxOps.set).not.toHaveBeenCalledWith(
+      { path: 'users/test-uid/clients/101' },
+      expect.anything()
+    );
   });
 
-  it('rewrites legacy user metadata to satisfy Firestore rules during license saves', async () => {
-    const legacyClients = [{ id: 101, fullName: 'Legacy customer', status: 'نشط' }];
+  it('updates only stats metadata on an existing user document during license saves', async () => {
     mockTxOps.get
       .mockResolvedValueOnce({
         exists: () => true,
@@ -435,7 +435,7 @@ describe('Firebase Service', () => {
       })
       .mockResolvedValueOnce({
         exists: () => true,
-        data: () => ({ clients: legacyClients, unsupportedLegacyField: true })
+        data: () => ({ clients: [{ id: 101 }], unsupportedLegacyField: true })
       });
 
     await saveClientSubItemTransaction(
@@ -448,14 +448,17 @@ describe('Firebase Service', () => {
       { totalPrograms: 1 }
     );
 
-    const userWrite = mockTxOps.set.mock.calls.find(([reference]) => reference.path === 'users/test-uid');
-    expect(userWrite[1]).toMatchObject({
-      v: 3,
-      nid: 101,
-      stats: { totalPrograms: 1 },
-      clients: legacyClients
-    });
-    expect(userWrite[1]).not.toHaveProperty('unsupportedLegacyField');
+    expect(mockTxOps.update).toHaveBeenCalledWith(
+      { path: 'users/test-uid' },
+      expect.objectContaining({
+        stats: { totalPrograms: 1 },
+        updatedAt: expect.any(String)
+      })
+    );
+    expect(mockTxOps.set).not.toHaveBeenCalledWith(
+      { path: 'users/test-uid' },
+      expect.anything()
+    );
   });
 
   it('saveTenantActivitiesBatch commits 450 activities in 3 chunked writeBatch calls instead of 450 individual setDoc calls', async () => {

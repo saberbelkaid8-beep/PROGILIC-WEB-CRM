@@ -494,36 +494,27 @@ export async function saveClientSubItemTransaction(userId, clientId, collectionN
         tx.set(clientRef, clientRecord);
         tx.set(itemRef, itemData, { merge: true });
       } else {
-        const existingClient = typeof clientSnapshot?.data === 'function'
-          ? clientSnapshot.data()
-          : {};
-        const clientRecord = validateClient({
-          ...existingClient,
-          ...clientPatch,
-          id: Number(existingClient.id ?? recoveryClient?.id ?? clientId)
-        });
-        ['programs', 'issues', 'requirements', 'contactHistory'].forEach(field => {
-          const records = existingClient[field] ?? recoveryClient?.[field];
-          if (Array.isArray(records)) clientRecord[field] = records;
-        });
-
-        tx.set(clientRef, clientRecord);
+        tx.update(clientRef, clientPatch);
         tx.set(itemRef, itemData, { merge: true });
       }
 
       // Update global pre-aggregated counters
       if (globalStatsUpdates) {
-        const existingNid = Number(existingUser.nid);
-        const userRecord = {
-          v: Number(existingUser.v) >= 1 ? Number(existingUser.v) : 3,
-          nid: Math.max(Number.isFinite(existingNid) ? existingNid : 0, Number(clientId) || 100),
-          stats: globalStatsUpdates,
-          updatedAt: new Date().toISOString()
-        };
-        if (typeof existingUser.tenantId === 'string') userRecord.tenantId = existingUser.tenantId;
-        if (typeof existingUser.email === 'string') userRecord.email = existingUser.email;
-        if (Array.isArray(existingUser.clients)) userRecord.clients = existingUser.clients;
-        tx.set(userRef, userRecord);
+        const updatedAt = new Date().toISOString();
+        if (userSnapshot?.exists?.()) {
+          tx.update(userRef, {
+            stats: globalStatsUpdates,
+            updatedAt
+          });
+        } else {
+          const existingNid = Number(existingUser.nid);
+          tx.set(userRef, {
+            v: 3,
+            nid: Math.max(Number.isFinite(existingNid) ? existingNid : 0, Number(clientId) || 100),
+            stats: globalStatsUpdates,
+            updatedAt
+          });
+        }
       }
     });
   } catch (error) {
