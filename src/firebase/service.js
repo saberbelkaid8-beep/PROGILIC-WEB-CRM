@@ -1,6 +1,7 @@
 import { 
   doc, 
   getDoc, 
+  getDocFromServer,
   setDoc, 
   updateDoc, 
   deleteDoc, 
@@ -103,6 +104,25 @@ export async function getClientsPage(userId, limitVal = 100, lastDoc = null) {
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function getClientById(userId, clientId) {
+  userId = sanitizeUserId(userId);
+  if (!userId || !clientId) return null;
+  const path = `users/${userId}/clients/${clientId}`;
+  try {
+    const snapshot = await getDocFromServer(doc(db, path));
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data();
+    const numericId = Number(snapshot.id);
+    return {
+      ...data,
+      id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : snapshot.id),
+      firestoreId: snapshot.id
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
   }
 }
 

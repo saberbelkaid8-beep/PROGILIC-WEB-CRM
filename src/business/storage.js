@@ -254,11 +254,15 @@ export function startRealtimeSync(userId) {
 
   // 2. Listen to clients collection (real-time summaries)
   const clientsCollRef = collection(db, 'users', userId, 'clients');
-  const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
-    const summaries = snapshot.docs.map(doc => {
-      const data = doc.data();
+  const unsubClients = onSnapshot(clientsCollRef, { includeMetadataChanges: true }, (snapshot) => {
+    if (snapshot.metadata?.fromCache) return;
+
+    const summaries = snapshot.docs.map(clientDoc => {
+      const data = clientDoc.data();
+      const numericId = Number(clientDoc.id);
       return {
         ...data,
+        id: data.id ?? (Number.isSafeInteger(numericId) ? numericId : clientDoc.id),
         programs: data.programs || [],
         issues: data.issues || [],
         requirements: data.requirements || [],
@@ -268,7 +272,7 @@ export function startRealtimeSync(userId) {
       };
     });
 
-    // Merge summaries with existing clients to preserve already loaded details in memory
+    // Merge server summaries with loaded details already held in memory.
     let mergedClients = summaries.map(newC => {
       const existingC = clients.find(x => String(x.id) === String(newC.id));
       if (existingC) {
@@ -287,13 +291,6 @@ export function startRealtimeSync(userId) {
       }
       return newC;
     });
-
-    // Safety guard: If subcollection listener reports 0 docs, but we already have loaded clients
-    // (e.g. from data.clients in the user doc or IndexedDB), preserve them!
-    if (summaries.length === 0 && clients && clients.length > 0) {
-      console.log(`[Realtime Sync] Subcollection empty but ${clients.length} clients exist in state. Preserving current client list.`);
-      mergedClients = clients;
-    }
 
     batch(() => {
       setSyncing(snapshot.metadata.hasPendingWrites);

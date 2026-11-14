@@ -38,6 +38,7 @@ vi.mock('firebase/firestore', () => ({
   memoryLocalCache: vi.fn(),
   doc: vi.fn(),
   getDoc: vi.fn(),
+  getDocFromServer: vi.fn(),
   setDoc: vi.fn(),
   collection: vi.fn(),
   query: vi.fn(),
@@ -53,7 +54,8 @@ vi.mock('firebase/firestore', () => ({
   onSnapshot: vi.fn(() => () => {})
 }));
 
-import { getDoc, setDoc } from 'firebase/firestore';
+import { getDoc, getDocFromServer, onSnapshot, setDoc } from 'firebase/firestore';
+import { clients, setClients } from '../../src/state/store.js';
 
 describe('Firebase Service', () => {
   beforeEach(() => {
@@ -76,6 +78,49 @@ describe('Firebase Service', () => {
     getDoc.mockResolvedValue({ exists: () => false });
     const data = await getUserData('test-uid');
     expect(data).toBeNull();
+  });
+
+  it('fetches a missing timeline client directly from the Firestore server', async () => {
+    const { getClientById } = await import('../../src/firebase/service.js');
+    getDocFromServer.mockResolvedValue({
+      exists: () => true,
+      id: '12345',
+      data: () => ({ fullName: 'عميل السحابة', status: 'نشط' })
+    });
+
+    await expect(getClientById('test-uid', '12345')).resolves.toMatchObject({
+      id: 12345,
+      firestoreId: '12345',
+      fullName: 'عميل السحابة'
+    });
+    expect(getDocFromServer).toHaveBeenCalled();
+  });
+
+  it('updates clients only from server-confirmed realtime snapshots', async () => {
+    const { startRealtimeSync, stopRealtimeSync } = await import('../../src/business/storage.js');
+    const listeners = [];
+    setClients([{ id: 1, fullName: 'Existing client' }]);
+    onSnapshot.mockImplementation((...args) => {
+      listeners.push(args);
+      return vi.fn();
+    });
+
+    startRealtimeSync('test-tenant');
+    const clientsListener = listeners[1][2];
+    clientsListener({
+      metadata: { fromCache: true, hasPendingWrites: false },
+      docs: [{ id: '2', data: () => ({ id: 2, fullName: 'Cached client' }) }]
+    });
+    expect(clients.map(client => client.fullName)).toEqual(['Existing client']);
+
+    clientsListener({
+      metadata: { fromCache: false, hasPendingWrites: false },
+      docs: [{ id: '2', data: () => ({ id: 2, fullName: 'Cloud client' }) }]
+    });
+    expect(clients.map(client => client.fullName)).toEqual(['Cloud client']);
+    expect(listeners[1][1]).toEqual({ includeMetadataChanges: true });
+
+    stopRealtimeSync();
   });
 
   it('should save user data correctly', async () => {

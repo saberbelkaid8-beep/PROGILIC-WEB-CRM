@@ -1,5 +1,5 @@
 import { closeModal } from "./uiActions.js";
-import { S, clients, setClients, updateState, currentUser, setCurrentUser } from '../../state/store.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, getActiveTenantId } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
@@ -15,6 +15,7 @@ import { t } from '../../utils/i18n.js';
 import { hasPermission } from '../../state/store.js';
 import { 
   addClientTransaction, 
+  getClientById,
   updateClientTransaction, 
   deleteClientTransaction, 
   saveClientSubItemTransaction, 
@@ -43,8 +44,38 @@ function getProgramEditEventId(clientId, program) {
 export async function selClient(id) {
   S.view = 'loading_details';
   R();
-  await loadClientSubcollectionsIfNeeded(id);
-  S.selId = id;
+
+  let client = clients.find(item => String(item.id) === String(id));
+  if (!client) {
+    const tenantId = getActiveTenantId();
+    try {
+      client = tenantId ? await getClientById(tenantId, String(id)) : null;
+      if (client) {
+        setClients([
+          ...clients.filter(item => String(item.id) !== String(client.id)),
+          client
+        ]);
+      }
+    } catch (error) {
+      console.error(`[Customers] Could not fetch client ${id} from Firestore:`, error);
+      showToast(t('تعذر جلب بيانات العميل من السحابة. تحقق من الاتصال ثم أعد المحاولة.'), 'error');
+      S.view = 'list';
+      S.selId = null;
+      R();
+      return;
+    }
+  }
+
+  if (!client) {
+    S.view = 'list';
+    S.selId = null;
+    showToast(t('العميل غير موجود في قاعدة البيانات السحابية.'), 'error');
+    R();
+    return;
+  }
+
+  await loadClientSubcollectionsIfNeeded(client.id);
+  S.selId = client.id;
   S.view = 'detail';
   S.tab = 'overview';
   S.clientActivities = [];
