@@ -74,7 +74,7 @@ import { createDefaultGerant } from './constants/index.js';
 
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
-import { S, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState } from './state/store.js';
+import { S, currentUser, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState } from './state/store.js';
 import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 

@@ -340,12 +340,19 @@ export async function saveClient(editId) {
       _subcollectionsLoaded: true
     };
 
-    // Check if initial program was created in the modal
+    // Check if optional initial program was enabled in the modal
+    const progToggle = typeof document !== 'undefined' ? document.getElementById('f_p_enable') : null;
     const pPl = (gv('f_p_pl') || '').trim();
     const pVer = (gv('f_p_ver') || '').trim();
     const pTy = (gv('f_p_ty') || '').trim();
-    const hasInitialProg = (pPl === 'Mobile' && (pTy || d.status === 'نشط')) || pVer || (d.status === 'نشط' && pPl);
+    const hasInitialProg = progToggle
+      ? progToggle.checked
+      : Boolean(pVer || (pPl === 'Mobile' && pTy));
     if (hasInitialProg) {
+      if (!pPl) {
+        showToast(t('الرجاء اختيار المنصة *'), 'error');
+        return;
+      }
       if (pPl !== 'Mobile' && !pVer) {
         showToast(t('الرجاء اختيار إصدار البرنامج المرخص (مثال: V27, V26...) *'), 'error');
         return;

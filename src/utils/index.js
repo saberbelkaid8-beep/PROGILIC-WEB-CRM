@@ -136,14 +136,10 @@ export function updateProgramTypeSelect(platform, targetId = 'fp_ty') {
 export function onClientStatusChange() {
   const st = document.getElementById('f_st')?.value;
   const sdInput = document.getElementById('f_sd');
-  const progSec = document.getElementById('active_client_prog_sec');
   if (st === 'نشط') {
     if (sdInput && !sdInput.value) {
       sdInput.value = new Date().toISOString().split('T')[0];
     }
-    if (progSec) progSec.style.display = 'block';
-  } else {
-    if (progSec) progSec.style.display = 'none';
   }
 }
 

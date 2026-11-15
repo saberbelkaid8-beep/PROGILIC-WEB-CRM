@@ -85,38 +85,49 @@ function renderClientModal(){
       <label class="flbl">${t('تاريخ البدء / التسجيل')} * <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة')})</span></label>
       <input type="date" class="fctl" id="f_sd" value="${c.startDate||(curStatus==='نشط'?td():'')}">
     </div>
-    ${!isEdit ? `
-    <div id="active_client_prog_sec" style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-top:10px; ${curStatus==='نشط'?'':'display:none;'}">
-      <div class="fsec" style="margin-top:0; color:var(--brand)">${t('📦 تسجيل أول برنامج ترخيص للعميل')}</div>
-      <div class="frow">
-        <div class="fgroup">
-          <label class="flbl">${t('المنصة')} *</label>
-          <select class="fctl" id="f_p_pl" onchange="updateProgramTypeSelect(this.value, 'f_p_ty')">
-            <option value="Desktop" selected>Desktop</option>
-            <option value="Mobile">Mobile</option>
-            <option value="Web">Web</option>
-          </select>
+    ${!isEdit ? (() => {
+      const addProgChecked = Boolean(S.form && S.form._addInitialProg);
+      return `
+    <div id="active_client_prog_sec" style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-top:10px;">
+      <label for="f_p_enable" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; margin:0; user-select:none;">
+        <span style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; color:var(--brand)">
+          <input type="checkbox" id="f_p_enable" ${addProgChecked ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--brand); cursor:pointer;" onchange="if(window.S&&window.S.form){window.S.form._addInitialProg=this.checked;} const fields=document.getElementById('f_p_fields'); if(fields) fields.style.display=this.checked?'block':'none';">
+          <span>📦 ${t('إضافة أول برنامج')}</span>
+        </span>
+        <span style="font-size:11px; color:var(--muted); font-weight:500">(${t('اختياري')})</span>
+      </label>
+      <div id="f_p_fields" style="display:${addProgChecked ? 'block' : 'none'}; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);">
+        <div class="frow">
+          <div class="fgroup">
+            <label class="flbl">${t('المنصة')} *</label>
+            <select class="fctl" id="f_p_pl" onchange="updateProgramTypeSelect(this.value, 'f_p_ty')">
+              <option value="Desktop" selected>Desktop</option>
+              <option value="Mobile">Mobile</option>
+              <option value="Web">Web</option>
+            </select>
+          </div>
+          <div class="fgroup">
+            <label class="flbl">${t('نوع البرنامج')} *</label>
+            <select class="fctl" id="f_p_ty">${programTypeOpts('Desktop', 'تجاري (Commercial)')}</select>
+          </div>
         </div>
-        <div class="fgroup">
-          <label class="flbl">${t('نوع البرنامج')} *</label>
-          <select class="fctl" id="f_p_ty">${programTypeOpts('Desktop', 'تجاري (Commercial)')}</select>
-        </div>
-      </div>
-      <div class="frow">
-        <div class="fgroup" id="f_p_ver_group">
-          <label class="flbl">${t('إصدار البرنامج')} *</label>
-          <select class="fctl" id="f_p_ver">
-            <option value="">${t('اختر الإصدار')}</option>
-            ${PROGRAM_VERSIONS.map(v => `<option value="${v}">${v}</option>`).join('')}
-          </select>
-        </div>
-        <div class="fgroup">
-          <label class="flbl">${t('عدد الأجهزة المرخصة')} *</label>
-          <input type="number" class="fctl" id="f_p_ic" min="1" value="1">
+        <div class="frow">
+          <div class="fgroup" id="f_p_ver_group">
+            <label class="flbl">${t('إصدار البرنامج')} *</label>
+            <select class="fctl" id="f_p_ver">
+              <option value="">${t('اختر الإصدار')}</option>
+              ${PROGRAM_VERSIONS.map(v => `<option value="${v}">${v}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fgroup">
+            <label class="flbl">${t('عدد الأجهزة المرخصة')} *</label>
+            <input type="number" class="fctl" id="f_p_ic" min="1" value="1">
+          </div>
         </div>
       </div>
     </div>
-    ` : ''}
+    `;
+    })() : ''}
     <div class="fgroup" style="margin-top:10px"><label class="flbl">${t('ملاحظات عامة')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label><textarea class="fctl" id="f_no">${esc(c.notes)}</textarea></div>
     <div class="facts">
       <button class="btn btn-ghost" onclick="closeModal()">${t('إلغاء')}</button>
