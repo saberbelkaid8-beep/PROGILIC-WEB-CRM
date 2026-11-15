@@ -1,5 +1,5 @@
 import { S, clients, setClients, updateState, currentUser, setCurrentUser, hasPermission, isGerant } from '../../state/store.js';
-import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
+import { persist, loadClientSubcollectionsIfNeeded, hydrateAllClientSubcollections, enqueueSyncAction } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline, loadGlobalActivities } from '../timelineService.js';
 import { loadClientTimeline } from './ticketActions.js';
@@ -29,6 +29,12 @@ export async function setView(v) {
     S.view = 'dashboard';
     S.selId = null;
     R();
+    if (clients.some(c => c && !c._subcollectionsLoaded)) {
+      hydrateAllClientSubcollections().catch(console.warn);
+    }
+    if (!Array.isArray(S.globalActivities) || S.globalActivities.length === 0) {
+      loadGlobalActivities().catch(console.warn);
+    }
     return;
   }
   if (v === 'timeline' || v === 'global-timeline') {
@@ -193,25 +199,50 @@ export function setDbWilaya(wilaya) {
 
 export function exportDashboardReport() {
   const dateStr = new Date().toISOString().split('T')[0];
-  const totalClients = clients.length;
-  const activeClients = clients.filter(c => c.status === 'نشط').length;
-  const totalPrograms = clients.reduce((acc, c) => acc + (c.programs?.length || Number(c.programsCount) || 0), 0);
-  const totalDevices = clients.reduce((acc, c) => acc + (c.programs?.reduce((pacc, p) => pacc + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 0), 0);
-  const openIssues = clients.flatMap(c => c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
+  const selectedWilaya = S.dbWilaya || 'all';
+  const targetClients = selectedWilaya === 'all'
+    ? clients
+    : clients.filter(c => c.wilaya === selectedWilaya);
+  const totalClients = targetClients.length;
+  const activeClients = targetClients.filter(c => c.status === 'نشط').length;
+  const totalPrograms = targetClients.reduce((acc, c) => acc + ((c.programs?.length || 0) > 0 ? c.programs.length : Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0)), 0);
+  const totalDevices = targetClients.reduce((acc, c) => {
+    const progs = c.programs || [];
+    if (progs.length > 0) {
+      return acc + progs.reduce((pacc, p) => pacc + (Number(p.installationsCount) || 1), 0);
+    }
+    return acc + (Number(c.installationsCount) || 0);
+  }, 0);
+  const openIssues = targetClients.reduce((acc, c) => {
+    const iss = c.issues || [];
+    if (iss.length > 0 || c._subcollectionsLoaded) {
+      return acc + iss.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد').length;
+    }
+    return acc + (Number(c.openIssuesCount) || 0);
+  }, 0);
   
   let csvContent = '\uFEFF';
   csvContent += 'تقرير لوحة القيادة — PROGILIC CRM v3\n';
   csvContent += `تاريخ التصدير: ${dateStr}\n`;
+  if (selectedWilaya !== 'all') {
+    csvContent += `الولاية المحددة: ${selectedWilaya}\n`;
+  }
   csvContent += `إجمالي العملاء: ${totalClients} (نشط: ${activeClients})\n`;
   csvContent += `البرامج المرخصة: ${totalPrograms} على ${totalDevices} جهازاً\n`;
   csvContent += `تذاكر الدعم المفتوحة: ${openIssues}\n\n`;
   csvContent += 'اسم العميل,الولاية,الحالة,النقاط,البرامج,الأجهزة,المشاكل المفتوحة\n';
   
-  clients.forEach(c => {
-    const progs = (c.programs || []).map(p => p.programName).join(' + ') || c.programNames?.join(' + ') || '';
-    const inst = (c.programs || []).reduce((a, p) => a + (Number(p.installationsCount) || 1), 0) || Number(c.installationsCount) || 1;
-    const iss = (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-    csvContent += `"${(c.fullName || '').replace(/"/g, '""')}","${c.wilaya || ''}","${c.status || ''}",${c.score || 100},"${progs}",${inst},${iss}\n`;
+  targetClients.forEach(c => {
+    const progsList = c.programs || [];
+    const progs = progsList.map(p => p.programName).join(' + ') || c.programNames?.join(' + ') || '';
+    const inst = progsList.length > 0
+      ? progsList.reduce((a, p) => a + (Number(p.installationsCount) || 1), 0)
+      : (Number(c.installationsCount) || 0);
+    const iss = (c.issues || []).length > 0 || c._subcollectionsLoaded
+      ? (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد').length
+      : (Number(c.openIssuesCount) || 0);
+    const sc = c._subcollectionsLoaded ? computeScore(c).total : (c.score !== undefined ? Number(c.score) : computeScore(c).total);
+    csvContent += `"${(c.fullName || '').replace(/"/g, '""')}","${c.wilaya || ''}","${c.status || ''}",${sc},"${progs}",${inst},${iss}\n`;
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -227,10 +258,16 @@ export function exportDashboardReport() {
 }
 
 export function openGeoReportModal() {
+  if (clients.some(c => c && !c._subcollectionsLoaded)) {
+    hydrateAllClientSubcollections().catch(console.warn);
+  }
   openModal('geoReport');
 }
 
 export function openTicketsAndReqsModal(tab = 'issues', filter = 'all') {
+  if (clients.some(c => c && !c._subcollectionsLoaded)) {
+    hydrateAllClientSubcollections().catch(console.warn);
+  }
   openModal('ticketsAndReqs', { tab, filter, search: '' });
 }
 
@@ -239,6 +276,9 @@ export function openHealthScoreExplainerModal() {
 }
 
 export function openLicensesExplorerModal(platform = 'all', version = 'all') {
+  if (clients.some(c => c && !c._subcollectionsLoaded)) {
+    hydrateAllClientSubcollections().catch(console.warn);
+  }
   openModal('licensesExplorer', { platform, version, type: 'all', search: '' });
 }
 
@@ -246,20 +286,49 @@ export function exportLicensesCSV() {
   const dateStr = new Date().toISOString().split('T')[0];
   const allLicenses = [];
   clients.forEach(c => {
-    (c.programs || []).forEach(p => {
-      allLicenses.push({
-        clientName: c.fullName || '',
-        company: c.company || '',
-        wilaya: c.wilaya || '',
-        phone: c.phone || '',
-        status: c.status || 'نشط',
-        platform: p.platform || 'Desktop',
-        type: p.type || 'تجاري',
-        version: p.version || '',
-        devices: Number(p.installationsCount) || 1,
-        startDate: p.startDate || c.startDate || ''
+    const progs = c.programs || [];
+    if (progs.length > 0) {
+      progs.forEach(p => {
+        allLicenses.push({
+          clientName: c.fullName || '',
+          company: c.company || '',
+          wilaya: c.wilaya || '',
+          phone: c.phone || '',
+          status: c.status || 'نشط',
+          platform: p.platform || 'Desktop',
+          type: p.type || 'تجاري',
+          version: p.version || '',
+          devices: Number(p.installationsCount) || 1,
+          startDate: p.startDate || c.startDate || ''
+        });
       });
-    });
+    } else {
+      const summaryProgCount = Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0);
+      if (summaryProgCount > 0) {
+        const names = Array.isArray(c.programNames) && c.programNames.length > 0
+          ? c.programNames
+          : Array(summaryProgCount).fill('PROGILIC');
+        names.forEach(name => {
+          const lower = String(name || '').toLowerCase();
+          const plat = lower.startsWith('mobile') || lower.includes('vdd') || lower.includes('التاجر') || lower.includes('لوحة القيادة')
+            ? 'Mobile'
+            : (lower.startsWith('web') || lower.includes('الويب') ? 'Web' : 'Desktop');
+          const vMatch = (name || '').match(/V\d+/i);
+          allLicenses.push({
+            clientName: c.fullName || '',
+            company: c.company || '',
+            wilaya: c.wilaya || '',
+            phone: c.phone || '',
+            status: c.status || 'نشط',
+            platform: plat,
+            type: 'تجاري',
+            version: plat === 'Mobile' ? '' : (vMatch ? vMatch[0].toUpperCase() : ''),
+            devices: Math.max(1, Math.round((Number(c.installationsCount) || summaryProgCount) / summaryProgCount)),
+            startDate: c.startDate || ''
+          });
+        });
+      }
+    }
   });
 
   let csv = '\uFEFFتقرير التراخيص والبرامج حسب الإصدار — PROGILIC CRM v3\n';
@@ -293,9 +362,13 @@ export function exportGeoReport() {
     if (c.status === 'نشط') wilayaCounts[w].active++;
     else if (c.status === 'محتمل') wilayaCounts[w].prospective++;
     else if (c.status === 'متوقف') wilayaCounts[w].stopped++;
-    wilayaCounts[w].scoreSum += (c.score !== undefined ? c.score : 100);
-    wilayaCounts[w].issues += (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-    wilayaCounts[w].progs += (c.programs || []).length || Number(c.programsCount) || 0;
+    const sc = c._subcollectionsLoaded ? computeScore(c).total : (c.score !== undefined ? Number(c.score) : computeScore(c).total);
+    wilayaCounts[w].scoreSum += sc;
+    const issCount = (c.issues || []).length > 0 || c._subcollectionsLoaded
+      ? (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد').length
+      : (Number(c.openIssuesCount) || 0);
+    wilayaCounts[w].issues += issCount;
+    wilayaCounts[w].progs += (c.programs || []).length || Number(c.programsCount) || (c.programNames?.length || 0);
   });
 
   let csv = '\uFEFFالتقرير الجغرافي للولايات — PROGILIC CRM v3\n';

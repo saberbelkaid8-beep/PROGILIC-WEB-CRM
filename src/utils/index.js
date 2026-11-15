@@ -169,8 +169,12 @@ export function getProgramStats(c) {
   if (progStatsCache.has(c)) {
     return progStatsCache.get(c);
   }
+  const progs = Array.isArray(c.programs) ? c.programs : [];
   let res;
-  if (!c._subcollectionsLoaded && c.programsCount !== undefined) {
+  if (progs.length > 0) {
+    const totalInstalls = progs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0);
+    res = { total: progs.length, totalInstalls, active: progs.length, expired: 0 };
+  } else if (!c._subcollectionsLoaded && c.programsCount !== undefined) {
     res = {
       total: c.programsCount || 0,
       totalInstalls: c.installationsCount || 0,
@@ -178,9 +182,7 @@ export function getProgramStats(c) {
       expired: 0
     };
   } else {
-    const progs = c.programs || [];
-    const totalInstalls = progs.reduce((s, p) => s + (Number(p.installationsCount) || 1), 0);
-    res = { total: progs.length, totalInstalls, active: progs.length, expired: 0 };
+    res = { total: 0, totalInstalls: 0, active: 0, expired: 0 };
   }
   progStatsCache.set(c, res);
   return res;

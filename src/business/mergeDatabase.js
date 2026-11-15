@@ -4,6 +4,7 @@ import { saveClients, setMeta, getClients } from './idbStorage.js';
 import { saveUserData } from '../firebase/service.js';
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { auth } from '../firebase/config.js';
+import { computeScore } from './intelligence.js';
 
 
 export function computeStats(clientList) {
@@ -11,9 +12,33 @@ export function computeStats(clientList) {
   const active = safeList.filter(c => c && c.status === 'نشط').length;
   const prospective = safeList.filter(c => c && c.status === 'محتمل').length;
   const stopped = safeList.filter(c => c && c.status === 'متوقف').length;
-  const totalPrograms = safeList.reduce((acc, c) => acc + (c?.programs || []).length, 0);
-  const totalInstalls = safeList.reduce((acc, c) => acc + (c?.programs || []).reduce((sum, p) => sum + (Number(p?.installationsCount) || 1), 0), 0);
-  const totalIssues = safeList.reduce((acc, c) => acc + (c?.issues || []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length, 0);
+  const totalPrograms = safeList.reduce((acc, c) => {
+    const progs = Array.isArray(c?.programs) ? c.programs : [];
+    const countFromDoc = Math.max(Number(c?.programsCount) || 0, Array.isArray(c?.programNames) ? c.programNames.length : 0);
+    return acc + (progs.length > 0 ? progs.length : countFromDoc);
+  }, 0);
+  const totalInstalls = safeList.reduce((acc, c) => {
+    const progs = Array.isArray(c?.programs) ? c.programs : [];
+    if (progs.length > 0) {
+      return acc + progs.reduce((sum, p) => sum + (Number(p?.installationsCount) || 1), 0);
+    }
+    return acc + (Number(c?.installationsCount) || 0);
+  }, 0);
+  const totalIssues = safeList.reduce((acc, c) => {
+    const issues = Array.isArray(c?.issues) ? c.issues : [];
+    if (issues.length > 0 || c?._subcollectionsLoaded) {
+      return acc + issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')).length;
+    }
+    return acc + (Number(c?.openIssuesCount) || 0);
+  }, 0);
+  const averageScore = safeList.length > 0
+    ? Math.round(safeList.reduce((acc, c) => {
+        const sc = c._subcollectionsLoaded
+          ? computeScore(c).total
+          : (c.score !== undefined ? Number(c.score) : computeScore(c).total);
+        return acc + sc;
+      }, 0) / safeList.length)
+    : 0;
   const maxId = safeList.reduce((max, c) => Math.max(max, Number(c?.id) || 0), 0);
 
   return {
@@ -24,7 +49,7 @@ export function computeStats(clientList) {
       totalClients: safeList.length,
       totalPrograms: totalPrograms,
       totalLicensedDevices: totalInstalls,
-      averageScore: 100,
+      averageScore,
       totalOpenIssues: totalIssues
     },
     nid: Math.max(100, maxId + 1)

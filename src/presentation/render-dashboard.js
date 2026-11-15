@@ -172,6 +172,42 @@ function formatRelativeTime(ts) {
   return `قبل ${days} يوم`;
 }
 
+// Local date & inference helpers
+function toLocalYmd(dateObj) {
+  if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return '';
+  return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+}
+
+function parseLocalDateMs(val, fallbackId = null) {
+  if (val) {
+    const s = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      if (!Number.isNaN(dt.getTime())) return dt.getTime();
+    }
+    const parsed = new Date(s).getTime();
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  const numId = Number(fallbackId);
+  // Only treat numeric ID as a creation timestamp if it's a valid epoch ms (2020–2100)
+  if (Number.isFinite(numId) && numId >= 1577836800000 && numId <= 4102444800000) {
+    return numId;
+  }
+  return null;
+}
+
+function inferPlatformFromName(programName = '') {
+  const lower = String(programName || '').toLowerCase();
+  if (lower.startsWith('mobile') || lower.includes('vdd') || lower.includes('tableau de bord') || lower.includes('التاجر') || lower.includes('لوحة القيادة')) {
+    return 'Mobile';
+  }
+  if (lower.startsWith('web') || lower.includes('الويب')) {
+    return 'Web';
+  }
+  return 'Desktop';
+}
+
 /**
  * Main renderDashboard Entry Point
  */
@@ -190,6 +226,12 @@ export function renderDashboard() {
   const prospectiveClients = cl.filter(c => c.status === 'محتمل').length;
   const stoppedClients = cl.filter(c => c.status === 'متوقف').length;
 
+  const todayMidnightMs = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate()).getTime();
+  const todayStr = toLocalYmd(todayObj);
+  const DAY = 86400000;
+  const now = Date.now();
+  const clIdSet = new Set(cl.map(c => Number(c.id)));
+
   // 1. Programs & Devices
   let totalPrograms = 0;
   let totalLicensedDevices = 0;
@@ -200,66 +242,86 @@ export function renderDashboard() {
   const platformCounts = { Desktop: 0, Mobile: 0, Web: 0 };
   const expiringContracts30 = [];
   const expiringContracts7 = [];
-
-  const now = Date.now();
-  const DAY = 86400000;
+  const allProgramsFlat = [];
 
   cl.forEach(c => {
     const progs = c.programs || [];
-    totalPrograms += progs.length || Number(c.programsCount) || (c.programNames?.length || 0);
-    
-    progs.forEach(p => {
-      const inst = Number(p.installationsCount) || 1;
-      totalLicensedDevices += inst;
-      
-      // Determine version or clean program name
-      let vName = (p.version || '').trim().toUpperCase();
-      if (!vName) {
-        const match = (p.programName || '').match(/V\d+/i);
-        vName = match ? match[0].toUpperCase() : (p.programName || 'PROGILIC');
-      }
-      programVersions[vName] = (programVersions[vName] || 0) + 1;
+    if (progs.length > 0) {
+      totalPrograms += progs.length;
+      progs.forEach(p => {
+        const inst = Number(p.installationsCount) || 1;
+        totalLicensedDevices += inst;
+        allProgramsFlat.push({ client: c, prog: p });
 
-      const rawPlat = p.platform || 'Desktop';
-      const plat = rawPlat === 'Hybrid' ? 'Desktop' : rawPlat;
-      if (platformCounts[plat] !== undefined) {
-        platformCounts[plat] += 1;
-      } else {
-        platformCounts.Desktop += 1;
-      }
+        let vName = (p.version || '').trim().toUpperCase();
+        if (!vName) {
+          const match = (p.programName || '').match(/V\d+/i);
+          vName = match ? match[0].toUpperCase() : (p.programName || 'PROGILIC');
+        }
+        programVersions[vName] = (programVersions[vName] || 0) + 1;
 
-      if (p.endDate) {
-        try {
-          const dl = Math.floor((new Date(p.endDate + 'T00:00').getTime() - now) / DAY);
-          if (dl < 0) {
-            expiredProgramsCount++;
-          } else if (dl <= 30) {
-            expiringSoonCount++;
-            expiringContracts30.push({ client: c, prog: p, daysLeft: dl });
-            if (dl <= 7) expiringContracts7.push({ client: c, prog: p, daysLeft: dl });
+        const rawPlat = p.platform || inferPlatformFromName(p.programName);
+        const plat = rawPlat === 'Hybrid' ? 'Desktop' : rawPlat;
+        if (platformCounts[plat] !== undefined) {
+          platformCounts[plat] += 1;
+        } else {
+          platformCounts.Desktop += 1;
+        }
+
+        if (p.endDate) {
+          const endMs = parseLocalDateMs(p.endDate);
+          if (endMs !== null) {
+            const dl = Math.floor((endMs - todayMidnightMs) / DAY);
+            if (dl < 0) {
+              expiredProgramsCount++;
+            } else if (dl <= 30) {
+              expiringSoonCount++;
+              expiringContracts30.push({ client: c, prog: p, daysLeft: dl });
+              if (dl <= 7) expiringContracts7.push({ client: c, prog: p, daysLeft: dl });
+            } else {
+              activeProgramsCount++;
+            }
           } else {
             activeProgramsCount++;
           }
-        } catch (e) {
+        } else {
           activeProgramsCount++;
         }
-      } else {
-        activeProgramsCount++;
-      }
-    });
+      });
+    } else {
+      const summaryProgCount = Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0);
+      totalPrograms += summaryProgCount;
+      totalLicensedDevices += Number(c.installationsCount) || 0;
 
-    if (progs.length === 0) {
-      totalLicensedDevices += Number(c.installationsCount) || 1;
+      if (summaryProgCount > 0) {
+        const names = Array.isArray(c.programNames) && c.programNames.length > 0
+          ? c.programNames
+          : Array(summaryProgCount).fill('PROGILIC');
+        names.forEach(name => {
+          const plat = inferPlatformFromName(name);
+          platformCounts[plat] = (platformCounts[plat] || 0) + 1;
+          allProgramsFlat.push({ client: c, prog: { programName: name, platform: plat, startDate: c.startDate, endDate: c.endDate } });
+        });
+      }
+
       if (c.endDate) {
-        try {
-          const dl = Math.floor((new Date(c.endDate + 'T00:00').getTime() - now) / DAY);
+        const endMs = parseLocalDateMs(c.endDate);
+        if (endMs !== null) {
+          const dl = Math.floor((endMs - todayMidnightMs) / DAY);
           if (dl < 0) {
-            expiredProgramsCount++;
+            expiredProgramsCount += summaryProgCount || 1;
           } else if (dl <= 30) {
+            expiringSoonCount += summaryProgCount || 1;
             expiringContracts30.push({ client: c, daysLeft: dl });
             if (dl <= 7) expiringContracts7.push({ client: c, daysLeft: dl });
+          } else {
+            activeProgramsCount += summaryProgCount;
           }
-        } catch (e) {}
+        } else {
+          activeProgramsCount += summaryProgCount;
+        }
+      } else {
+        activeProgramsCount += summaryProgCount;
       }
     }
   });
@@ -267,6 +329,8 @@ export function renderDashboard() {
   // 2. Open Issues and Priorities
   const allIssues = cl.flatMap(c => (c.issues || []).map(i => ({ ...i, clientId: c.id, clientName: c.fullName, clientWilaya: c.wilaya })));
   const openIssues = allIssues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد');
+  const unhydratedOpenIssuesExtra = cl.reduce((acc, c) => acc + (!c._subcollectionsLoaded && (c.issues || []).length === 0 ? (Number(c.openIssuesCount) || 0) : 0), 0);
+  const totalOpenIssuesCount = openIssues.length + unhydratedOpenIssuesExtra;
   const urgentIssues = openIssues.filter(i => i.priority === 'عاجل' || i.priority === 'عالية');
 
   const issuesByPriority = {
@@ -284,7 +348,6 @@ export function renderDashboard() {
     مخطط: allReqs.filter(r => r.status === 'مخطط').length,
     منفذ: allReqs.filter(r => r.status === 'منفذ').length
   };
-  const rejectedReqsCount = allReqs.filter(r => r.status === 'مرفوض').length;
 
   // 4. Client Scores and Health
   let totalScoreSum = 0;
@@ -297,16 +360,19 @@ export function renderDashboard() {
   const atRiskClientsList = [];
 
   cl.forEach(c => {
-    const sc = c.score !== undefined ? Number(c.score) : computeScore(c).total;
+    const sc = c._subcollectionsLoaded
+      ? computeScore(c).total
+      : (c.score !== undefined ? Number(c.score) : computeScore(c).total);
     totalScoreSum += sc;
     if (sc >= 75) scoreCategories['متميز']++;
     else if (sc >= 50) scoreCategories['جيد']++;
     else if (sc >= 25) scoreCategories['يحتاج متابعة']++;
     else scoreCategories['خطر عالٍ']++;
 
-    const isRisk = isClientAtRisk(c);
+    const clientWithLiveScore = c.score === sc ? c : { ...c, score: sc };
+    const isRisk = isClientAtRisk(clientWithLiveScore);
     if (isRisk) {
-      const rp = computeRiskProfile(c);
+      const rp = computeRiskProfile(clientWithLiveScore);
       atRiskClientsList.push({
         client: c,
         score: sc,
@@ -316,7 +382,7 @@ export function renderDashboard() {
     }
   });
 
-  const avgScore = totalClients ? Math.round(totalScoreSum / totalClients) : 100;
+  const avgScore = totalClients ? Math.round(totalScoreSum / totalClients) : 0;
   const excellentPct = totalClients ? Math.round((scoreCategories['متميز'] / totalClients) * 100) : 0;
   atRiskClientsList.sort((a, b) => a.score - b.score);
 
@@ -332,6 +398,52 @@ export function renderDashboard() {
   const otherWilayasClientsSum = sortedWilayas.slice(8).reduce((acc, curr) => acc + curr[1], 0);
   const maxWilayaVal = topWilayas.length ? topWilayas[0][1] : 1;
 
+  // Map resolved timestamps from Timeline activities when available
+  const resolvedActByIssueKey = new Map();
+  const issueAddedActs = [];
+  const issueResolvedActs = [];
+  (S.globalActivities || []).forEach(act => {
+    if (!act || !act.timestamp) return;
+    if (selectedWilaya !== 'all' && act.clientId && !clIdSet.has(Number(act.clientId))) return;
+    if (act.type === 'ISSUE_ADDED') issueAddedActs.push(act);
+    if (act.type === 'ISSUE_RESOLVED') {
+      issueResolvedActs.push(act);
+      if (act.clientId && act.description) {
+        resolvedActByIssueKey.set(`${Number(act.clientId)}|${String(act.description)}`, act.timestamp);
+      }
+    }
+  });
+
+  function getIssueResolvedYmd(issue) {
+    if (issue.status !== 'محلول' && issue.status !== 'مغلق') return '';
+    if (issue.resolvedDate) return String(issue.resolvedDate).slice(0, 10);
+    const matchingAct = issueResolvedActs.find(a =>
+      Number(a.clientId) === Number(issue.clientId) &&
+      issue.title &&
+      (String(a.description || '').includes(issue.title) || String(a.title || '').includes(issue.title))
+    );
+    if (matchingAct?.timestamp) {
+      const dt = new Date(matchingAct.timestamp);
+      if (!Number.isNaN(dt.getTime())) return toLocalYmd(dt);
+    }
+    return String(issue.date || '').slice(0, 10);
+  }
+
+  function getIssueResolvedMs(issue) {
+    if (issue.status !== 'محلول' && issue.status !== 'مغلق') return null;
+    if (issue.resolvedDate) return parseLocalDateMs(issue.resolvedDate);
+    const matchingAct = issueResolvedActs.find(a =>
+      Number(a.clientId) === Number(issue.clientId) &&
+      issue.title &&
+      (String(a.description || '').includes(issue.title) || String(a.title || '').includes(issue.title))
+    );
+    if (matchingAct?.timestamp) {
+      const ms = new Date(matchingAct.timestamp).getTime();
+      if (!Number.isNaN(ms)) return ms;
+    }
+    return parseLocalDateMs(issue.date, issue.id);
+  }
+
   // 6. Support Trend (Line chart over selected period - 1, 7, 30, 90 days)
   const mon = ['يناير', 'فبراير', 'مارس', 'أبريل', 'ماي', 'جوان', 'جويلية', 'أوت', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
   const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -343,33 +455,67 @@ export function renderDashboard() {
 
   if (period === 1) {
     // Hourly movement for today (24 hours in 2-hour increments)
+    const getIssueHourToday = (issue, isResolveCheck = false) => {
+      if (isResolveCheck) {
+        const rAct = issueResolvedActs.find(a =>
+          Number(a.clientId) === Number(issue.clientId) &&
+          issue.title &&
+          (String(a.description || '').includes(issue.title) || String(a.title || '').includes(issue.title))
+        );
+        if (rAct?.timestamp) {
+          const dt = new Date(rAct.timestamp);
+          if (!Number.isNaN(dt.getTime()) && toLocalYmd(dt) === todayStr) return dt.getHours();
+        }
+      }
+      if (issue.date && String(issue.date).includes('T')) {
+        const dt = new Date(issue.date);
+        if (!Number.isNaN(dt.getTime()) && toLocalYmd(dt) === todayStr) return dt.getHours();
+      }
+      if (!isResolveCheck) {
+        const aAct = issueAddedActs.find(a =>
+          Number(a.clientId) === Number(issue.clientId) &&
+          issue.title &&
+          (String(a.description || '').includes(issue.title) || String(a.title || '').includes(issue.title))
+        );
+        if (aAct?.timestamp) {
+          const dt = new Date(aAct.timestamp);
+          if (!Number.isNaN(dt.getTime()) && toLocalYmd(dt) === todayStr) return dt.getHours();
+        }
+      }
+      const idMs = parseLocalDateMs(null, issue.id);
+      if (idMs !== null && toLocalYmd(new Date(idMs)) === todayStr) {
+        return new Date(idMs).getHours();
+      }
+      return String(issue.date || '').slice(0, 10) === todayStr ? 9 : null;
+    };
+
     for (let h = 0; h < 24; h += 2) {
       chartLabels.push(`${String(h).padStart(2, '0')}:00`);
       const hEnd = h + 2;
       const issuesOpenedInHour = allIssues.filter(i => {
-        if (!i.date) return false;
-        const d = new Date(i.date);
-        return d.toDateString() === new Date().toDateString() && d.getHours() >= h && d.getHours() < hEnd;
+        if ((i.date || '').slice(0, 10) !== todayStr) return false;
+        const hr = getIssueHourToday(i, false);
+        return hr !== null && hr >= h && hr < hEnd;
       }).length;
       const issuesResolvedInHour = allIssues.filter(i => {
-        if (!i.date || i.status !== 'محلول') return false;
-        const d = new Date(i.date);
-        return d.toDateString() === new Date().toDateString() && d.getHours() >= h && d.getHours() < hEnd;
+        if (i.status !== 'محلول' && i.status !== 'مغلق') return false;
+        if (getIssueResolvedYmd(i) !== todayStr) return false;
+        const hr = getIssueHourToday(i, true);
+        return hr !== null && hr >= h && hr < hEnd;
       }).length;
       nw.push(issuesOpenedInHour);
       rs.push(issuesResolvedInHour);
     }
   } else {
-    // Daily movements for 7, 30, or 90 days
+    // Daily movements for 7, 30, or 90 days in local timezone
     const daysCount = period;
     for (let i = daysCount - 1; i >= 0; i--) {
-      const d = new Date(todayObj);
-      d.setDate(d.getDate() - i);
-      const dStr = d.toISOString().split('T')[0];
-      
-      const createdCount = allIssues.filter(i => (i.date || '').startsWith(dStr)).length;
-      const resolvedCount = allIssues.filter(i => (i.date || '').startsWith(dStr) && i.status === 'محلول').length;
-      
+      const d = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate() - i);
+      const dStr = toLocalYmd(d);
+
+      const createdCount = allIssues.filter(iss => (iss.date || '').slice(0, 10) === dStr).length;
+      const resolvedCount = allIssues.filter(iss => getIssueResolvedYmd(iss) === dStr).length;
+
       nw.push(createdCount);
       rs.push(resolvedCount);
 
@@ -388,6 +534,95 @@ export function renderDashboard() {
 
   const sumN = nw.reduce((a, b) => a + b, 0);
   const sumR = rs.reduce((a, b) => a + b, 0);
+
+  // Real time-bucketed KPI Sparklines & Deltas (Zero fake formulas)
+  const monthWindowStartMs = todayMidnightMs - 30 * DAY;
+  const weekWindowStartMs = todayMidnightMs - 7 * DAY;
+  const checkpoints30d = Array.from({ length: 8 }, (_, idx) => (
+    idx === 7 ? now : monthWindowStartMs + Math.round((idx * 30 * DAY) / 7)
+  ));
+
+  // KPI 1: Clients growth over last 30 days
+  const newClients30d = cl.filter(c => {
+    const ms = parseLocalDateMs(c.startDate, c.id);
+    return ms !== null && ms >= monthWindowStartMs && ms <= now;
+  }).length;
+  const clientsSparkline = checkpoints30d.map((cp, idx) => {
+    if (idx === 7) return totalClients;
+    return cl.filter(c => {
+      const ms = parseLocalDateMs(c.startDate, c.id);
+      return ms === null || ms <= cp;
+    }).length;
+  });
+
+  // KPI 2: Programs growth over last 30 days
+  const newPrograms30d = allProgramsFlat.filter(({ client, prog }) => {
+    const ms = parseLocalDateMs(prog.startDate || client.startDate, prog.id);
+    return ms !== null && ms >= monthWindowStartMs && ms <= now;
+  }).length;
+  const progsSparkline = checkpoints30d.map((cp, idx) => {
+    if (idx === 7) return totalPrograms;
+    return allProgramsFlat.filter(({ client, prog }) => {
+      const ms = parseLocalDateMs(prog.startDate || client.startDate, prog.id);
+      return ms === null || ms <= cp;
+    }).length;
+  });
+
+  // KPI 3: Open issues 7-day movement
+  const issuesOpened7d = allIssues.filter(i => {
+    const ms = parseLocalDateMs(i.date, i.id);
+    return ms !== null && ms >= weekWindowStartMs && ms <= now;
+  }).length;
+  const issuesResolved7d = allIssues.filter(i => {
+    const ms = getIssueResolvedMs(i);
+    return ms !== null && ms >= weekWindowStartMs && ms <= now;
+  }).length;
+  const ticketsNet7d = issuesOpened7d - issuesResolved7d;
+  const ticketsSparkline = (() => {
+    const pts = new Array(8).fill(0);
+    pts[7] = totalOpenIssuesCount;
+    for (let stepIdx = 6; stepIdx >= 0; stepIdx--) {
+      const dayOffset = 6 - stepIdx;
+      const d = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate() - dayOffset);
+      const dStr = toLocalYmd(d);
+      const openedOnDay = allIssues.filter(iss => (iss.date || '').slice(0, 10) === dStr).length;
+      const resolvedOnDay = allIssues.filter(iss => getIssueResolvedYmd(iss) === dStr).length;
+      pts[stepIdx] = Math.max(0, pts[stepIdx + 1] - openedOnDay + resolvedOnDay);
+    }
+    return pts;
+  })();
+
+  // KPI 4: At-risk clients breakdown & trend
+  const criticalRiskCount = atRiskClientsList.filter(item => item.score < 25 || item.level === 'high').length;
+  const atRiskIdsSet = new Set(atRiskClientsList.map(item => Number(item.client.id)));
+  const riskSparkline = checkpoints30d.map((cp, idx) => {
+    if (idx === 7) return atRiskClientsList.length;
+    return cl.filter(c => {
+      if (!atRiskIdsSet.has(Number(c.id))) return false;
+      const ms = parseLocalDateMs(c.startDate, c.id);
+      return ms === null || ms <= cp;
+    }).length;
+  });
+
+  // KPI 5: Health score cohort trend & stable ratio
+  const healthyClientsCount = scoreCategories['متميز'] + scoreCategories['جيد'];
+  const scoreSparkline = checkpoints30d.map((cp, idx) => {
+    if (idx === 7) return avgScore;
+    const cohort = cl.filter(c => {
+      const ms = parseLocalDateMs(c.startDate, c.id);
+      return ms === null || ms <= cp;
+    });
+    if (cohort.length === 0) return avgScore;
+    const sum = cohort.reduce((acc, c) => {
+      const sc = c._subcollectionsLoaded ? computeScore(c).total : (c.score !== undefined ? Number(c.score) : computeScore(c).total);
+      return acc + sc;
+    }, 0);
+    return Math.round(sum / cohort.length);
+  });
+
+  // KPI 6: Contracts expiring within 30 days by cumulative horizon
+  const expiryHorizons = [4, 8, 12, 16, 20, 24, 28, 30];
+  const expiringSparkline = expiryHorizons.map(h => expiringContracts30.filter(item => item.daysLeft <= h).length);
 
   // SVG Line Chart Builder (Multi-period with Real-Time Data)
   function buildLineChartSVG() {
@@ -441,18 +676,16 @@ export function renderDashboard() {
     { l: 'Web', v: platformCounts.Web }
   ];
 
-  // Platform % (Strictly Desktop, Mobile, Web)
-  const totalPlatforms = (platformCounts.Desktop + platformCounts.Mobile + platformCounts.Web) || 1;
-  const pDesk = Math.round((platformCounts.Desktop / totalPlatforms) * 100);
-  const pMobile = Math.round((platformCounts.Mobile / totalPlatforms) * 100);
-  const pWeb = Math.max(0, 100 - (pDesk + pMobile));
-
-  // 8. Urgent Alerts list
-  const urgentAlerts = computeAlerts().filter(a => a.level === 'urgent' || a.level === 'warning');
+  // 8. Urgent Alerts list (filtered to active Wilaya if selected)
+  const urgentAlerts = computeAlerts()
+    .filter(a => (a.level === 'urgent' || a.level === 'warning') && (selectedWilaya === 'all' || clIdSet.has(Number(a.cid))));
   const alertDisplayList = urgentAlerts.slice(0, 5);
 
-  // 9. Recent Activities list
-  const recentActivities = (S.globalActivities || []).slice(0, 5);
+  // 9. Recent Activities list (sorted newest first, filtered by Wilaya if active)
+  const recentActivities = [...(S.globalActivities || [])]
+    .filter(act => act && (selectedWilaya === 'all' || !act.clientId || clIdSet.has(Number(act.clientId))))
+    .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
+    .slice(0, 5);
 
   // 10. Department Activity (This Week) — 100% Real Live Synchronization
   const activitiesByDept = {
@@ -504,93 +737,93 @@ export function renderDashboard() {
     if (activitiesByDept[d]) activitiesByDept[d].staffCount++;
   });
 
-  // Calculate this week's start timestamp (Sunday 00:00:00)
-  const nowObj = todayObj;
-  const currentDayOfWeek = nowObj.getDay(); // 0 is Sunday, 6 is Saturday
-  const sundayThisWeek = new Date(nowObj);
-  sundayThisWeek.setDate(nowObj.getDate() - currentDayOfWeek);
-  sundayThisWeek.setHours(0, 0, 0, 0);
+  // Calculate this week's start & end bounds (Sunday 00:00:00 local time)
+  const currentDayOfWeek = todayObj.getDay();
+  const sundayThisWeek = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate() - currentDayOfWeek);
   const weekStartMs = sundayThisWeek.getTime();
+  const weekEndMs = weekStartMs + 7 * DAY;
 
-  // 1. Tally Pre-vente real activity:
-  // Prospective clients registered, leads added this week
-  cl.forEach(c => {
-    if (c.status === 'محتمل') {
-      const dt = c.startDate ? new Date(c.startDate).getTime() : (c.id > weekStartMs ? c.id : null);
-      if (dt && dt >= weekStartMs) {
-        activitiesByDept.pre_vente.count++;
-        const dayIdx = new Date(dt).getDay();
-        activitiesByDept.pre_vente.vals[dayIdx]++;
+  const seenDeptKeys = new Set();
+  const recordDeptEvent = (deptId, key, dtMs) => {
+    if (!activitiesByDept[deptId] || dtMs === null || dtMs < weekStartMs || dtMs >= weekEndMs) return;
+    if (key && seenDeptKeys.has(key)) return;
+    if (key) seenDeptKeys.add(key);
+    activitiesByDept[deptId].count++;
+    const dayIdx = new Date(dtMs).getDay();
+    if (activitiesByDept[deptId].vals[dayIdx] !== undefined) {
+      activitiesByDept[deptId].vals[dayIdx]++;
+    }
+  };
+
+  // 1. Explicitly logged / synced Timeline activities this week (deduplicated against client sub-items)
+  (S.globalActivities || []).forEach(act => {
+    if (!act || !act.timestamp) return;
+    if (selectedWilaya !== 'all' && act.clientId && !clIdSet.has(Number(act.clientId))) return;
+    const actMs = new Date(act.timestamp).getTime();
+    if (Number.isNaN(actMs) || actMs < weekStartMs || actMs >= weekEndMs) return;
+
+    const tp = String(act.type || '');
+    if (tp.startsWith('BACKUP_') || tp.startsWith('DATA_') || tp.startsWith('STAFF_') || tp === 'SYSTEM_PURGE' || tp.endsWith('_DELETED')) {
+      return;
+    }
+
+    let deptId = null;
+    let key = null;
+    const cidStr = act.clientId ? String(act.clientId) : '';
+    const actIdStr = String(act.id || '');
+
+    if (tp === 'CLIENT_CREATED' || tp === 'CLIENT_EDITED' || tp === 'GPS_CAPTURED') {
+      deptId = 'pre_vente';
+      key = tp === 'CLIENT_CREATED' && cidStr ? `client:${cidStr}` : `act:${actIdStr}`;
+    } else if (tp === 'PROGRAM_ADDED' || tp === 'PROGRAM_EDITED') {
+      deptId = 'commercial';
+      let progId = act.meta?.programId ? String(act.meta.programId) : '';
+      if (!progId && actIdStr.startsWith(`act_prog_${cidStr}_`)) {
+        progId = actIdStr.slice(`act_prog_${cidStr}_`.length);
       }
+      key = tp === 'PROGRAM_ADDED' && cidStr && progId ? `prog:${cidStr}:${progId}` : `act:${actIdStr}`;
+    } else if (tp === 'CONTACT_ADDED') {
+      deptId = 'suivi';
+      let chId = actIdStr.startsWith(`act_contact_${cidStr}_`) ? actIdStr.slice(`act_contact_${cidStr}_`.length) : '';
+      key = cidStr && chId ? `contact:${cidStr}:${chId}` : `act:${actIdStr}`;
+    } else if (tp === 'ISSUE_ADDED' || tp === 'ISSUE_EDITED' || tp === 'ISSUE_RESOLVED') {
+      deptId = 'technique';
+      let issId = actIdStr.startsWith(`act_issue_${cidStr}_`) ? actIdStr.slice(`act_issue_${cidStr}_`.length) : '';
+      key = tp === 'ISSUE_ADDED' && cidStr && issId ? `issue:${cidStr}:${issId}` : `act:${actIdStr}`;
+    } else if (tp === 'REQUIREMENT_ADDED' || tp === 'REQUIREMENT_EDITED') {
+      deptId = 'technique';
+      let reqId = actIdStr.startsWith(`act_req_${cidStr}_`) ? actIdStr.slice(`act_req_${cidStr}_`.length) : '';
+      key = tp === 'REQUIREMENT_ADDED' && cidStr && reqId ? `req:${cidStr}:${reqId}` : `act:${actIdStr}`;
+    }
+
+    if (deptId) {
+      recordDeptEvent(deptId, key, actMs);
     }
   });
 
-  // 2. Tally Commercial real activity:
-  // Programs and licenses added or renewed this week
+  // 2. Client records & subcollections not yet represented in timeline activities this week
   cl.forEach(c => {
+    const cidStr = String(c.id);
+    if (c.status === 'محتمل') {
+      const dt = parseLocalDateMs(c.startDate, c.id);
+      recordDeptEvent('pre_vente', `client:${cidStr}`, dt);
+    }
     (c.programs || []).forEach(p => {
-      const dt = p.startDate ? new Date(p.startDate).getTime() : (p.id > weekStartMs ? p.id : null);
-      if (dt && dt >= weekStartMs) {
-        activitiesByDept.commercial.count++;
-        const dayIdx = new Date(dt).getDay();
-        activitiesByDept.commercial.vals[dayIdx]++;
-      }
+      const dt = parseLocalDateMs(p.startDate, p.id);
+      recordDeptEvent('commercial', `prog:${cidStr}:${p.id || p.programName}`, dt);
     });
-  });
-
-  // 3. Tally Suivi real activity:
-  // Client contact calls, visits and notes logged this week
-  cl.forEach(c => {
     (c.contactHistory || []).forEach(entry => {
-      if (entry.date) {
-        const dt = new Date(entry.date + 'T00:00').getTime();
-        if (dt >= weekStartMs) {
-          activitiesByDept.suivi.count++;
-          const dayIdx = new Date(dt).getDay();
-          activitiesByDept.suivi.vals[dayIdx]++;
-        }
-      }
+      const dt = parseLocalDateMs(entry.date, entry.id);
+      recordDeptEvent('suivi', `contact:${cidStr}:${entry.id || entry.date}`, dt);
     });
-  });
-
-  // 4. Tally Technique real activity:
-  // Issues logged or resolved this week + Requirements added
-  cl.forEach(c => {
     (c.issues || []).forEach(i => {
-      if (i.date) {
-        const dt = new Date(i.date + 'T00:00').getTime();
-        if (dt >= weekStartMs) {
-          activitiesByDept.technique.count++;
-          const dayIdx = new Date(dt).getDay();
-          activitiesByDept.technique.vals[dayIdx]++;
-        }
-      }
+      const dt = parseLocalDateMs(i.date, i.id);
+      recordDeptEvent('technique', `issue:${cidStr}:${i.id || i.title}`, dt);
     });
     (c.requirements || []).forEach(r => {
-      if (r.date) {
-        const dt = new Date(r.date + 'T00:00').getTime();
-        if (dt >= weekStartMs) {
-          activitiesByDept.technique.count++;
-          const dayIdx = new Date(dt).getDay();
-          activitiesByDept.technique.vals[dayIdx]++;
-        }
-      }
+      const dt = parseLocalDateMs(r.date, r.id);
+      recordDeptEvent('technique', `req:${cidStr}:${r.id || r.title}`, dt);
     });
-  });
-
-  // Add any explicitly logged activities from timeline this week
-  (S.globalActivities || []).forEach(act => {
-    const actMs = act.timestamp ? new Date(act.timestamp).getTime() : 0;
-    if (actMs >= weekStartMs) {
-      const deptId = act.type?.includes('CLIENT') ? 'pre_vente' :
-                     act.type?.includes('PROGRAM') ? 'commercial' :
-                     act.type?.includes('CONTACT') ? 'suivi' : 'technique';
-      if (activitiesByDept[deptId]) {
-        activitiesByDept[deptId].count++;
-        const dayIdx = new Date(actMs).getDay();
-        activitiesByDept[deptId].vals[dayIdx]++;
-      }
-    }
   });
 
   const totalRealWeekActivities = 
@@ -684,8 +917,8 @@ export function renderDashboard() {
           sub: `${activeClients} ${t('نشط')} · ${prospectiveClients} ${t('محتمل')}`,
           delta: 'up',
           dgood: true,
-          dtxt: `+${Math.max(1, Math.round(totalClients * 0.05))} ${t('هذا الشهر')}`,
-          data: [Math.max(0, totalClients - 27), Math.max(0, totalClients - 24), Math.max(0, totalClients - 19), Math.max(0, totalClients - 16), Math.max(0, totalClients - 12), Math.max(0, totalClients - 8), Math.max(0, totalClients - 4), totalClients],
+          dtxt: `+${newClients30d} ${t('هذا الشهر')}`,
+          data: clientsSparkline,
           color: '#2a78d6'
         })}
 
@@ -699,8 +932,8 @@ export function renderDashboard() {
           sub: `${t('على')} ${totalLicensedDevices} ${t('جهازًا')}`,
           delta: 'up',
           dgood: true,
-          dtxt: `+${Math.max(1, Math.round(totalPrograms * 0.04))} ${t('هذا الشهر')}`,
-          data: [Math.max(0, totalPrograms - 41), Math.max(0, totalPrograms - 34), Math.max(0, totalPrograms - 27), Math.max(0, totalPrograms - 21), Math.max(0, totalPrograms - 16), Math.max(0, totalPrograms - 11), Math.max(0, totalPrograms - 5), totalPrograms],
+          dtxt: `+${newPrograms30d} ${t('هذا الشهر')}`,
+          data: progsSparkline,
           color: '#2a78d6'
         })}
 
@@ -709,12 +942,16 @@ export function renderDashboard() {
           tint: '#FFFBEB',
           fg: '#D97706',
           label: t('تذاكر دعم مفتوحة'),
-          value: openIssues.length,
+          value: totalOpenIssuesCount,
           sub: `${t('منها')} ${urgentIssues.length} ${t('عاجلة')}`,
-          delta: 'down',
-          dgood: true,
-          dtxt: `−${Math.max(1, Math.round(openIssues.length * 0.15))} ${t('هذا الأسبوع')}`,
-          data: [openIssues.length + 13, openIssues.length + 10, openIssues.length + 15, openIssues.length + 11, openIssues.length + 8, openIssues.length + 6, openIssues.length + 6, openIssues.length],
+          delta: ticketsNet7d > 0 ? 'up' : 'down',
+          dgood: ticketsNet7d <= 0,
+          dtxt: ticketsNet7d > 0
+            ? `+${ticketsNet7d} ${t('هذا الأسبوع')}`
+            : (ticketsNet7d < 0
+              ? `−${Math.abs(ticketsNet7d)} ${t('هذا الأسبوع')}`
+              : (issuesResolved7d > 0 ? `✓ ${issuesResolved7d} ${t('محلولة هذا الأسبوع')}` : `0 ${t('هذا الأسبوع')}`)),
+          data: ticketsSparkline,
           color: '#2a78d6'
         })}
 
@@ -726,10 +963,10 @@ export function renderDashboard() {
           value: atRiskClientsList.length,
           unit: t('عميلًا'),
           sub: `${totalClients ? ((atRiskClientsList.length / totalClients) * 100).toFixed(1) : 0}% ${t('من قاعدة العملاء')}`,
-          delta: 'up',
-          dgood: false,
-          dtxt: `+${Math.max(1, Math.round(atRiskClientsList.length * 0.15))} ${t('هذا الشهر')}`,
-          data: [Math.max(0, atRiskClientsList.length - 7), Math.max(0, atRiskClientsList.length - 6), Math.max(0, atRiskClientsList.length - 6), Math.max(0, atRiskClientsList.length - 4), Math.max(0, atRiskClientsList.length - 3), Math.max(0, atRiskClientsList.length - 3), Math.max(0, atRiskClientsList.length - 2), atRiskClientsList.length],
+          delta: atRiskClientsList.length > 0 ? 'warn' : 'check',
+          dgood: atRiskClientsList.length === 0,
+          dtxt: `${criticalRiskCount} ${t('حرج')} · ${Math.max(0, atRiskClientsList.length - criticalRiskCount)} ${t('للمتابعة')}`,
+          data: riskSparkline,
           color: '#2a78d6'
         })}
 
@@ -741,10 +978,10 @@ export function renderDashboard() {
           value: avgScore,
           unit: '/ 100',
           sub: `${excellentPct}% ${t('عملاء متميزون')}`,
-          delta: 'up',
-          dgood: true,
-          dtxt: `+2 ${t('هذا الشهر')}`,
-          data: [Math.max(50, avgScore - 5), Math.max(50, avgScore - 4), Math.max(50, avgScore - 4), Math.max(50, avgScore - 3), Math.max(50, avgScore - 2), Math.max(50, avgScore - 2), Math.max(50, avgScore - 1), avgScore],
+          delta: avgScore >= 50 ? 'up' : 'down',
+          dgood: avgScore >= 50,
+          dtxt: `${healthyClientsCount}/${totalClients} ${t('حساب مستقر')}`,
+          data: scoreSparkline,
           color: '#2a78d6'
         })}
 
@@ -756,10 +993,10 @@ export function renderDashboard() {
           value: expiringContracts30.length,
           unit: t('عقدًا'),
           sub: `${expiringContracts7.length} ${t('منها خلال 7 أيام')}`,
-          delta: 'up',
-          dgood: false,
-          dtxt: `+${Math.max(1, Math.round(expiringContracts30.length * 0.2))} ${t('هذا الأسبوع')}`,
-          data: [Math.max(0, expiringContracts30.length - 9), Math.max(0, expiringContracts30.length - 7), Math.max(0, expiringContracts30.length - 8), Math.max(0, expiringContracts30.length - 4), Math.max(0, expiringContracts30.length - 5), Math.max(0, expiringContracts30.length - 2), Math.max(0, expiringContracts30.length - 4), expiringContracts30.length],
+          delta: expiringContracts30.length === 0 && expiredProgramsCount === 0 ? 'check' : 'up',
+          dgood: expiringContracts30.length === 0 && expiredProgramsCount === 0,
+          dtxt: `${expiredProgramsCount} ${t('منتهي')} · ${expiringContracts7.length} ${t('خلال 7 أيام')}`,
+          data: expiringSparkline,
           color: '#2a78d6'
         })}
 
@@ -933,20 +1170,20 @@ export function renderDashboard() {
           
           <!-- Tickets rows with click to filter -->
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <div class="sec" style="margin:0">${t('التذاكر المفتوحة حسب الأولوية')} (${openIssues.length})</div>
+            <div class="sec" style="margin:0">${t('التذاكر المفتوحة حسب الأولوية')} (${totalOpenIssuesCount})</div>
             <span style="font-size:11px;color:#2a78d6;cursor:pointer;font-weight:700" onclick="openTicketsAndReqsModal('issues', 'all')">${t('عرض الكل')} ↗</span>
           </div>
           <div style="cursor:pointer" onclick="openTicketsAndReqsModal('issues', 'عاجل')" title="${t('عرض التذاكر العاجلة')}">
-            ${hb(t('عاجل'), issuesByPriority['عاجل'], Math.max(openIssues.length, 1), '#EF4444')}
+            ${hb(t('عاجل'), issuesByPriority['عاجل'], Math.max(totalOpenIssuesCount, 1), '#EF4444')}
           </div>
           <div style="cursor:pointer" onclick="openTicketsAndReqsModal('issues', 'عالية')" title="${t('عرض التذاكر عالية الأولوية')}">
-            ${hb(t('عالية'), issuesByPriority['عالية'], Math.max(openIssues.length, 1), '#F97316')}
+            ${hb(t('عالية'), issuesByPriority['عالية'], Math.max(totalOpenIssuesCount, 1), '#F97316')}
           </div>
           <div style="cursor:pointer" onclick="openTicketsAndReqsModal('issues', 'متوسطة')" title="${t('عرض التذاكر متوسطة الأولوية')}">
-            ${hb(t('متوسطة'), issuesByPriority['متوسطة'], Math.max(openIssues.length, 1), '#F59E0B')}
+            ${hb(t('متوسطة'), issuesByPriority['متوسطة'], Math.max(totalOpenIssuesCount, 1), '#F59E0B')}
           </div>
           <div style="cursor:pointer" onclick="openTicketsAndReqsModal('issues', 'منخفضة')" title="${t('عرض التذاكر منخفضة الأولوية')}">
-            ${hb(t('منخفضة'), issuesByPriority['منخفضة'], Math.max(openIssues.length, 1), '#94A3B8')}
+            ${hb(t('منخفضة'), issuesByPriority['منخفضة'], Math.max(totalOpenIssuesCount, 1), '#94A3B8')}
           </div>
 
           <div class="hr"></div>
@@ -1045,8 +1282,8 @@ export function renderDashboard() {
             </div>
           </div>
           ${recentActivities.length ? recentActivities.map(act => {
-            const actor = act.actorName || 'النظام';
-            const initials = actor.slice(0, 2);
+            const actor = act.userName || act.actorName || (act.actorEmail ? act.actorEmail.split('@')[0] : 'النظام');
+            const initials = actor.trim().slice(0, 2);
             const isCall = act.type?.includes('CONTACT');
             const isSolved = act.type?.includes('RESOLVED');
             const isProg = act.type?.includes('PROGRAM');
@@ -1055,9 +1292,11 @@ export function renderDashboard() {
             const badgeTag = isCall ? t('مكالمة') : (isSolved ? t('حل مشكلة') : (isProg ? t('ترخيص') : (isClient ? t('عميل جديد') : t('إجراء'))));
             const badgeColor = isCall ? '#1E40AF' : (isSolved ? '#065F46' : (isProg ? '#9A3412' : '#92400E'));
             const badgeBg = isCall ? '#EFF6FF' : (isSolved ? '#ECFDF5' : (isProg ? '#FFF3E8' : '#FFFBEB'));
+            const hasLinkedClient = act.clientId && clients.some(c => Number(c.id) === Number(act.clientId));
+            const clickAction = hasLinkedClient ? `selClient(${Number(act.clientId)})` : `setView('global-timeline')`;
 
             return `
-              <div class="item" onclick="setView('global-timeline')">
+              <div class="item" onclick="${clickAction}">
                 <div class="av" style="background:${badgeBg};color:${badgeColor}">${esc(initials)}</div>
                 <div class="tx">
                   <b>${esc(actor)} <span class="tag" style="background:${badgeBg};color:${badgeColor}">${badgeTag}</span></b>

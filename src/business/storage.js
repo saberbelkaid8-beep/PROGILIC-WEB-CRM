@@ -43,6 +43,7 @@ import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
+import { reconcileClientPrograms, extractDeletedProgramsFromActivities, parseProgramFromActivity, isProgramDeletedAfter } from './programRecovery.js';
 
 // Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
@@ -225,6 +226,244 @@ export function sanitizeClient(c) {
   };
 }
 
+let reconciledClientsWithActivities = new Set();
+let _isRecoveringPrograms = false;
+let _backfillBlockedByPermission = false;
+let _hydrationInFlightPromise = null;
+let _hydrationInFlightUid = null;
+
+async function persistRecoveredClientPrograms(userId, clientId, reconciled, updatedStats = null) {
+  let permissionDenied = false;
+  try {
+    const serviceMod = await import('../firebase/service.js');
+    if (typeof serviceMod.backfillClientProgramsTransaction === 'function') {
+      const ok = await serviceMod.backfillClientProgramsTransaction(
+        userId,
+        String(clientId),
+        reconciled.recoveredPrograms,
+        reconciled.counterUpdates,
+        updatedStats,
+        {
+          onPermissionDenied: () => {
+            permissionDenied = true;
+          }
+        }
+      );
+      if (permissionDenied) {
+        _backfillBlockedByPermission = true;
+      }
+      return { ok: Boolean(ok), permissionDenied };
+    }
+    return { ok: false, permissionDenied: false };
+  } catch (err) {
+    const msg = String(err?.message || '').toLowerCase();
+    permissionDenied = err?.code === 'permission-denied' || msg.includes('permission') || msg.includes('permissions');
+    if (permissionDenied) {
+      _backfillBlockedByPermission = true;
+    }
+    console.warn(`[ProgramRecovery] Backfill failed for client ${clientId}:`, err);
+    return { ok: false, permissionDenied };
+  }
+}
+
+async function persistRecoveredClientProgramsBatch(userId, batchItems = []) {
+  if (!Array.isArray(batchItems) || batchItems.length === 0) {
+    return { ok: true, permissionDenied: false };
+  }
+  let permissionDenied = false;
+  try {
+    const serviceMod = await import('../firebase/service.js');
+    if (typeof serviceMod.backfillClientProgramsBatch === 'function') {
+      const ok = await serviceMod.backfillClientProgramsBatch(userId, batchItems, {
+        onPermissionDenied: () => {
+          permissionDenied = true;
+        }
+      });
+      if (permissionDenied) {
+        _backfillBlockedByPermission = true;
+      }
+      return { ok: Boolean(ok), permissionDenied };
+    }
+
+    if (typeof serviceMod.backfillClientProgramsTransaction === 'function') {
+      for (const item of batchItems) {
+        const ok = await serviceMod.backfillClientProgramsTransaction(
+          userId,
+          String(item.clientId),
+          item.programsToWrite,
+          item.counterUpdates,
+          null,
+          {
+            onPermissionDenied: () => {
+              permissionDenied = true;
+            }
+          }
+        );
+        if (permissionDenied) {
+          _backfillBlockedByPermission = true;
+          return { ok: false, permissionDenied: true };
+        }
+        if (!ok) {
+          return { ok: false, permissionDenied: false };
+        }
+      }
+      return { ok: true, permissionDenied: false };
+    }
+
+    return { ok: false, permissionDenied: false };
+  } catch (err) {
+    const msg = String(err?.message || '').toLowerCase();
+    permissionDenied = err?.code === 'permission-denied' || msg.includes('permission') || msg.includes('permissions');
+    if (permissionDenied) {
+      _backfillBlockedByPermission = true;
+    }
+    console.warn('[ProgramRecovery] Batch backfill failed:', err);
+    return { ok: false, permissionDenied };
+  }
+}
+
+export async function recoverMissingClientPrograms(userId, activitiesOverride = null) {
+  if (!userId || _isRecoveringPrograms || _backfillBlockedByPermission) return 0;
+  const currentList = Array.isArray(clients) ? clients : [];
+  if (currentList.length === 0) return 0;
+
+  const activities = Array.isArray(activitiesOverride)
+    ? activitiesOverride
+    : (Array.isArray(S.globalActivities) ? S.globalActivities : []);
+  const activitiesLoaded = activities.length > 0 || activitiesOverride !== null;
+
+  const candidates = currentList.filter(c => {
+    if (!c || !c.id) return false;
+    const key = `${c.id}:${activitiesLoaded ? 'full' : 'partial'}`;
+    if (reconciledClientsWithActivities.has(key)) return false;
+
+    const inlineProgs = Array.isArray(c.programs) ? c.programs.filter(Boolean) : [];
+    const hasUnsyncedInline = inlineProgs.length > 0 && Number(c.programsCount || 0) < inlineProgs.length;
+    if (hasUnsyncedInline) return true;
+
+    if (activitiesLoaded) {
+      const clientActs = activities.filter(a => a && Number(a.clientId) === Number(c.id));
+      const deletions = extractDeletedProgramsFromActivities(c.id, clientActs);
+      const hasActiveActivityProgram = clientActs.some(a => {
+        if (a.type !== 'PROGRAM_ADDED') return false;
+        const parsed = parseProgramFromActivity(a, c);
+        return parsed && !isProgramDeletedAfter(parsed, a.timestamp || '', deletions);
+      });
+      if (hasActiveActivityProgram && (inlineProgs.length === 0 || Number(c.programsCount || 0) === 0)) {
+        return true;
+      }
+      reconciledClientsWithActivities.add(key);
+    }
+    return false;
+  });
+
+  if (candidates.length === 0) return 0;
+
+  _isRecoveringPrograms = true;
+  let recoveredCount = 0;
+  const recoveredUpdatesMap = new Map();
+  const pendingWrites = [];
+
+  try {
+    const READ_CONCURRENCY = 10;
+    for (let i = 0; i < candidates.length; i += READ_CONCURRENCY) {
+      if (_backfillBlockedByPermission) break;
+      const chunk = candidates.slice(i, i + READ_CONCURRENCY);
+      const chunkResults = await Promise.all(chunk.map(async (candidate) => {
+        const liveTarget = (Array.isArray(clients) ? clients : []).find(x => String(x?.id) === String(candidate.id)) || candidate;
+        const key = `${liveTarget.id}:${activitiesLoaded ? 'full' : 'partial'}`;
+        reconciledClientsWithActivities.add(key);
+
+        let sub = null;
+        try {
+          sub = await getClientSubcollections(userId, String(liveTarget.id));
+        } catch (subErr) {
+          console.warn(`[ProgramRecovery] Subcollection fetch notice for client ${liveTarget.id}:`, subErr);
+        }
+
+        const inlinePrograms = Array.isArray(liveTarget.programs) ? liveTarget.programs.filter(Boolean) : [];
+        const clientActivities = activities.filter(a => a && Number(a.clientId) === Number(liveTarget.id));
+        const reconciled = reconcileClientPrograms({
+          client: liveTarget,
+          subPrograms: sub?.programs || [],
+          inlinePrograms,
+          activities: clientActivities
+        });
+
+        return { liveTarget, sub, reconciled };
+      }));
+
+      for (const { liveTarget, sub, reconciled } of chunkResults) {
+        if (reconciled.needsBackfill || reconciled.needsCounterSync) {
+          const patch = {
+            programs: reconciled.programs,
+            programsCount: reconciled.counterUpdates.programsCount,
+            installationsCount: reconciled.counterUpdates.installationsCount,
+            programNames: reconciled.counterUpdates.programNames
+          };
+          if (reconciled.counterUpdates.endDate) patch.endDate = reconciled.counterUpdates.endDate;
+          if (sub) {
+            patch.issues = sub.issues || liveTarget.issues || [];
+            patch.requirements = sub.requirements || liveTarget.requirements || [];
+            patch.contactHistory = sub.contactHistory || liveTarget.contactHistory || [];
+            patch._subcollectionsLoaded = true;
+          }
+          Object.assign(liveTarget, patch);
+          recoveredUpdatesMap.set(String(liveTarget.id), patch);
+          recoveredCount++;
+          pendingWrites.push({
+            clientId: String(liveTarget.id),
+            programsToWrite: reconciled.recoveredPrograms,
+            counterUpdates: reconciled.counterUpdates
+          });
+        }
+      }
+    }
+
+    if (pendingWrites.length > 0 && !_backfillBlockedByPermission) {
+      const writeResult = await persistRecoveredClientProgramsBatch(userId, pendingWrites);
+      if (writeResult?.permissionDenied) {
+        console.warn('[ProgramRecovery] Stopping background backfill due to insufficient Firestore write permissions.');
+      }
+    }
+
+    if (recoveredUpdatesMap.size > 0) {
+      const latestClients = Array.isArray(clients) ? clients : [];
+      const mergedList = latestClients.map(cl => {
+        const patch = recoveredUpdatesMap.get(String(cl?.id));
+        if (!patch) return cl;
+        return {
+          ...cl,
+          ...patch,
+          _subcollectionsLoaded: Boolean(cl._subcollectionsLoaded || patch._subcollectionsLoaded)
+        };
+      });
+      const nextStats = {
+        ...(S.stats || {}),
+        totalPrograms: mergedList.reduce((sum, cl) => sum + (Array.isArray(cl?.programs) && cl.programs.length > 0 ? cl.programs.length : Number(cl?.programsCount || 0)), 0),
+        totalLicensedDevices: mergedList.reduce((sum, cl) => {
+          if (Array.isArray(cl?.programs) && cl.programs.length > 0) {
+            return sum + cl.programs.reduce((acc, p) => acc + (Number(p?.installationsCount) || 1), 0);
+          }
+          return sum + Number(cl?.installationsCount || 0);
+        }, 0)
+      };
+      batch(() => {
+        S.stats = nextStats;
+        setClients(mergedList);
+      });
+      if (typeof window !== 'undefined' && window.R) {
+        window.R();
+      }
+      console.log(`[ProgramRecovery] Restored and synced programs for ${recoveredCount} client(s).`);
+    }
+  } finally {
+    _isRecoveringPrograms = false;
+  }
+
+  return recoveredCount;
+}
+
 // On-Demand Client Subcollection Loader
 export async function loadClientSubcollectionsIfNeeded(clientId) {
   if (!currentUser) return;
@@ -233,18 +472,83 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 
   if (c._subcollectionsLoaded) return;
 
+  const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
+  const inlinePrograms = Array.isArray(c.programs) ? c.programs.filter(Boolean) : [];
+
   try {
     setSyncing(true);
 
-    const sub = await getClientSubcollections(currentUser.uid, String(clientId));
-    c.programs = sub.programs || [];
-    c.issues = sub.issues || [];
-    c.requirements = sub.requirements || [];
-    c.contactHistory = sub.contactHistory || [];
-    c._subcollectionsLoaded = true;
+    const sub = (await getClientSubcollections(uid, String(clientId))) || {};
+    let clientActivities = Array.isArray(S.globalActivities)
+      ? S.globalActivities.filter(a => a && Number(a.clientId) === Number(c.id))
+      : [];
 
-    setClients([...clients]);
-    console.log(`Subcollections loaded successfully for client ${clientId}`);
+    if (clientActivities.length === 0 && uid) {
+      try {
+        const serviceMod = await import('../firebase/service.js');
+        if (typeof serviceMod.getTenantActivities === 'function') {
+          const fetchedActs = await serviceMod.getTenantActivities(uid, c.id);
+          if (Array.isArray(fetchedActs) && fetchedActs.length > 0) {
+            clientActivities = fetchedActs;
+          }
+        }
+      } catch (actErr) {
+        console.warn(`[ProgramRecovery] Activity lookup notice for client ${clientId}:`, actErr);
+      }
+    }
+
+    const latestList = Array.isArray(clients) ? [...clients] : [];
+    const liveIdx = latestList.findIndex(x => x.id === clientId || String(x.id) === String(clientId));
+    const baseClient = liveIdx > -1 ? latestList[liveIdx] : c;
+    const latestInlinePrograms = Array.isArray(baseClient.programs) && baseClient.programs.length > 0
+      ? baseClient.programs.filter(Boolean)
+      : inlinePrograms;
+
+    const reconciled = reconcileClientPrograms({
+      client: baseClient,
+      subPrograms: sub.programs || [],
+      inlinePrograms: latestInlinePrograms,
+      activities: clientActivities
+    });
+
+    const loadedFields = {
+      programs: reconciled.programs,
+      programsCount: reconciled.counterUpdates.programsCount,
+      installationsCount: reconciled.counterUpdates.installationsCount,
+      programNames: reconciled.counterUpdates.programNames,
+      issues: sub.issues || [],
+      requirements: sub.requirements || [],
+      contactHistory: sub.contactHistory || [],
+      _subcollectionsLoaded: true
+    };
+    if (reconciled.counterUpdates.endDate) {
+      loadedFields.endDate = reconciled.counterUpdates.endDate;
+    }
+
+    Object.assign(c, loadedFields);
+    if (liveIdx > -1) {
+      latestList[liveIdx] = { ...baseClient, ...loadedFields };
+    }
+
+    const nextStats = {
+      ...(S.stats || {}),
+      totalPrograms: latestList.reduce((sum, cl) => sum + (Array.isArray(cl?.programs) && cl.programs.length > 0 ? cl.programs.length : Number(cl?.programsCount || 0)), 0),
+      totalLicensedDevices: latestList.reduce((sum, cl) => {
+        if (Array.isArray(cl?.programs) && cl.programs.length > 0) {
+          return sum + cl.programs.reduce((acc, p) => acc + (Number(p?.installationsCount) || 1), 0);
+        }
+        return sum + Number(cl?.installationsCount || 0);
+      }, 0)
+    };
+    batch(() => {
+      S.stats = nextStats;
+      setClients(latestList);
+    });
+
+    if (uid && !_backfillBlockedByPermission && (reconciled.needsBackfill || reconciled.needsCounterSync)) {
+      persistRecoveredClientPrograms(uid, clientId, reconciled, nextStats).catch(console.warn);
+    }
+    console.log(`Subcollections loaded successfully for client ${clientId} (${loadedFields.programs.length} programs)`);
   } catch (err) {
     console.error(`Failed to load subcollections for client ${clientId}:`, err);
   } finally {
@@ -252,11 +556,154 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
   }
 }
 
+export function hydrateAllClientSubcollections(userId = null, options = {}) {
+  const uid = userId || (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
+  if (!uid) return Promise.resolve(0);
+
+  const initialList = Array.isArray(clients) ? clients : [];
+  if (initialList.length === 0) return Promise.resolve(0);
+
+  if (_hydrationInFlightPromise && _hydrationInFlightUid === uid && !options.force) {
+    return _hydrationInFlightPromise;
+  }
+
+  const runHydration = async () => {
+    const currentList = Array.isArray(clients) ? clients : [];
+    const targetClients = currentList.filter(c => c && c.id && (options.force || !c._subcollectionsLoaded));
+    if (targetClients.length === 0) return 0;
+
+    const activities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
+    const activitiesLoaded = activities.length > 0;
+    const hydratedPatches = new Map();
+    const pendingWrites = [];
+    const HYDRATE_CONCURRENCY = 10;
+
+    setSyncing(true);
+    try {
+      for (let i = 0; i < targetClients.length; i += HYDRATE_CONCURRENCY) {
+        const chunk = targetClients.slice(i, i + HYDRATE_CONCURRENCY);
+        const chunkResults = await Promise.all(chunk.map(async (candidate) => {
+          const liveTarget = (Array.isArray(clients) ? clients : []).find(x => String(x?.id) === String(candidate.id)) || candidate;
+          let sub = null;
+          try {
+            sub = await getClientSubcollections(uid, String(liveTarget.id));
+          } catch (subErr) {
+            console.warn(`[DashboardSync] Subcollection fetch failed for client ${liveTarget.id}:`, subErr);
+            return null;
+          }
+          if (!sub || typeof sub !== 'object') return null;
+
+          const inlinePrograms = Array.isArray(liveTarget.programs) ? liveTarget.programs.filter(Boolean) : [];
+          const clientActivities = activities.filter(a => a && Number(a.clientId) === Number(liveTarget.id));
+          const reconciled = reconcileClientPrograms({
+            client: liveTarget,
+            subPrograms: sub.programs || [],
+            inlinePrograms,
+            activities: clientActivities
+          });
+
+          const issues = Array.isArray(sub.issues) ? sub.issues : (liveTarget.issues || []);
+          const requirements = Array.isArray(sub.requirements) ? sub.requirements : (liveTarget.requirements || []);
+          const contactHistory = Array.isArray(sub.contactHistory) ? sub.contactHistory : (liveTarget.contactHistory || []);
+          const latestContact = contactHistory.reduce((latest, entry) => {
+            const d = entry?.date ? String(entry.date) : '';
+            return d && d > latest ? d : latest;
+          }, liveTarget.lastContact || '');
+
+          const openIssuesCount = issues.filter(iss => iss && (iss.status === 'مفتوح' || iss.status === 'قيد المعالجة' || iss.status === 'جديد')).length;
+          const requirementsCount = requirements.length;
+
+          reconciledClientsWithActivities.add(`${liveTarget.id}:${activitiesLoaded ? 'full' : 'partial'}`);
+
+          return {
+            clientId: String(liveTarget.id),
+            patch: {
+              programs: reconciled.programs,
+              programsCount: reconciled.counterUpdates.programsCount,
+              installationsCount: reconciled.counterUpdates.installationsCount,
+              programNames: reconciled.counterUpdates.programNames,
+              endDate: reconciled.counterUpdates.endDate || liveTarget.endDate || '',
+              issues,
+              requirements,
+              contactHistory,
+              lastContact: latestContact || liveTarget.lastContact || '',
+              openIssuesCount,
+              requirementsCount,
+              _subcollectionsLoaded: true
+            },
+            reconciled
+          };
+        }));
+
+        for (const item of chunkResults) {
+          if (!item) continue;
+          hydratedPatches.set(item.clientId, item.patch);
+          if (!_backfillBlockedByPermission && (item.reconciled.needsBackfill || item.reconciled.needsCounterSync)) {
+            pendingWrites.push({
+              clientId: item.clientId,
+              programsToWrite: item.reconciled.recoveredPrograms,
+              counterUpdates: item.reconciled.counterUpdates
+            });
+          }
+        }
+      }
+
+      if (hydratedPatches.size > 0) {
+        const latestClients = Array.isArray(clients) ? clients : [];
+        const hydratedList = latestClients.map(cl => {
+          const patch = hydratedPatches.get(String(cl?.id));
+          if (!patch) return cl;
+          return {
+            ...cl,
+            ...patch
+          };
+        });
+
+        batch(() => {
+          // Update clients first so intelligence.js cache calculates real maxProgs/maxInsts across full list
+          setClients(hydratedList);
+          const scoredList = hydratedList.map(cl => {
+            if (!cl || !cl._subcollectionsLoaded) return cl;
+            const liveScore = computeScore(cl).total;
+            return cl.score === liveScore ? cl : { ...cl, score: liveScore };
+          });
+          setClients(scoredList);
+          const { stats: computedStats } = computeStats(scoredList);
+          S.stats = computedStats;
+        });
+      }
+
+      if (pendingWrites.length > 0 && !_backfillBlockedByPermission) {
+        persistRecoveredClientProgramsBatch(uid, pendingWrites).catch(console.warn);
+      }
+
+      return hydratedPatches.size;
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const promise = runHydration().finally(() => {
+    if (_hydrationInFlightPromise === promise) {
+      _hydrationInFlightPromise = null;
+      _hydrationInFlightUid = null;
+    }
+  });
+  _hydrationInFlightUid = uid;
+  _hydrationInFlightPromise = promise;
+  return promise;
+}
+
 // Real-Time Sync State Listeners
 let activeUnsubscribers = [];
 
 export function startRealtimeSync(userId) {
   stopRealtimeSync();
+  reconciledClientsWithActivities = new Set();
+  _backfillBlockedByPermission = false;
+
+  let hasClientsSnapshot = false;
+  let hasActivitiesSnapshot = false;
 
   console.log("Starting real-time synchronization for user:", userId);
 
@@ -265,12 +712,20 @@ export function startRealtimeSync(userId) {
   const unsubUser = onSnapshot(userDocRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.data();
+      const nextNid = data.nid || 100;
+      const nextStats = data.stats || {};
+      const userDocChanged = S.nid !== nextNid || JSON.stringify(S.stats || {}) !== JSON.stringify(nextStats);
+      if (!userDocChanged && !snapshot.metadata.hasPendingWrites && _lastSyncedTime) {
+        return;
+      }
       batch(() => {
         updateState({
-          nid: data.nid || 100,
-          stats: data.stats || {}
+          nid: nextNid,
+          stats: nextStats
         });
-        setLastSyncedTime(new Date());
+        if (userDocChanged || !_lastSyncedTime || (Date.now() - _lastSyncedTime.getTime() > 15000)) {
+          setLastSyncedTime(new Date());
+        }
         setSyncing(snapshot.metadata.hasPendingWrites);
       });
     }
@@ -282,11 +737,24 @@ export function startRealtimeSync(userId) {
   // 2. Listen to clients collection (real-time summaries)
   const clientsCollRef = collection(db, 'users', userId, 'clients');
   const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
+    hasClientsSnapshot = true;
     const summaries = snapshot.docs.map(doc => {
       const data = doc.data();
+      const inlineProgs = Array.isArray(data.programs) ? data.programs : [];
+      const effectiveProgramsCount = inlineProgs.length > 0
+        ? Math.max(Number(data.programsCount || 0), inlineProgs.length)
+        : (data.programsCount || 0);
+      const effectiveInstallsCount = inlineProgs.length > 0
+        ? Math.max(Number(data.installationsCount || 0), inlineProgs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0))
+        : (data.installationsCount || 0);
       return {
         ...data,
-        programs: data.programs || [],
+        programs: inlineProgs,
+        programsCount: effectiveProgramsCount,
+        installationsCount: effectiveInstallsCount,
+        programNames: Array.isArray(data.programNames) && data.programNames.length > 0
+          ? data.programNames
+          : inlineProgs.map(p => p?.programName).filter(Boolean),
         issues: data.issues || [],
         requirements: data.requirements || [],
         contactHistory: data.contactHistory || [],
@@ -295,18 +763,33 @@ export function startRealtimeSync(userId) {
       };
     });
 
-    // Merge summaries with existing clients to preserve already loaded details in memory
+    // Merge summaries with existing clients using O(1) map lookup to preserve already loaded details in memory
+    const existingById = new Map((clients || []).map(x => [String(x?.id), x]));
     let mergedClients = summaries.map(newC => {
-      const existingC = clients.find(x => String(x.id) === String(newC.id));
+      const existingC = existingById.get(String(newC.id));
       if (existingC && existingC._subcollectionsLoaded) {
-        return {
-          ...newC,
-          programs: existingC.programs,
-          issues: existingC.issues,
-          requirements: existingC.requirements,
-          contactHistory: existingC.contactHistory,
-          _subcollectionsLoaded: true
-        };
+        const existingOpenIssuesCount = (existingC.issues || []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')).length;
+        const existingReqCount = (existingC.requirements || []).length;
+        const existingProgCount = (existingC.programs || []).length;
+        const remoteChangedCounts = !snapshot.metadata.hasPendingWrites && (
+          (newC.programsCount !== undefined && Number(newC.programsCount) !== existingProgCount) ||
+          (newC.openIssuesCount !== undefined && Number(newC.openIssuesCount) !== existingOpenIssuesCount) ||
+          (newC.requirementsCount !== undefined && Number(newC.requirementsCount) !== existingReqCount)
+        );
+        if (!remoteChangedCounts) {
+          return {
+            ...newC,
+            programs: existingC.programs,
+            programsCount: existingProgCount,
+            installationsCount: existingC.programs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0),
+            programNames: existingC.programs.map(p => p?.programName).filter(Boolean),
+            issues: existingC.issues,
+            requirements: existingC.requirements,
+            contactHistory: existingC.contactHistory,
+            score: existingC.score !== undefined ? existingC.score : newC.score,
+            _subcollectionsLoaded: true
+          };
+        }
       }
       return newC;
     });
@@ -318,12 +801,23 @@ export function startRealtimeSync(userId) {
       mergedClients = clients;
     }
 
+    const clientsChanged = mergedClients !== clients && JSON.stringify(clients) !== JSON.stringify(mergedClients);
     batch(() => {
       setSyncing(snapshot.metadata.hasPendingWrites);
-      setClients(mergedClients);
-      setLastSyncedTime(new Date());
+      if (clientsChanged) {
+        setClients(mergedClients);
+      }
+      if (clientsChanged || !_lastSyncedTime || (Date.now() - _lastSyncedTime.getTime() > 15000)) {
+        setLastSyncedTime(new Date());
+      }
       setSaveError(false);
     });
+
+    if (mergedClients.some(c => c && !c._subcollectionsLoaded)) {
+      hydrateAllClientSubcollections(userId).catch(console.warn);
+    } else if (hasActivitiesSnapshot || mergedClients.some(c => (c.programs || []).length > 0)) {
+      recoverMissingClientPrograms(userId, hasActivitiesSnapshot ? S.globalActivities : null).catch(console.warn);
+    }
   }, (error) => {
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
@@ -339,9 +833,6 @@ export function startRealtimeSync(userId) {
     if (remoteStaff.length > 0) {
       console.log(`[Realtime Sync] Received ${remoteStaff.length} employees from Firestore for user ${userId}`);
       setStaffUsers(remoteStaff, userId);
-      if (typeof window !== 'undefined' && window.R) {
-        window.R();
-      }
     }
   }, (error) => {
     console.warn("Employees collection snapshot listener notice:", error);
@@ -350,20 +841,30 @@ export function startRealtimeSync(userId) {
   // 4. Listen to activities subcollection (real-time cross-device and multi-user audit timeline sync)
   const activitiesCollRef = collection(db, 'users', userId, 'activities');
   const unsubActivities = onSnapshot(activitiesCollRef, (snapshot) => {
+    hasActivitiesSnapshot = true;
     const remoteActivities = snapshot.docs.map(doc => ({
       ...doc.data(),
       id: doc.id
     }));
     remoteActivities.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
-    batch(() => {
-      S.globalActivities = remoteActivities;
-      if (S.selId) {
-        S.clientActivities = remoteActivities.filter(a => Number(a.clientId) === Number(S.selId));
-      }
-      setLastSyncedTime(new Date());
-    });
-    if (typeof window !== 'undefined' && window.R) {
-      window.R();
+
+    const prevActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
+    const activitiesChanged = prevActivities.length !== remoteActivities.length ||
+      JSON.stringify(prevActivities) !== JSON.stringify(remoteActivities);
+
+    if (activitiesChanged) {
+      batch(() => {
+        S.globalActivities = remoteActivities;
+        if (S.selId) {
+          S.clientActivities = remoteActivities.filter(a => Number(a.clientId) === Number(S.selId));
+        }
+        if (!_lastSyncedTime || (Date.now() - _lastSyncedTime.getTime() > 15000)) {
+          setLastSyncedTime(new Date());
+        }
+      });
+    }
+    if (hasClientsSnapshot) {
+      recoverMissingClientPrograms(userId, remoteActivities).catch(console.warn);
     }
   }, (error) => {
     console.warn("Activities collection snapshot listener notice:", error);
@@ -373,6 +874,10 @@ export function startRealtimeSync(userId) {
 }
 
 export function stopRealtimeSync() {
+  reconciledClientsWithActivities = new Set();
+  _backfillBlockedByPermission = false;
+  _hydrationInFlightPromise = null;
+  _hydrationInFlightUid = null;
   if (activeUnsubscribers.length > 0) {
     console.log("Stopping real-time synchronization, cleaning up listeners...");
     activeUnsubscribers.forEach(unsub => {

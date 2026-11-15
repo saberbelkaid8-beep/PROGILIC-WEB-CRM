@@ -69,7 +69,7 @@ export function renderList(){
       <div class="stat-c sg" style="cursor:pointer" onclick="setFil('نشط')" title="${t('تصفية وتحديد')}"><div class="stat-v">${ac}</div><div class="stat-l">${t('نشط')}</div></div>
       <div class="stat-c sb" style="cursor:pointer" onclick="setFil('محتمل')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pr}</div><div class="stat-l">${t('محتمل')}</div></div>
       <div class="stat-c so" style="cursor:pointer" onclick="setFil('متوقف')" title="${t('تصفية وتحديد')}"><div class="stat-v">${pa}</div><div class="stat-l">${t('متوقف')}</div></div>
-      <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+(c.programs||[]).length,0)}</div><div class="stat-l">${t('برامج')} · ${clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0)} ${t('جهاز')}</div></div>
+      <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}"><div class="stat-v" style="color:var(--b)">${clients.reduce((s,c)=>s+getProgramStats(c).total,0)}</div><div class="stat-l">${t('برامج')} · ${clients.reduce((s,c)=>s+getProgramStats(c).totalInstalls,0)} ${t('جهاز')}</div></div>
     </div>
     <div class="search-row">
       ${hasPermission('search.global') || hasPermission('search.clients') ? `
@@ -179,7 +179,6 @@ export function renderDetail(){
   const fo=c.issues.filter(i=>i.featureOpp).length;
   const sc=computeScore(c);
   const scColor=scoreColor(sc.total);
-  console.log("DEBUG RENDER DETAIL: c.id =", c.id, "S.tab =", S.tab, "c._subcollectionsLoaded =", c._subcollectionsLoaded);
   return`
     <div class="back" onclick="goBack()">${t('← قائمة العملاء')}</div>
     <div class="chdr">
@@ -197,7 +196,7 @@ export function renderDetail(){
       <div class="ch-meta">
         <span class="ch-mi">📍 ${esc(c.wilaya)||"—"}${c.location?'، '+esc(c.location):''}</span>
         <span class="ch-mi" dir="ltr">📞 ${hasPermission('clients.view_sensitive') ? (esc(c.phone)||"—") : (c.phone ? '0550•• •••• 🔒' : '—')}</span>
-        ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];return ps.total>0?`<span class="ch-mi">📦 ${esc(pp[0].programName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls} ${t('جهاز')}</span>`:`<span class="ch-mi" style="opacity:.5">📦 ${t('لا برامج')}</span>`})()}
+        ${(()=>{const ps=getProgramStats(c);const pp=c.programs||[];const leadName=pp.length>0?pp[0].programName:(c.programNames?.[0]||t('برنامج مرخص'));return ps.total>0?`<span class="ch-mi">📦 ${esc(leadName)}${ps.total>1?` (+${ps.total-1})`:''} · ${ps.totalInstalls} ${t('جهاز')}</span>`:`<span class="ch-mi" style="opacity:.5">📦 ${t('لا برامج')}</span>`})()}
         <span class="ch-mi">${activityIcon(c.businessType)} ${t(c.businessType)||"—"}${c.businessField?' · '+t(c.businessField):''}</span>
       </div>
     </div>
@@ -374,7 +373,6 @@ function renderContacts(c){
 function renderPrograms(c){
   const ps=getProgramStats(c);
   const progs=c.programs||[];
-  console.log("DEBUG RENDER PROGRAMS: c.id =", c.id, "c.fullName =", c.fullName, "progs =", JSON.stringify(progs));
   return`
     <div class="prog-summary">
       <div class="ps-item ps-active"><div class="ps-val">${ps.total}</div><div class="ps-lbl">${t('إجمالي البرامج')}</div></div>

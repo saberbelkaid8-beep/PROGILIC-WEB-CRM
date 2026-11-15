@@ -253,8 +253,9 @@ export async function logActivity(clientId, type, title, description, source = '
   const visuals = getActivityVisuals(type);
   const category = visuals.category || 'system';
 
+  const actId = meta?.activityId ? String(meta.activityId) : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const activity = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    id: actId,
     clientId: clientId ? Number(clientId) : null,
     clientName,
     type,
@@ -275,10 +276,10 @@ export async function logActivity(clientId, type, title, description, source = '
   if (!Array.isArray(S.globalActivities)) {
     S.globalActivities = [];
   }
-  S.globalActivities = [activity, ...S.globalActivities];
+  S.globalActivities = [activity, ...S.globalActivities.filter(a => String(a.id) !== String(actId))];
   if (S.selId && Number(activity.clientId) === Number(S.selId)) {
     if (!Array.isArray(S.clientActivities)) S.clientActivities = [];
-    S.clientActivities = [activity, ...S.clientActivities];
+    S.clientActivities = [activity, ...S.clientActivities.filter(a => String(a.id) !== String(actId))];
   }
 
   // 2. Direct Online Cloud Persistence to Cloud Firestore
@@ -447,7 +448,16 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
         if (!p) return;
         const progId = p.id || `p_${pIdx}`;
         const progActId = `act_prog_${c.id}_${progId}`;
-        if (!existingIds.has(progActId)) {
+        const alreadyLogged = existingIds.has(progActId) || existingActivities.some(a =>
+          a &&
+          Number(a.clientId) === Number(c.id) &&
+          a.type === ActivityType.PROGRAM_ADDED &&
+          (
+            (a.meta?.programId !== undefined && String(a.meta.programId) === String(progId)) ||
+            (p.programName && String(a.description || '').includes(`"${p.programName}"`))
+          )
+        );
+        if (!alreadyLogged) {
           itemCounter++;
           generated.push({
             id: progActId,
@@ -463,7 +473,17 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
             userId: 'gerant',
             actorUid: uid,
             actorEmail: currentUser?.email || '',
-            source: 'crm-sync'
+            source: 'crm-sync',
+            meta: {
+              programId: progId,
+              programName: p.programName || '',
+              platform: p.platform || 'Desktop',
+              type: p.type || 'تجاري',
+              version: p.platform === 'Mobile' ? '' : (p.version || ''),
+              installationsCount: Number(p.installationsCount) || 1,
+              startDate: p.startDate || '',
+              endDate: p.endDate || ''
+            }
           });
           existingIds.add(progActId);
         }

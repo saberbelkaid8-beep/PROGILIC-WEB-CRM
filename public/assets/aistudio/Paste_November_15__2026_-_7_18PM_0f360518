@@ -1,0 +1,1180 @@
+159
+19:15:27.631
+System
+Build
+ Render Start 
+19:15:31.320
+Backend
+Log
+ Server restarting... 
+19:15:31.320
+Backend
+Log
+ Server stopped. 
+19:15:31.320
+Backend
+Log
+ Server started on port 3000. 
+19:15:31.320
+Backend
+Log
+ Pre-warming 1 paths...
+  
+  > crm@1.0.0 dev
+  > vite --port 3000 --host 0.0.0.0 --port 3000 --host 0.0.0.0
+  
+  
+    VITE v6.4.6  ready in 482 ms
+  
+    ➜  Local:   http://localhost:3000/
+    ➜  Network: http://169.254.8.1:3000/
+    ➜  Network: http://169.254.9.1:3000/
+    ➜  Network: http://169.254.169.1:3000/ 
+19:15:31.320
+Backend
+Log
+ Pre-warming completed. 
+19:15:31.427
+Backend
+Log
+ CONNECTED 
+19:15:31.911
+System
+Build
+ Render End 
+19:15:32.039
+App
+Debug
+ [vite] connecting... 
+19:15:32.101
+App
+Debug
+ [vite] connected. 
+19:15:33.268
+App
+Log
+ loadDataFromFirestore: start 
+19:15:33.272
+App
+Log
+ loadDataFromFirestore: before getUserData with 12s timeout 
+19:15:34.028
+App
+Log
+ loadDataFromFirestore: after getUserData
+  {
+  "stats": {
+    "totalClients": 959,
+    "totalLicensedDevices": 201,
+    "prospectiveClients": 0,
+    "averageScore": 100,
+    "totalPrograms": 108,
+    "activeClients": 866,
+    "stoppedClients": 93,
+    "totalOpenIssues": 5
+  },
+  "updatedAt": "2026-11-12T12:59:54.903Z",
+  "nid": 1794488394060,
+  "v": 3
+} 
+19:15:34.030
+App
+Log
+ [Storage] User profile metadata loaded (Clients will be populated via real-time subcollection listener). 
+19:15:34.570
+App
+Log
+ loadDataFromFirestore: before startRealtimeSync 
+19:15:34.573
+App
+Log
+ Starting real-time synchronization for user:
+  z1FY0kWqOOSe78cFv8rqak0mjV03 
+19:15:34.575
+App
+Log
+ loadDataFromFirestore: after startRealtimeSync 
+19:15:35.178
+App
+Log
+ [Realtime Sync] Received 3 employees from Firestore for user z1FY0kWqOOSe78cFv8rqak0mjV03 
+19:16:50.431
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  overview
+  c._subcollectionsLoaded =
+  true 
+19:16:51.608
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  overview
+  c._subcollectionsLoaded =
+  true 
+19:16:53.353
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  overview
+  c._subcollectionsLoaded =
+  true 
+19:16:53.850
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:16:53.887
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:16:55.024
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:16:55.055
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:16:56.643
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:16:56.645
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:16:58.240
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:16:58.285
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:16:59.792
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:16:59.854
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:01.652
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:01.725
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:03.016
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:03.074
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:04.441
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:04.496
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:05.732
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:05.734
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:07.676
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:07.758
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:09.472
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:09.518
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:12.045
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:12.068
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:13.872
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:13.896
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:15.882
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:15.928
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:17.317
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:17.356
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:19.329
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:19.367
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:20.764
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:20.802
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:21.930
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:21.958
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:22.990
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:23.023
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:23.937
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:23.974
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:24.864
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:24.866
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:25.871
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:25.896
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:27.043
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:27.070
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:28.026
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:28.059
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:29.089
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:29.091
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:30.081
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:30.107
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:31.058
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:31.087
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:32.207
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:32.247
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:33.257
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:33.313
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:34.377
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:34.409
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:35.267
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:35.306
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:35.408
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:35.410
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:36.491
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:36.524
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:37.462
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:37.492
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:37.504
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:37.504
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:38.413
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:38.449
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:39.631
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:39.656
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:40.817
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:40.873
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:41.656
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:41.728
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:42.132
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:42.171
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:43.181
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:43.219
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:44.389
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:44.420
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:45.596
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:45.638
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:46.618
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:46.654
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:47.621
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:47.670
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:48.706
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:48.754
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:49.849
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:49.891
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:50.942
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:50.979
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:51.970
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:52.002
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:52.984
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:53.039
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:53.902
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:53.937
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:54.837
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:54.869
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:56.067
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:56.104
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:57.092
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:57.132
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:58.354
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:58.389
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:17:59.465
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:17:59.513
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:00.368
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:00.370
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:01.629
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:01.663
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:02.159
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:02.209
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:02.721
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:02.724
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:03.914
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:03.975
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:05.454
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:05.488
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:06.685
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:06.852
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:07.638
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:07.642
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:08.832
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:08.836
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 
+19:18:09.914
+App
+Log
+ DEBUG RENDER DETAIL: c.id =
+  125  S.tab =
+  programs
+  c._subcollectionsLoaded =
+  true 
+19:18:09.916
+App
+Log
+ DEBUG RENDER PROGRAMS: c.id =
+  125  c.fullName =
+  GC _ BOUMENDIL ABDELHAMID
+  progs =
+  [{"version":"V27","type":"توزيع (Distribution)","endDate":"","startDate":"2025-11-15","installationsCount":1,"platform":"Desktop","id":1793009333262,"programName":"Desktop - توزيع V27"},{"version":"","id":1793270099869,"endDate":"","programName":"Mobile - تطبيق V27","type":"تطبيق VDD (Vendeur Distributeur)","startDate":"2026-10-29","installationsCount":2,"platform":"Mobile"},{"id":1231060053,"programName":"logiciel commercial","platform":"Desktop","type":"تطبيق التاجر (Commerçant)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""},{"id":3018779769,"programName":"logiciel distribution","platform":"Desktop","type":"توزيع (Distribution)","version":"","installationsCount":1,"startDate":"2026-10-26","endDate":""}] 

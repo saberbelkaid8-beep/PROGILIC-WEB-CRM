@@ -135,45 +135,196 @@ export async function getClientSubcollections(userId, clientId) {
   }
 }
 
-// Transaction: Create client and initialize stats
+// Transaction: Create client, persist initial programs to subcollection, and initialize stats
 export async function addClientTransaction(userId, clientData, globalStats) {
   userId = sanitizeUserId(userId);
   const userPath = `users/${userId}`;
   const clientId = String(clientData.id);
   const clientPath = `users/${userId}/clients/${clientId}`;
 
+  const rawPrograms = Array.isArray(clientData.programs) ? clientData.programs.filter(Boolean) : [];
+  const normalizedPrograms = rawPrograms.map((prog, idx) => {
+    const progId = prog.id || (Date.now() + idx + 1);
+    return {
+      ...prog,
+      id: progId,
+      programName: String(prog.programName || 'غير محدد'),
+      platform: String(prog.platform || 'Desktop'),
+      type: String(prog.type || 'تجاري'),
+      version: prog.platform === 'Mobile' ? '' : String(prog.version || ''),
+      installationsCount: Math.max(1, Number(prog.installationsCount) || 1),
+      startDate: String(prog.startDate || clientData.startDate || ''),
+      endDate: String(prog.endDate || '')
+    };
+  });
+
+  const programsCount = normalizedPrograms.length;
+  const installationsCount = normalizedPrograms.reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0);
+  const programNames = normalizedPrograms.map(p => p.programName).filter(Boolean);
+  const activeProg = normalizedPrograms.filter(p => p.endDate).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+  const resolvedEndDate = clientData.endDate || (activeProg.length > 0 ? activeProg[0].endDate : '');
+
   try {
     await runTransaction(db, async (tx) => {
       const userRef = doc(db, userPath);
       const clientRef = doc(db, clientPath);
+      const userSnap = typeof tx.get === 'function' ? await tx.get(userRef) : null;
+      const serverStats = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data()?.stats || {}) : null;
 
-      // Verify and set user metadata update
+      // Write parent client document with accurate program metadata
       tx.set(clientRef, {
         ...clientData,
+        programs: normalizedPrograms,
+        programNames,
+        endDate: resolvedEndDate,
         version: 1, // OCC: Initial version
-        openIssuesCount: 0,
-        requirementsCount: 0,
-        programsCount: 0,
-        installationsCount: 0,
+        openIssuesCount: Array.isArray(clientData.issues)
+          ? clientData.issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length
+          : 0,
+        requirementsCount: Array.isArray(clientData.requirements) ? clientData.requirements.length : 0,
+        programsCount,
+        installationsCount,
         score: clientData.score || 100,
         updatedAt: new Date().toISOString()
       });
 
-      // Update pre-aggregated user stats
-      const nextStats = { ...globalStats };
-      nextStats.totalClients = (nextStats.totalClients || 0) + 1;
-      if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
-      else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
-      else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+      // Write each initial program to the programs subcollection atomically
+      for (const progDoc of normalizedPrograms) {
+        const progRef = doc(db, `${clientPath}/programs/${String(progDoc.id)}`);
+        tx.set(progRef, progDoc, { merge: true });
+      }
 
-      tx.update(userRef, {
+      // Update pre-aggregated user stats safely without double-counting pre-incremented stats
+      const nextStats = { ...(globalStats || {}) };
+      const callerAlreadyCounted = Boolean(
+        globalStats &&
+        typeof globalStats.totalClients === 'number' &&
+        globalStats.totalClients > (Number(serverStats?.totalClients) || 0)
+      );
+
+      if (!callerAlreadyCounted) {
+        nextStats.totalClients = (nextStats.totalClients || 0) + 1;
+        if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
+        else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
+        else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+        if (programsCount > 0) {
+          nextStats.totalPrograms = (nextStats.totalPrograms || 0) + programsCount;
+          nextStats.totalLicensedDevices = (nextStats.totalLicensedDevices || 0) + installationsCount;
+        }
+      }
+
+      const userPayload = {
         stats: nextStats,
         nid: clientData.id,
         updatedAt: new Date().toISOString()
-      });
+      };
+      if (!userSnap || !userSnap.exists || !userSnap.exists()) {
+        userPayload.v = 3;
+      }
+      tx.set(userRef, userPayload, { merge: true });
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.TRANSACTION, clientPath);
+  }
+}
+
+// Backfill recovered programs into client's programs subcollection and sync denormalized counters
+export async function backfillClientProgramsTransaction(userId, clientId, programsToWrite = [], counterUpdates = {}, globalStats = null, options = {}) {
+  if (auth && !auth.currentUser) return false;
+  userId = sanitizeUserId(userId);
+  if (!userId || !clientId) return false;
+
+  const clientPath = `users/${userId}/clients/${String(clientId)}`;
+  try {
+    const batch = writeBatch(db);
+    for (const prog of (Array.isArray(programsToWrite) ? programsToWrite : [])) {
+      if (!prog || !prog.id) continue;
+      const progRef = doc(db, `${clientPath}/programs/${String(prog.id)}`);
+      batch.set(progRef, prog, { merge: true });
+    }
+
+    const clientRef = doc(db, clientPath);
+    batch.set(clientRef, {
+      ...counterUpdates,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    if (globalStats) {
+      const userRef = doc(db, `users/${userId}`);
+      batch.set(userRef, {
+        stats: globalStats,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+
+    await batch.commit();
+    return true;
+  } catch (error) {
+    const msg = String(error?.message || '').toLowerCase();
+    const isPermErr = error?.code === 'permission-denied' || msg.includes('permission') || msg.includes('permissions');
+    if (isPermErr && typeof options?.onPermissionDenied === 'function') {
+      options.onPermissionDenied(error);
+    }
+    handleFirestoreError(error, OperationType.WRITE, clientPath);
+    return false;
+  }
+}
+
+// Batch backfill recovered programs for multiple clients at once (max 400 ops per Firestore writeBatch)
+export async function backfillClientProgramsBatch(userId, items = [], options = {}) {
+  if (auth && !auth.currentUser) return false;
+  userId = sanitizeUserId(userId);
+  if (!userId || !Array.isArray(items) || items.length === 0) return true;
+
+  const MAX_BATCH_OPS = 400;
+  let batch = writeBatch(db);
+  let opCount = 0;
+  const nowIso = new Date().toISOString();
+  let lastPath = `users/${userId}/clients`;
+
+  try {
+    for (const item of items) {
+      if (!item || !item.clientId) continue;
+      const programsToWrite = Array.isArray(item.programsToWrite)
+        ? item.programsToWrite.filter(p => p && p.id)
+        : [];
+      const neededOps = programsToWrite.length + 1;
+
+      if (opCount > 0 && opCount + neededOps > MAX_BATCH_OPS) {
+        await batch.commit();
+        batch = writeBatch(db);
+        opCount = 0;
+      }
+
+      const clientPath = `users/${userId}/clients/${String(item.clientId)}`;
+      lastPath = clientPath;
+
+      for (const prog of programsToWrite) {
+        const progRef = doc(db, `${clientPath}/programs/${String(prog.id)}`);
+        batch.set(progRef, prog, { merge: true });
+        opCount++;
+      }
+
+      const clientRef = doc(db, clientPath);
+      batch.set(clientRef, {
+        ...(item.counterUpdates || {}),
+        updatedAt: nowIso
+      }, { merge: true });
+      opCount++;
+    }
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
+    return true;
+  } catch (error) {
+    const msg = String(error?.message || '').toLowerCase();
+    const isPermErr = error?.code === 'permission-denied' || msg.includes('permission') || msg.includes('permissions');
+    if (isPermErr && typeof options?.onPermissionDenied === 'function') {
+      options.onPermissionDenied(error);
+    }
+    handleFirestoreError(error, OperationType.WRITE, lastPath);
+    return false;
   }
 }
 

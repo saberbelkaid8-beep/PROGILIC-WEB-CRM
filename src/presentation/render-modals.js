@@ -742,9 +742,12 @@ export function renderGeoReportModal() {
     if (c.status === 'نشط') wilayaStats[w].active++;
     else if (c.status === 'محتمل') wilayaStats[w].prospective++;
     else if (c.status === 'متوقف') wilayaStats[w].stopped++;
-    wilayaStats[w].scoreSum += (c.score !== undefined ? Number(c.score) : computeScore(c).total);
-    wilayaStats[w].issues += (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-    wilayaStats[w].progs += (c.programs || []).length || Number(c.programsCount) || (c.programNames?.length || 0);
+    wilayaStats[w].scoreSum += (c._subcollectionsLoaded ? computeScore(c).total : (c.score !== undefined ? Number(c.score) : computeScore(c).total));
+    const issCount = (c.issues || []).length > 0 || c._subcollectionsLoaded
+      ? (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد').length
+      : (Number(c.openIssuesCount) || 0);
+    const cProgs = (c.programs || []).length > 0 ? c.programs.length : Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0);
+    wilayaStats[w].progs += cProgs;
   });
 
   const allWilayasList = Object.values(wilayaStats).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ar'));
@@ -1179,17 +1182,49 @@ export function renderLicensesExplorerModal() {
   const allLicenses = [];
   clients.forEach(c => {
     const progs = c.programs || [];
-    progs.forEach(p => {
-      allLicenses.push({
-        ...p,
-        clientId: c.id,
-        clientName: c.fullName || 'عميل غير مسمى',
-        clientCompany: c.company || '—',
-        clientWilaya: c.wilaya || '—',
-        clientPhone: c.phone || '—',
-        clientStatus: c.status || 'نشط'
+    if (progs.length > 0) {
+      progs.forEach(p => {
+        allLicenses.push({
+          ...p,
+          clientId: c.id,
+          clientName: c.fullName || 'عميل غير مسمى',
+          clientCompany: c.company || '—',
+          clientWilaya: c.wilaya || '—',
+          clientPhone: c.phone || '—',
+          clientStatus: c.status || 'نشط'
+        });
       });
-    });
+    } else {
+      const summaryProgCount = Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0);
+      if (summaryProgCount > 0) {
+        const names = Array.isArray(c.programNames) && c.programNames.length > 0
+          ? c.programNames
+          : Array(summaryProgCount).fill('PROGILIC');
+        names.forEach((name, idx) => {
+          const lower = String(name || '').toLowerCase();
+          const plat = lower.startsWith('mobile') || lower.includes('vdd') || lower.includes('التاجر') || lower.includes('لوحة القيادة')
+            ? 'Mobile'
+            : (lower.startsWith('web') || lower.includes('الويب') ? 'Web' : 'Desktop');
+          const vMatch = (name || '').match(/V\d+/i);
+          allLicenses.push({
+            id: `summary_${c.id}_${idx}`,
+            programName: name,
+            platform: plat,
+            type: 'تجاري',
+            version: plat === 'Mobile' ? '' : (vMatch ? vMatch[0].toUpperCase() : '—'),
+            installationsCount: Math.max(1, Math.round((Number(c.installationsCount) || summaryProgCount) / summaryProgCount)),
+            startDate: c.startDate || '',
+            endDate: c.endDate || '',
+            clientId: c.id,
+            clientName: c.fullName || 'عميل غير مسمى',
+            clientCompany: c.company || '—',
+            clientWilaya: c.wilaya || '—',
+            clientPhone: c.phone || '—',
+            clientStatus: c.status || 'نشط'
+          });
+        });
+      }
+    }
   });
 
   // Calculate high-level stats
@@ -1459,7 +1494,7 @@ export function renderLicensesExplorerModal() {
                   <!-- Version Pill -->
                   <td style="text-align:center">
                     <span class="lic-pill-ver">
-                      ${esc(item.version || 'V27')}
+                      ${esc(item.version || '—')}
                     </span>
                   </td>
 
@@ -1559,7 +1594,7 @@ export function renderLicensesExplorerModal() {
                   ${esc(item.type || 'تجاري')}
                 </span>
                 <span class="lic-pill-ver">
-                  ${esc(item.version || 'V27')}
+                  ${esc(item.version || '—')}
                 </span>
                 <span class="lic-pill-dev">
                   💻 ${item.installationsCount || 1} ${t('أجهزة')}
