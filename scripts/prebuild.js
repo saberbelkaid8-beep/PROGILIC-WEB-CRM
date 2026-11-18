@@ -37,7 +37,6 @@ function main() {
   // 1. Check Critical Files
   const criticalFiles = [
     { path: 'package.json', desc: 'Package Manifest' },
-    { path: 'package-lock.json', desc: 'Lockfile for reproducible builds' },
     { path: 'vite.config.js', desc: 'Vite Config' },
     { path: 'index.html', desc: 'App entry HTML' },
     { path: 'src/main.js', desc: 'Main JavaScript entrypoint' },
@@ -50,6 +49,15 @@ function main() {
       filesOk = false;
     }
   });
+
+  if (fs.existsSync('package-lock.json')) {
+    console.log('✅ File found: package-lock.json (Lockfile for reproducible builds)');
+  } else if (fs.existsSync('bun.lock')) {
+    console.log('✅ File found: bun.lock (Lockfile for reproducible builds)');
+  } else {
+    console.error('❌ Missing critical file: package-lock.json or bun.lock (Lockfile for reproducible builds)');
+    filesOk = false;
+  }
 
   if (!filesOk) {
     console.error('❌ Pre-build check failed: One or more critical files are missing!');

@@ -379,13 +379,23 @@ function renderDbPurgeModal() {
   const tab = S.purgeTab || 'filtered';
   const filterType = S.purgeFilterType || 'stopped_clients';
   const days = S.purgeOlderThanDays || 30;
-  const sim = S.purgeSimulation || { totalClientsAffected: 0, programsCount: 0, issuesCount: 0, reqsCount: 0, contactsCount: 0, estimatedFreedKb: '0', sampleClients: [] };
+  const programMode = S.purgeProgramMode || 'all_with_programs';
+  const targetDate = S.purgeTargetDate || '';
+  const targetDateMode = S.purgeTargetDateMode || 'exact';
+  const mdNamesCount = Array.isArray(S.purgeMdClientNames) ? S.purgeMdClientNames.length : 0;
+  const mdFileName = S.purgeMdFileName || '';
+  const sim = S.purgeSimulation || { totalClientsAffected: 0, clientsDeletedCount: 0, clientsKeptCount: 0, programsCount: 0, issuesCount: 0, reqsCount: 0, contactsCount: 0, estimatedFreedKb: '0', sampleClients: [] };
   const confirmText = S.purgeConfirmText || '';
   const requiredCode = tab === 'all' ? 'DELETE-ALL-DATA' : 'CONFIRM-PURGE';
   const isMatch = confirmText.trim() === requiredCode;
   const selective = S.purgeSelectiveCollections || {};
   const progress = S.purgeProgress;
   const auditLogs = getPurgeAuditLogs();
+
+  const clientsPreserved = (sim.clientsDeletedCount === 0) && (
+    (tab === 'filtered' && (filterType === 'client_programs' || filterType === 'solved_issues' || filterType === 'old_contacts')) ||
+    (tab === 'selective' && !selective.clients)
+  );
 
   const totalClients = clients.length;
   const totalProgs = clients.reduce((acc, c) => acc + (c.programs || []).length, 0);
@@ -443,6 +453,14 @@ function renderDbPurgeModal() {
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:14px">
             <label class="flbl" style="font-weight:700;margin-bottom:8px;display:block">${S.lang==='fr'?'Critère de purge et filtrage :':S.lang==='en'?'Purge and filter criteria:':'اختر معيار التصفية والتطهير:'}</label>
             <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;margin-bottom:12px">
+              <label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border:1px solid ${filterType==='client_programs'?'var(--brand)':'var(--border)'};border-radius:var(--r-sm);cursor:pointer">
+                <input type="radio" name="pft" ${filterType==='client_programs'?'checked':''} onchange="setPurgeFilterType('client_programs')">
+                <div>
+                  <strong style="font-size:12px;display:block">${S.lang==='fr'?'Supprimer uniquement les logiciels (garder clients)':S.lang==='en'?'Delete programs only (keep client names)':'📦 حذف برامج العملاء فقط (الإبقاء على الأسماء)'}</strong>
+                  <span style="font-size:11px;color:var(--t3)">${S.lang==='fr'?'Efface les licences en conservant tous les noms de clients':S.lang==='en'?'Deletes software licenses while keeping client names intact':'مسح التراخيص والبرامج مع الاحتفاظ بأسماء وسجلات العملاء'}</span>
+                </div>
+              </label>
+
               <label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border:1px solid ${filterType==='stopped_clients'?'var(--brand)':'var(--border)'};border-radius:var(--r-sm);cursor:pointer">
                 <input type="radio" name="pft" ${filterType==='stopped_clients'?'checked':''} onchange="setPurgeFilterType('stopped_clients')">
                 <div>
@@ -459,8 +477,6 @@ function renderDbPurgeModal() {
                 </div>
               </label>
 
-
-
               <label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border:1px solid ${filterType==='old_contacts'?'var(--brand)':'var(--border)'};border-radius:var(--r-sm);cursor:pointer">
                 <input type="radio" name="pft" ${filterType==='old_contacts'?'checked':''} onchange="setPurgeFilterType('old_contacts')">
                 <div>
@@ -469,6 +485,46 @@ function renderDbPurgeModal() {
                 </div>
               </label>
             </div>
+
+            ${filterType === 'client_programs' ? `
+              <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;background:var(--bg);padding:12px;border-radius:var(--r-sm);border:1px solid var(--border)">
+                <div style="font-size:12px;font-weight:700;color:var(--t1)">🎯 ${S.lang==='fr'?'Ciblage des clients concernés (noms conservés) :':S.lang==='en'?'Target clients (client names will be kept):':'تحديد العملاء المراد حذف برامجهم (الأسماء ستبقى محفوظة):'}</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button type="button" class="btn btn-xs ${programMode==='all_with_programs'?'btn-primary':'btn-ghost'}" onclick="setPurgeProgramMode('all_with_programs')">
+                    📦 ${S.lang==='fr'?'Tous les clients avec logiciels':S.lang==='en'?'All clients with programs':'كل العملاء أصحاب البرامج'}
+                  </button>
+                  <button type="button" class="btn btn-xs ${programMode==='by_date'?'btn-primary':'btn-ghost'}" onclick="setPurgeProgramMode('by_date')">
+                    📅 ${S.lang==='fr'?'Par date':S.lang==='en'?'By date':'حسب التاريخ'}
+                  </button>
+                  <button type="button" class="btn btn-xs ${programMode==='from_md'?'btn-primary':'btn-ghost'}" onclick="setPurgeProgramMode('from_md')">
+                    📝 ${S.lang==='fr'?'Depuis un fichier .md':S.lang==='en'?'From Markdown (.md) file':'من ملف Markdown (.md)'}
+                  </button>
+                </div>
+
+                ${programMode === 'by_date' ? `
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:6px;border-top:1px dashed var(--border)">
+                    <label style="font-size:12px;font-weight:600">${S.lang==='fr'?'Date cible :':S.lang==='en'?'Target date:':'التاريخ المستهدف:'}</label>
+                    <input type="date" class="fctl" style="width:170px;margin:0" value="${esc(targetDate)}" onchange="setPurgeTargetDate(this.value)">
+                    <select class="fctl" style="width:180px;margin:0" onchange="setPurgeTargetDateMode(this.value)">
+                      <option value="exact" ${targetDateMode==='exact'?'selected':''}>${S.lang==='fr'?'Uniquement cette date':S.lang==='en'?'Exact date only':'في هذا التاريخ فقط'}</option>
+                      <option value="since" ${targetDateMode==='since'?'selected':''}>${S.lang==='fr'?'Depuis cette date (≥)':S.lang==='en'?'Since this date (≥)':'منذ هذا التاريخ فأحدث (≥)'}</option>
+                    </select>
+                  </div>
+                ` : ''}
+
+                ${programMode === 'from_md' ? `
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:6px;border-top:1px dashed var(--border)">
+                    <input type="file" accept=".md,.txt" onchange="handlePurgeMdFileUpload(this)" style="font-size:12px">
+                    ${mdNamesCount > 0 ? `
+                      <span style="font-size:11px;background:rgba(16,185,129,0.12);color:#10B981;padding:3px 8px;border-radius:6px;font-weight:700">
+                        ✓ ${esc(mdFileName)} (${mdNamesCount} ${S.lang==='fr'?'noms':S.lang==='en'?'names':'اسم عميل'})
+                      </span>
+                      <button type="button" class="btn btn-ghost btn-xs" onclick="clearPurgeMdClients()" style="color:var(--r)">✕ ${t('مسح')}</button>
+                    ` : `<span style="font-size:11px;color:var(--t3)">${S.lang==='fr'?'Importez le fichier .md exporté (titres ## Nom)':S.lang==='en'?'Upload exported .md file (## Client Name headings)':'ارفع ملف .md المصدّر لمطابقة أسماء العملاء تلقائياً'}</span>`}
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
 
             ${filterType === 'stopped_clients' || filterType === 'old_contacts' ? `
               <div style="display:flex;align-items:center;gap:12px;margin-top:10px;background:var(--bg);padding:10px;border-radius:var(--r-sm);border:1px solid var(--border)">
@@ -524,14 +580,24 @@ function renderDbPurgeModal() {
             <span style="font-size:10px;background:rgba(56,139,253,0.15);color:#58a6ff;padding:2px 8px;border-radius:99px">${S.lang==='fr'?'Aperçu avant exécution':S.lang==='en'?'Pre-execution Preview':'معاينة قبل التنفيذ'}</span>
           </div>
 
+          ${clientsPreserved && sim.totalClientsAffected > 0 ? `
+            <div style="background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.35);color:#3fb950;border-radius:6px;padding:8px 10px;font-size:11.5px;font-weight:700;margin-bottom:10px">
+              🛡️ ${S.lang==='fr'
+                ? `Les noms et dossiers des clients (${sim.totalClientsAffected}) seront conservés — 0 client supprimé !`
+                : (S.lang==='en'
+                  ? `Client names & records (${sim.totalClientsAffected}) will be preserved — 0 clients deleted!`
+                  : `سيتم الإبقاء على أسماء وسجلات جميع العملاء (${sim.totalClientsAffected} عميل) — 0 عميل سيتم حذفه!`)}
+            </div>
+          ` : ''}
+
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:8px;margin-bottom:12px">
             <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;text-align:center">
-              <div style="font-size:16px;font-weight:800;color:${sim.totalClientsAffected>0?'#f85149':'#3fb950'}">${sim.totalClientsAffected}</div>
-              <div style="font-size:10px;color:#8b949e">${S.lang==='fr'?'Clients affectés':S.lang==='en'?'Clients affected':'عميل متأثر'}</div>
+              <div style="font-size:16px;font-weight:800;color:${clientsPreserved ? '#3fb950' : (sim.totalClientsAffected>0?'#f85149':'#3fb950')}">${sim.totalClientsAffected}</div>
+              <div style="font-size:10px;color:#8b949e">${clientsPreserved ? (S.lang==='fr'?'Clients conservés':S.lang==='en'?'Clients preserved':'عميل محتفظ به') : (S.lang==='fr'?'Clients supprimés':S.lang==='en'?'Clients deleted':'عميل متأثر')}</div>
             </div>
             <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;text-align:center">
               <div style="font-size:16px;font-weight:800;color:${sim.programsCount>0?'#e3b341':'#8b949e'}">${sim.programsCount}</div>
-              <div style="font-size:10px;color:#8b949e">${S.lang==='fr'?'Logiciels':S.lang==='en'?'Software':'برامج وترخيص'}</div>
+              <div style="font-size:10px;color:#8b949e">${S.lang==='fr'?'Logiciels à supprimer':S.lang==='en'?'Programs to delete':'برامج سيتم حذفها'}</div>
             </div>
             <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;text-align:center">
               <div style="font-size:16px;font-weight:800;color:${sim.issuesCount>0?'#e3b341':'#8b949e'}">${sim.issuesCount}</div>
@@ -544,7 +610,7 @@ function renderDbPurgeModal() {
           </div>
 
           ${sim.sampleClients && sim.sampleClients.length > 0 ? `
-            <div style="font-size:11px;color:#8b949e;margin-bottom:6px">${S.lang==='fr'?'Échantillon de clients ciblés :':S.lang==='en'?'Sample affected clients:':'عينة المخرجات المشمولة بالحذف:'}</div>
+            <div style="font-size:11px;color:#8b949e;margin-bottom:6px">${clientsPreserved ? (S.lang==='fr'?'Échantillon de clients ciblés (noms conservés) :':S.lang==='en'?'Sample targeted clients (names preserved):':'عينة العملاء المستهدفين (الأسماء ستبقى محفوظة):') : (S.lang==='fr'?'Échantillon de clients ciblés :':S.lang==='en'?'Sample affected clients:':'عينة المخرجات المشمولة بالحذف:')}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               ${sim.sampleClients.map(sc => `<span style="background:#21262d;border:1px solid #30363d;padding:2px 8px;border-radius:4px;font-size:11px;color:#c9d1d9">${esc(sc.fullName)} (${sc.company || '—'})</span>`).join('')}
               ${sim.totalClientsAffected > sim.sampleClients.length ? `<span style="font-size:11px;color:#8b949e;align-self:center">+ ${sim.totalClientsAffected - sim.sampleClients.length} ${S.lang==='fr'?'autres clients...':S.lang==='en'?'other clients...':'عميل آخر...'}</span>` : ''}

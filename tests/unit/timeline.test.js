@@ -4,7 +4,7 @@ vi.mock('../../src/firebase/service.js', () => ({
   getTenantActivities: cloudMocks.get,
   saveTenantActivity: cloudMocks.save
 }));
-import { buildTimelineReport, getFilteredTimelineList } from '../../src/business/actions/timelineActions.js';
+import { buildClientNamesOnlyMarkdown, buildClientsTimelineMarkdown, buildTimelineReport, getFilteredTimelineList } from '../../src/business/actions/timelineActions.js';
 import { ActivityType } from '../../src/business/timelineService.js';
 import { loadGlobalActivities, logActivity, syncCrmServicesToTimeline } from '../../src/business/timelineService.js';
 import { S, setCurrentStaffUser, setCurrentUser, updateState, setClients } from '../../src/state/store.js';
@@ -177,5 +177,88 @@ describe('Global timeline filters and report', () => {
     expect(progAct).toBeDefined();
     expect(progAct.title).toContain('PROGILIC POS');
     expect(progAct.category).toBe('programs');
+  });
+
+  it('builds a Markdown (.md) timeline export grouped by client since a given date', () => {
+    setCurrentUser({ uid: 'timeline-tenant', role: 'gerant', email: 'progilicservice@gmail.com' });
+    updateState({
+      globalActivities: [
+        {
+          id: 'a1',
+          clientId: 10,
+          clientName: 'GC - BOUDENA NASREDINE',
+          type: ActivityType.PROGRAM_ADDED,
+          title: 'خدمة ترخيص برنامج: Desktop - تجاري V27',
+          description: 'تقديم وتثبيت خدمة برمجية "Desktop - تجاري V27" للعميل GC - BOUDENA NASREDINE',
+          timestamp: '2025-11-15T13:51:00.000Z',
+          actorEmail: 'progilicservice@gmail.com'
+        },
+        {
+          id: 'a0',
+          clientId: 9,
+          clientName: 'عميل قديم',
+          type: ActivityType.CLIENT_CREATED,
+          title: 'تسجيل واعتماد العميل (عميل قديم)',
+          description: 'تسجيل قديم',
+          timestamp: '2025-11-10T10:00:00.000Z',
+          actorEmail: 'progilicservice@gmail.com'
+        }
+      ],
+      timelineDatePreset: 'custom',
+      timelineDateFrom: '2025-11-15'
+    });
+
+    const md = buildClientsTimelineMarkdown();
+    expect(md).toContain('## GC - BOUDENA NASREDINE');
+    expect(md).toContain('الخط الزمني للنشاط (1)');
+    expect(md).toContain('إضافة ترخيص برنامج');
+    expect(md).toContain('👤 المنفذ: progilicservice@gmail.com');
+    expect(md).not.toContain('عميل قديم');
+  });
+
+  it('excludes purged PROGRAM_ADDED records from Markdown export while keeping client names', () => {
+    setClients([
+      {
+        id: 10,
+        fullName: 'GC - BOUDENA NASREDINE',
+        startDate: '2025-11-15',
+        programs: [],
+        programsCount: 0,
+        programsPurgedAt: '2026-11-18T00:00:00.000Z'
+      }
+    ]);
+    updateState({
+      globalActivities: [
+        {
+          id: 'a_prog',
+          clientId: 10,
+          clientName: 'GC - BOUDENA NASREDINE',
+          type: ActivityType.PROGRAM_ADDED,
+          title: 'خدمة ترخيص برنامج: Desktop - تجاري V27',
+          description: 'تقديم وتثبيت خدمة برمجية "Desktop - تجاري V27"',
+          timestamp: '2025-11-15T13:51:00.000Z'
+        },
+        {
+          id: 'a_cli',
+          clientId: 10,
+          clientName: 'GC - BOUDENA NASREDINE',
+          type: ActivityType.CLIENT_CREATED,
+          title: 'تسجيل واعتماد العميل (GC - BOUDENA NASREDINE)',
+          description: 'تسجيل العميل في نظام PROGILIC CRM',
+          timestamp: '2025-11-15T01:00:00.000Z'
+        }
+      ],
+      timelineDatePreset: 'custom',
+      timelineDateFrom: '2025-11-15'
+    });
+
+    const timelineMd = buildClientsTimelineMarkdown();
+    expect(timelineMd).toContain('## GC - BOUDENA NASREDINE');
+    expect(timelineMd).toContain('إضافة عميل جديد');
+    expect(timelineMd).not.toContain('Desktop - تجاري V27');
+
+    const namesMd = buildClientNamesOnlyMarkdown();
+    expect(namesMd).toContain('1. GC - BOUDENA NASREDINE');
+    expect(namesMd).not.toContain('Desktop - تجاري V27');
   });
 });

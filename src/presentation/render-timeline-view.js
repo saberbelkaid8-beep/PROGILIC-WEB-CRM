@@ -127,6 +127,12 @@ export function renderGlobalTimeline() {
           <button class="btn btn-outline btn-sm" onclick="exportGlobalTimelineCSV()" title="${t('تصدير كـ CSV')}" style="font-size:11.5px; padding:6px 12px; color:var(--brand); border-color:var(--brand)">
             📊 ${t('تصدير CSV')}
           </button>
+          <button class="btn btn-outline btn-sm" onclick="exportGlobalTimelineMarkdown()" title="${t('تصدير كملف Markdown (.md)')}" style="font-size:11.5px; padding:6px 12px; color:#7C3AED; border-color:#7C3AED; font-weight:700">
+            📝 ${t('تصدير Markdown (.md)')}
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="exportClientNamesMarkdown()" title="${t('تصدير أسماء العملاء فقط (.md)')}" style="font-size:11.5px; padding:6px 12px; color:#0F766E; border-color:#0F766E; font-weight:700">
+            📋 ${t('أسماء العملاء (.md)')}
+          </button>
         </div>
       </div>
 

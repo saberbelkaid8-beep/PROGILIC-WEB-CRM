@@ -234,12 +234,42 @@ export function isProgramDeletedAfter(prog, addedTimestamp = '', deletions = [])
   });
 }
 
+export function getClientProgramsPurgeCutoff(clientObj, activities = []) {
+  let latestCutoff = '';
+  const candidate = clientObj?.programsPurgedAt ? String(clientObj.programsPurgedAt).trim() : '';
+  if (candidate) {
+    latestCutoff = candidate;
+  }
+
+  const cidStr = clientObj?.id !== undefined && clientObj?.id !== null ? String(clientObj.id) : null;
+  for (const act of (Array.isArray(activities) ? activities : [])) {
+    if (!act || act.type !== 'SYSTEM_PURGE') continue;
+    const meta = act.meta && typeof act.meta === 'object' ? act.meta : null;
+    if (!meta || !meta.purgeProgramsOnly) continue;
+
+    const matchesAll = Boolean(meta.purgedAllClients);
+    const matchesClient = cidStr !== null && Array.isArray(meta.purgedClientIds) &&
+      meta.purgedClientIds.some(id => String(id) === cidStr);
+
+    if (!matchesAll && !matchesClient) continue;
+
+    const actCutoff = String(meta.purgedBefore || act.timestamp || '').trim();
+    if (actCutoff && (!latestCutoff || actCutoff > latestCutoff)) {
+      latestCutoff = actCutoff;
+    }
+  }
+
+  return latestCutoff;
+}
+
 export function reconcileClientPrograms({ client, subPrograms = [], inlinePrograms = [], activities = [] }) {
   const c = client || {};
   const fallbackStart = c.startDate || '';
-  const clientActivities = (Array.isArray(activities) ? activities : [])
+  const allActivities = Array.isArray(activities) ? activities : [];
+  const clientActivities = allActivities
     .filter(a => a && (c.id === undefined || c.id === null || Number(a.clientId) === Number(c.id)));
 
+  const purgeCutoff = getClientProgramsPurgeCutoff(c, allActivities);
   const deletions = extractDeletedProgramsFromActivities(c.id, clientActivities);
   const edits = extractEditedProgramsFromActivities(c.id, clientActivities);
 
@@ -274,28 +304,41 @@ export function reconcileClientPrograms({ client, subPrograms = [], inlineProgra
     .filter(a => a.type === 'PROGRAM_ADDED')
     .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
 
-  (Array.isArray(inlinePrograms) ? inlinePrograms : []).forEach(p => {
-    const np = normalizeProgramRecord(p, fallbackStart);
-    if (!np) return;
-    const idKey = String(np.id);
-    const fp = buildProgramFingerprint(np);
-    if (seenIds.has(idKey) || (fp && seenFingerprints.has(fp))) return;
+  const subCollectionClearedByPurge = Boolean(
+    purgeCutoff &&
+    (!Array.isArray(subPrograms) || subPrograms.length === 0) &&
+    (!c.updatedAt || String(c.updatedAt) <= purgeCutoff || Number(c.programsCount || 0) === 0)
+  );
 
-    // Check whether this inline program was explicitly deleted later
-    const matchingAdd = addedActivities.filter(a => {
-      const parsed = parseProgramFromActivity(a, c);
-      if (!parsed) return false;
-      return String(parsed.id) === idKey || buildProgramFingerprint(parsed) === fp;
-    }).pop();
+  if (!subCollectionClearedByPurge) {
+    (Array.isArray(inlinePrograms) ? inlinePrograms : []).forEach(p => {
+      const np = normalizeProgramRecord(p, fallbackStart);
+      if (!np) return;
+      const idKey = String(np.id);
+      const fp = buildProgramFingerprint(np);
+      if (seenIds.has(idKey) || (fp && seenFingerprints.has(fp))) return;
 
-    const deletedLater = isProgramDeletedAfter(np, matchingAdd?.timestamp || '', deletions);
-    if (deletedLater) return;
+      // Check whether this inline program was explicitly deleted later
+      const matchingAdd = addedActivities.filter(a => {
+        const parsed = parseProgramFromActivity(a, c);
+        if (!parsed) return false;
+        return String(parsed.id) === idKey || buildProgramFingerprint(parsed) === fp;
+      }).pop();
 
-    registerProgram(np, true);
-  });
+      if (purgeCutoff && matchingAdd && (!matchingAdd.timestamp || matchingAdd.timestamp <= purgeCutoff)) {
+        return;
+      }
+
+      const deletedLater = isProgramDeletedAfter(np, matchingAdd?.timestamp || '', deletions);
+      if (deletedLater) return;
+
+      registerProgram(np, true);
+    });
+  }
 
   // 3. Recover any active PROGRAM_ADDED records from Timeline that are absent from subcollection & inline
   addedActivities.forEach(act => {
+    if (purgeCutoff && (!act.timestamp || act.timestamp <= purgeCutoff)) return;
     const parsed = parseProgramFromActivity(act, c);
     if (!parsed) return;
     if (isProgramDeletedAfter(parsed, act.timestamp || '', deletions)) return;
@@ -322,7 +365,7 @@ export function reconcileClientPrograms({ client, subPrograms = [], inlineProgra
   const installationsCount = merged.reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0);
   const programNames = merged.map(p => p.programName).filter(Boolean);
   const activeWithEndDate = merged.filter(p => p.endDate).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
-  const endDate = c.endDate || (activeWithEndDate.length > 0 ? activeWithEndDate[0].endDate : '');
+  const endDate = programsCount > 0 ? (c.endDate || (activeWithEndDate.length > 0 ? activeWithEndDate[0].endDate : '')) : '';
 
   const existingInlineCount = Array.isArray(c.programs) ? c.programs.length : 0;
   const needsCounterSync =

@@ -1,7 +1,44 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider, FacebookAuthProvider, OAuthProvider } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
+import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
+
+// Clear any leftover browser Firestore IndexedDB or legacy localStorage client caches
+function purgeLegacyBrowserDataCaches() {
+  if (typeof window === 'undefined') return;
+  try {
+    const legacyKeys = [
+      'crm_clients_cache',
+      'crm_stats_cache',
+      'crm_nid_cache',
+      'crm_sync_queue',
+      'crm_currentUser',
+      'crm_current_staff'
+    ];
+    if (window.localStorage) {
+      for (const k of legacyKeys) {
+        window.localStorage.removeItem(k);
+      }
+    }
+  } catch (_) {}
+
+  try {
+    if (window.indexedDB && typeof window.indexedDB.databases === 'function') {
+      window.indexedDB.databases().then((dbs) => {
+        for (const dbInfo of (dbs || [])) {
+          const name = dbInfo && dbInfo.name;
+          // Remove only Firestore/CRM data caches; preserve firebaseLocalStorageDb for Auth session
+          if (name && (name.startsWith('firestore/') || name.startsWith('PROGILIC_CRM'))) {
+            try {
+              window.indexedDB.deleteDatabase(name);
+            } catch (_) {}
+          }
+        }
+      }).catch(() => {});
+    }
+  } catch (_) {}
+}
+purgeLegacyBrowserDataCaches();
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -11,25 +48,15 @@ export const auth = getAuth(app);
 // Ensure persistence is set for authentication
 setPersistence(auth, browserLocalPersistence).catch(console.error);
 
-// Initialize Firestore with modern multi-tab persistent cache and forced long-polling to prevent iframe/proxy 10s stream timeouts
+// Strictly Online Mode: Use memoryLocalCache only (no IndexedDB disk cache, prevents stale data & BloomFilterError)
 let firestoreDb;
 try {
   firestoreDb = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    }),
+    localCache: memoryLocalCache(),
     experimentalForceLongPolling: true
   }, firebaseConfig.firestoreDatabaseId);
 } catch (e) {
-  console.warn("Falling back to memory Firestore cache:", e);
-  try {
-    firestoreDb = initializeFirestore(app, {
-      localCache: memoryLocalCache(),
-      experimentalForceLongPolling: true
-    }, firebaseConfig.firestoreDatabaseId);
-  } catch (e2) {
-    console.error("Firestore initialization failed:", e2);
-  }
+  console.error("Firestore initialization failed:", e);
 }
 
 export const db = firestoreDb;

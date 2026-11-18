@@ -39,7 +39,7 @@ export default defineConfig({
               });
               const promptText = buildUserPrompt(userMessage, activeContext, conversationHistory);
 
-              const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+              const modelsToTry = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
               let response = null;
               let lastError = null;
 
@@ -82,7 +82,7 @@ export default defineConfig({
                     }
                   };
 
-                  if (modelName.startsWith('gemini-3')) {
+                  if (modelName.startsWith('gemini-4') || modelName.startsWith('gemini-3')) {
                     genConfig.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
                   }
 

@@ -1,14 +1,14 @@
 {
   "appName": "crm",
-  "timestamp": "2026-11-15T17:55:21.847Z",
+  "timestamp": "2026-11-18T12:01:16.098Z",
   "nodeVersion": "v22.23.2",
   "platform": "linux",
   "build": {
-    "durationMs": 4863,
-    "durationSeconds": 4.86,
-    "totalFiles": 24,
-    "totalSizeBytes": 6542550,
-    "totalSizeFormatted": "6.24 MB"
+    "durationMs": 8122,
+    "durationSeconds": 8.12,
+    "totalFiles": 28,
+    "totalSizeBytes": 8802761,
+    "totalSizeFormatted": "8.39 MB"
   },
   "dependencies": {
     "productionCount": 3,
@@ -22,6 +22,26 @@
       "sizeFormatted": "1.27 MB"
     },
     {
+      "file": "assets/aistudio/Paste_November_15__2026_-_7_08PM_4eaba1d6",
+      "sizeBytes": 36701,
+      "sizeFormatted": "35.84 KB"
+    },
+    {
+      "file": "assets/aistudio/Paste_November_15__2026_-_7_18PM_0f360518",
+      "sizeBytes": 69659,
+      "sizeFormatted": "68.03 KB"
+    },
+    {
+      "file": "assets/aistudio/Paste_November_18__2026_-_12_34PM_998b7e69",
+      "sizeBytes": 117015,
+      "sizeFormatted": "114.27 KB"
+    },
+    {
+      "file": "assets/aistudio/progilic_crm_clients_since_2025-11-15_99a66b12.md",
+      "sizeBytes": 968755,
+      "sizeFormatted": "946.05 KB"
+    },
+    {
       "file": "assets/aistudio/progilic_dashboard_349c4566.html",
       "sizeBytes": 191560,
       "sizeFormatted": "187.07 KB"
@@ -32,34 +52,34 @@
       "sizeFormatted": "132.01 KB"
     },
     {
-      "file": "assets/firebase-auth-3ITyf8W-.js",
-      "sizeBytes": 132215,
-      "sizeFormatted": "129.12 KB"
+      "file": "assets/firebase-auth-D-X5CUZU.js",
+      "sizeBytes": 228338,
+      "sizeFormatted": "222.99 KB"
     },
     {
-      "file": "assets/firebase-core-DyI4H_Hg.js",
-      "sizeBytes": 45507,
-      "sizeFormatted": "44.44 KB"
+      "file": "assets/firebase-core-C8Czc-0k.js",
+      "sizeBytes": 79148,
+      "sizeFormatted": "77.29 KB"
     },
     {
-      "file": "assets/firebase-firestore-BuJnjhvW.js",
-      "sizeBytes": 669439,
-      "sizeFormatted": "653.75 KB"
+      "file": "assets/firebase-firestore-CKSIJZ2A.js",
+      "sizeBytes": 1244825,
+      "sizeFormatted": "1.19 MB"
     },
     {
-      "file": "assets/index-DtdmB0Sa.js",
-      "sizeBytes": 919243,
-      "sizeFormatted": "897.7 KB"
+      "file": "assets/index-CmbJYJAt.css",
+      "sizeBytes": 89088,
+      "sizeFormatted": "87 KB"
     },
     {
-      "file": "assets/index-zrRAhl4_.css",
-      "sizeBytes": 72061,
-      "sizeFormatted": "70.37 KB"
+      "file": "assets/index-RV7XW4eG.js",
+      "sizeBytes": 1219082,
+      "sizeFormatted": "1.16 MB"
     },
     {
-      "file": "assets/search-engine-D7oNtqOG.js",
-      "sizeBytes": 18019,
-      "sizeFormatted": "17.6 KB"
+      "file": "assets/search-engine-408GSLV4.js",
+      "sizeBytes": 64084,
+      "sizeFormatted": "62.58 KB"
     },
     {
       "file": "css/components.css",

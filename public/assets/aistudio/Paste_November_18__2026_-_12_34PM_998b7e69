@@ -1,0 +1,4559 @@
+743
+16
+12:32:06.215
+System
+Build
+ Render Start 
+12:32:06.919
+Backend
+Log
+ Server restarting... 
+12:32:06.919
+Backend
+Log
+ Server stopped. 
+12:32:06.919
+Backend
+Log
+ Server started on port 3000. 
+12:32:06.919
+Backend
+Log
+ Pre-warming 1 paths...
+  
+  > crm@1.0.0 dev
+  > vite --port 3000 --host 0.0.0.0 --port 3000 --host 0.0.0.0
+  
+  
+    VITE v6.4.6  ready in 447 ms
+  
+    ➜  Local:   http://localhost:3000/
+    ➜  Network: http://169.254.8.1:3000/
+    ➜  Network: http://169.254.9.1:3000/
+    ➜  Network: http://169.254.169.1:3000/ 
+12:32:06.919
+Backend
+Log
+ Pre-warming completed. 
+12:32:07.025
+Backend
+Log
+ CONNECTED 
+12:32:08.135
+System
+Build
+ Render End 
+12:32:08.170
+App
+Debug
+ [vite] connecting... 
+12:32:08.197
+App
+Debug
+ [vite] connected. 
+12:32:08.538
+App
+Log
+ loadDataFromFirestore: start 
+12:32:08.539
+App
+Log
+ loadDataFromFirestore: before getUserData with 12s timeout 
+12:32:08.892
+App
+Log
+ loadDataFromFirestore: after getUserData
+  {
+  "updatedAt": "2026-11-18T11:30:40.955Z",
+  "stats": {
+    "totalLicensedDevices": 209,
+    "totalOpenIssues": 6,
+    "activeClients": 838,
+    "stoppedClients": 95,
+    "totalPrograms": 119,
+    "totalClients": 933,
+    "averageScore": 27,
+    "prospectiveClients": 0
+  },
+  "nid": 1794916021576,
+  "v": 3
+} 
+12:32:08.894
+App
+Log
+ [Storage] User profile metadata loaded (Clients will be populated via real-time subcollection listener). 
+12:32:09.209
+App
+Log
+ loadDataFromFirestore: before startRealtimeSync 
+12:32:09.210
+App
+Log
+ Starting real-time synchronization for user:
+  z1FY0kWqOOSe78cFv8rqak0mjV03 
+12:32:09.211
+App
+Log
+ loadDataFromFirestore: after startRealtimeSync 
+12:32:09.527
+App
+Log
+ [Realtime Sync] Received 3 employees from Firestore for user z1FY0kWqOOSe78cFv8rqak0mjV03 
+12:32:11.534
+App
+Warning
+ [2026-11-18T11:32:11.533Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.641
+App
+Warning
+ [2026-11-18T11:32:11.640Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.642
+App
+Warning
+ [2026-11-18T11:32:11.641Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.643
+App
+Warning
+ [2026-11-18T11:32:11.641Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.643
+App
+Warning
+ [2026-11-18T11:32:11.641Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.643
+App
+Warning
+ [2026-11-18T11:32:11.641Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.643
+App
+Warning
+ [2026-11-18T11:32:11.642Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.643
+App
+Warning
+ [2026-11-18T11:32:11.642Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:11.938
+App
+Warning
+ [2026-11-18T11:32:11.938Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.537
+App
+Warning
+ [2026-11-18T11:32:12.536Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.720
+App
+Warning
+ [2026-11-18T11:32:12.719Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.721
+App
+Warning
+ [2026-11-18T11:32:12.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.722
+App
+Warning
+ [2026-11-18T11:32:12.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.722
+App
+Warning
+ [2026-11-18T11:32:12.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.722
+App
+Warning
+ [2026-11-18T11:32:12.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.722
+App
+Warning
+ [2026-11-18T11:32:12.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.722
+App
+Warning
+ [2026-11-18T11:32:12.721Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:12.811
+App
+Warning
+ [2026-11-18T11:32:12.810Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.249
+App
+Warning
+ [2026-11-18T11:32:13.248Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.250
+App
+Warning
+ [2026-11-18T11:32:13.248Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.266
+App
+Warning
+ [2026-11-18T11:32:13.249Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.266
+App
+Warning
+ [2026-11-18T11:32:13.249Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.366
+App
+Warning
+ [2026-11-18T11:32:13.366Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.367
+App
+Warning
+ [2026-11-18T11:32:13.367Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.368
+App
+Warning
+ [2026-11-18T11:32:13.367Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.368
+App
+Warning
+ [2026-11-18T11:32:13.367Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.451
+App
+Warning
+ [2026-11-18T11:32:13.451Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.452
+App
+Warning
+ [2026-11-18T11:32:13.451Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.966
+App
+Warning
+ [2026-11-18T11:32:13.965Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.967
+App
+Warning
+ [2026-11-18T11:32:13.965Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:13.968
+App
+Warning
+ [2026-11-18T11:32:13.966Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.104
+App
+Warning
+ [2026-11-18T11:32:14.064Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.127
+App
+Warning
+ [2026-11-18T11:32:14.064Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.127
+App
+Warning
+ [2026-11-18T11:32:14.064Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.127
+App
+Warning
+ [2026-11-18T11:32:14.064Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.127
+App
+Warning
+ [2026-11-18T11:32:14.065Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.127
+App
+Warning
+ [2026-11-18T11:32:14.065Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.127
+App
+Warning
+ [2026-11-18T11:32:14.065Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.602
+App
+Warning
+ [2026-11-18T11:32:14.602Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.720
+App
+Warning
+ [2026-11-18T11:32:14.719Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.721
+App
+Warning
+ [2026-11-18T11:32:14.719Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.721
+App
+Warning
+ [2026-11-18T11:32:14.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.722
+App
+Warning
+ [2026-11-18T11:32:14.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.722
+App
+Warning
+ [2026-11-18T11:32:14.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.722
+App
+Warning
+ [2026-11-18T11:32:14.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.722
+App
+Warning
+ [2026-11-18T11:32:14.720Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.722
+App
+Warning
+ [2026-11-18T11:32:14.721Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:14.816
+App
+Warning
+ [2026-11-18T11:32:14.814Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.465
+App
+Warning
+ [2026-11-18T11:32:15.462Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.466
+App
+Warning
+ [2026-11-18T11:32:15.463Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.466
+App
+Warning
+ [2026-11-18T11:32:15.463Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.466
+App
+Warning
+ [2026-11-18T11:32:15.463Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.466
+App
+Warning
+ [2026-11-18T11:32:15.464Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.466
+App
+Warning
+ [2026-11-18T11:32:15.464Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.466
+App
+Warning
+ [2026-11-18T11:32:15.464Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.558
+App
+Warning
+ [2026-11-18T11:32:15.558Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.560
+App
+Warning
+ [2026-11-18T11:32:15.558Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:15.561
+App
+Warning
+ [2026-11-18T11:32:15.558Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.032
+App
+Warning
+ [2026-11-18T11:32:16.031Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.034
+App
+Warning
+ [2026-11-18T11:32:16.031Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.132
+App
+Warning
+ [2026-11-18T11:32:16.129Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.133
+App
+Warning
+ [2026-11-18T11:32:16.129Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.133
+App
+Warning
+ [2026-11-18T11:32:16.129Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.133
+App
+Warning
+ [2026-11-18T11:32:16.130Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.133
+App
+Warning
+ [2026-11-18T11:32:16.130Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.133
+App
+Warning
+ [2026-11-18T11:32:16.130Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.133
+App
+Warning
+ [2026-11-18T11:32:16.130Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.133
+App
+Warning
+ [2026-11-18T11:32:16.130Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.910
+App
+Warning
+ [2026-11-18T11:32:16.908Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.912
+App
+Warning
+ [2026-11-18T11:32:16.909Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.985
+App
+Warning
+ [2026-11-18T11:32:16.910Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.986
+App
+Warning
+ [2026-11-18T11:32:16.910Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.986
+App
+Warning
+ [2026-11-18T11:32:16.910Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:16.986
+App
+Warning
+ [2026-11-18T11:32:16.910Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:17.182
+App
+Warning
+ [2026-11-18T11:32:17.181Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:17.276
+App
+Warning
+ [2026-11-18T11:32:17.182Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:17.277
+App
+Warning
+ [2026-11-18T11:32:17.182Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:18.105
+App
+Warning
+ [2026-11-18T11:32:18.101Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:18.107
+App
+Warning
+ [2026-11-18T11:32:18.103Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:18.108
+App
+Warning
+ [2026-11-18T11:32:18.103Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:18.108
+App
+Warning
+ [2026-11-18T11:32:18.103Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:18.108
+App
+Warning
+ [2026-11-18T11:32:18.104Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:18.108
+App
+Warning
+ [2026-11-18T11:32:18.104Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:21.803
+App
+Warning
+ [2026-11-18T11:32:21.802Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:21.805
+App
+Warning
+ [2026-11-18T11:32:21.803Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:21.901
+App
+Warning
+ [2026-11-18T11:32:21.900Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:21.902
+App
+Warning
+ [2026-11-18T11:32:21.901Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:21.904
+App
+Warning
+ [2026-11-18T11:32:21.901Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:21.904
+App
+Warning
+ [2026-11-18T11:32:21.901Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:21.904
+App
+Warning
+ [2026-11-18T11:32:21.901Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.482
+App
+Warning
+ [2026-11-18T11:32:22.478Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.485
+App
+Warning
+ [2026-11-18T11:32:22.478Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.485
+App
+Warning
+ [2026-11-18T11:32:22.479Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.485
+App
+Warning
+ [2026-11-18T11:32:22.479Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.571
+App
+Warning
+ [2026-11-18T11:32:22.571Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.573
+App
+Warning
+ [2026-11-18T11:32:22.571Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.573
+App
+Warning
+ [2026-11-18T11:32:22.571Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.574
+App
+Warning
+ [2026-11-18T11:32:22.572Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.574
+App
+Warning
+ [2026-11-18T11:32:22.572Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:22.574
+App
+Warning
+ [2026-11-18T11:32:22.572Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.121
+App
+Warning
+ [2026-11-18T11:32:23.121Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.123
+App
+Warning
+ [2026-11-18T11:32:23.121Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.125
+App
+Warning
+ [2026-11-18T11:32:23.121Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.125
+App
+Warning
+ [2026-11-18T11:32:23.122Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.125
+App
+Warning
+ [2026-11-18T11:32:23.122Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.125
+App
+Warning
+ [2026-11-18T11:32:23.122Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.125
+App
+Warning
+ [2026-11-18T11:32:23.122Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.225
+App
+Warning
+ [2026-11-18T11:32:23.224Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.227
+App
+Warning
+ [2026-11-18T11:32:23.224Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.229
+App
+Warning
+ [2026-11-18T11:32:23.225Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.802
+App
+Warning
+ [2026-11-18T11:32:23.802Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.804
+App
+Warning
+ [2026-11-18T11:32:23.802Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.806
+App
+Warning
+ [2026-11-18T11:32:23.802Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.806
+App
+Warning
+ [2026-11-18T11:32:23.802Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.806
+App
+Warning
+ [2026-11-18T11:32:23.803Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.806
+App
+Warning
+ [2026-11-18T11:32:23.803Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.806
+App
+Warning
+ [2026-11-18T11:32:23.803Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.898
+App
+Warning
+ [2026-11-18T11:32:23.897Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.900
+App
+Warning
+ [2026-11-18T11:32:23.898Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:23.972
+App
+Warning
+ [2026-11-18T11:32:23.971Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.518
+App
+Warning
+ [2026-11-18T11:32:24.517Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.520
+App
+Warning
+ [2026-11-18T11:32:24.518Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.521
+App
+Warning
+ [2026-11-18T11:32:24.518Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.521
+App
+Warning
+ [2026-11-18T11:32:24.518Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.521
+App
+Warning
+ [2026-11-18T11:32:24.518Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.521
+App
+Warning
+ [2026-11-18T11:32:24.518Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.522
+App
+Warning
+ [2026-11-18T11:32:24.519Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.522
+App
+Warning
+ [2026-11-18T11:32:24.519Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.610
+App
+Warning
+ [2026-11-18T11:32:24.609Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:24.612
+App
+Warning
+ [2026-11-18T11:32:24.609Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.093
+App
+Warning
+ [2026-11-18T11:32:25.093Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.189
+App
+Warning
+ [2026-11-18T11:32:25.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.191
+App
+Warning
+ [2026-11-18T11:32:25.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.193
+App
+Warning
+ [2026-11-18T11:32:25.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.193
+App
+Warning
+ [2026-11-18T11:32:25.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.193
+App
+Warning
+ [2026-11-18T11:32:25.190Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.193
+App
+Warning
+ [2026-11-18T11:32:25.190Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.283
+App
+Warning
+ [2026-11-18T11:32:25.282Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.816
+App
+Warning
+ [2026-11-18T11:32:25.816Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.819
+App
+Warning
+ [2026-11-18T11:32:25.816Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.820
+App
+Warning
+ [2026-11-18T11:32:25.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.820
+App
+Warning
+ [2026-11-18T11:32:25.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.821
+App
+Warning
+ [2026-11-18T11:32:25.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.821
+App
+Warning
+ [2026-11-18T11:32:25.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.821
+App
+Warning
+ [2026-11-18T11:32:25.818Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.821
+App
+Warning
+ [2026-11-18T11:32:25.818Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:25.909
+App
+Warning
+ [2026-11-18T11:32:25.908Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.400
+App
+Warning
+ [2026-11-18T11:32:26.397Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.500
+App
+Warning
+ [2026-11-18T11:32:26.499Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.504
+App
+Warning
+ [2026-11-18T11:32:26.500Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.504
+App
+Warning
+ [2026-11-18T11:32:26.500Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.504
+App
+Warning
+ [2026-11-18T11:32:26.500Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.504
+App
+Warning
+ [2026-11-18T11:32:26.500Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.504
+App
+Warning
+ [2026-11-18T11:32:26.500Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.504
+App
+Warning
+ [2026-11-18T11:32:26.500Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:26.504
+App
+Warning
+ [2026-11-18T11:32:26.500Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.024
+App
+Warning
+ [2026-11-18T11:32:27.023Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.026
+App
+Warning
+ [2026-11-18T11:32:27.024Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.119
+App
+Warning
+ [2026-11-18T11:32:27.119Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.121
+App
+Warning
+ [2026-11-18T11:32:27.119Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.122
+App
+Warning
+ [2026-11-18T11:32:27.119Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.122
+App
+Warning
+ [2026-11-18T11:32:27.119Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.122
+App
+Warning
+ [2026-11-18T11:32:27.119Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.122
+App
+Warning
+ [2026-11-18T11:32:27.120Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.218
+App
+Warning
+ [2026-11-18T11:32:27.217Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.786
+App
+Warning
+ [2026-11-18T11:32:27.785Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.788
+App
+Warning
+ [2026-11-18T11:32:27.785Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.789
+App
+Warning
+ [2026-11-18T11:32:27.786Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.790
+App
+Warning
+ [2026-11-18T11:32:27.786Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.790
+App
+Warning
+ [2026-11-18T11:32:27.786Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.790
+App
+Warning
+ [2026-11-18T11:32:27.786Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.790
+App
+Warning
+ [2026-11-18T11:32:27.787Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.869
+App
+Warning
+ [2026-11-18T11:32:27.869Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.872
+App
+Warning
+ [2026-11-18T11:32:27.869Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:27.874
+App
+Warning
+ [2026-11-18T11:32:27.869Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.466
+App
+Warning
+ [2026-11-18T11:32:28.464Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.556
+App
+Warning
+ [2026-11-18T11:32:28.556Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.558
+App
+Warning
+ [2026-11-18T11:32:28.556Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.559
+App
+Warning
+ [2026-11-18T11:32:28.556Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.559
+App
+Warning
+ [2026-11-18T11:32:28.556Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.559
+App
+Warning
+ [2026-11-18T11:32:28.557Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.559
+App
+Warning
+ [2026-11-18T11:32:28.557Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.559
+App
+Warning
+ [2026-11-18T11:32:28.557Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.559
+App
+Warning
+ [2026-11-18T11:32:28.557Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:28.559
+App
+Warning
+ [2026-11-18T11:32:28.557Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.092
+App
+Warning
+ [2026-11-18T11:32:29.091Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.094
+App
+Warning
+ [2026-11-18T11:32:29.092Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.094
+App
+Warning
+ [2026-11-18T11:32:29.092Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.096
+App
+Warning
+ [2026-11-18T11:32:29.092Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.096
+App
+Warning
+ [2026-11-18T11:32:29.092Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.210
+App
+Warning
+ [2026-11-18T11:32:29.177Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.278
+App
+Warning
+ [2026-11-18T11:32:29.177Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.278
+App
+Warning
+ [2026-11-18T11:32:29.178Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.278
+App
+Warning
+ [2026-11-18T11:32:29.178Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.279
+App
+Warning
+ [2026-11-18T11:32:29.178Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.866
+App
+Warning
+ [2026-11-18T11:32:29.866Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.869
+App
+Warning
+ [2026-11-18T11:32:29.866Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.871
+App
+Warning
+ [2026-11-18T11:32:29.866Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.871
+App
+Warning
+ [2026-11-18T11:32:29.867Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.871
+App
+Warning
+ [2026-11-18T11:32:29.867Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.871
+App
+Warning
+ [2026-11-18T11:32:29.867Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.872
+App
+Warning
+ [2026-11-18T11:32:29.867Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.872
+App
+Warning
+ [2026-11-18T11:32:29.867Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.965
+App
+Warning
+ [2026-11-18T11:32:29.965Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:29.970
+App
+Warning
+ [2026-11-18T11:32:29.965Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.665
+App
+Warning
+ [2026-11-18T11:32:30.664Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.668
+App
+Warning
+ [2026-11-18T11:32:30.664Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.668
+App
+Warning
+ [2026-11-18T11:32:30.664Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.668
+App
+Warning
+ [2026-11-18T11:32:30.664Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.668
+App
+Warning
+ [2026-11-18T11:32:30.665Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.668
+App
+Warning
+ [2026-11-18T11:32:30.665Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.754
+App
+Warning
+ [2026-11-18T11:32:30.754Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.759
+App
+Warning
+ [2026-11-18T11:32:30.754Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.761
+App
+Warning
+ [2026-11-18T11:32:30.754Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:30.761
+App
+Warning
+ [2026-11-18T11:32:30.755Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.257
+App
+Warning
+ [2026-11-18T11:32:31.257Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.498
+App
+Warning
+ [2026-11-18T11:32:31.495Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.501
+App
+Warning
+ [2026-11-18T11:32:31.496Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.501
+App
+Warning
+ [2026-11-18T11:32:31.496Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.501
+App
+Warning
+ [2026-11-18T11:32:31.496Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.501
+App
+Warning
+ [2026-11-18T11:32:31.497Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.501
+App
+Warning
+ [2026-11-18T11:32:31.497Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.501
+App
+Warning
+ [2026-11-18T11:32:31.497Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:31.501
+App
+Warning
+ [2026-11-18T11:32:31.497Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.308
+App
+Warning
+ [2026-11-18T11:32:32.299Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.313
+App
+Warning
+ [2026-11-18T11:32:32.301Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.313
+App
+Warning
+ [2026-11-18T11:32:32.301Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.313
+App
+Warning
+ [2026-11-18T11:32:32.302Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.313
+App
+Warning
+ [2026-11-18T11:32:32.302Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.313
+App
+Warning
+ [2026-11-18T11:32:32.303Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.314
+App
+Warning
+ [2026-11-18T11:32:32.303Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.314
+App
+Warning
+ [2026-11-18T11:32:32.303Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.561
+App
+Warning
+ [2026-11-18T11:32:32.560Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:32.564
+App
+Warning
+ [2026-11-18T11:32:32.561Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.359
+App
+Warning
+ [2026-11-18T11:32:33.358Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.362
+App
+Warning
+ [2026-11-18T11:32:33.359Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.447
+App
+Warning
+ [2026-11-18T11:32:33.359Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.447
+App
+Warning
+ [2026-11-18T11:32:33.359Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.579
+App
+Warning
+ [2026-11-18T11:32:33.487Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.705
+App
+Warning
+ [2026-11-18T11:32:33.487Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.807
+App
+Warning
+ [2026-11-18T11:32:33.665Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.807
+App
+Warning
+ [2026-11-18T11:32:33.665Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.807
+App
+Warning
+ [2026-11-18T11:32:33.665Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:33.807
+App
+Warning
+ [2026-11-18T11:32:33.665Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:34.558
+App
+Warning
+ [2026-11-18T11:32:34.557Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:34.561
+App
+Warning
+ [2026-11-18T11:32:34.558Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:34.562
+App
+Warning
+ [2026-11-18T11:32:34.558Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:34.666
+App
+Warning
+ [2026-11-18T11:32:34.558Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:34.666
+App
+Warning
+ [2026-11-18T11:32:34.558Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:34.906
+App
+Warning
+ [2026-11-18T11:32:34.744Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.162
+App
+Warning
+ [2026-11-18T11:32:34.745Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.163
+App
+Warning
+ [2026-11-18T11:32:34.745Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.163
+App
+Warning
+ [2026-11-18T11:32:34.746Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.163
+App
+Warning
+ [2026-11-18T11:32:34.746Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.785
+App
+Warning
+ [2026-11-18T11:32:35.783Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.791
+App
+Warning
+ [2026-11-18T11:32:35.784Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.792
+App
+Warning
+ [2026-11-18T11:32:35.784Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.792
+App
+Warning
+ [2026-11-18T11:32:35.784Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.793
+App
+Warning
+ [2026-11-18T11:32:35.784Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.940
+App
+Warning
+ [2026-11-18T11:32:35.940Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.944
+App
+Warning
+ [2026-11-18T11:32:35.940Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.951
+App
+Warning
+ [2026-11-18T11:32:35.940Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:35.951
+App
+Warning
+ [2026-11-18T11:32:35.941Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.626
+App
+Warning
+ [2026-11-18T11:32:36.625Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.629
+App
+Warning
+ [2026-11-18T11:32:36.626Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.631
+App
+Warning
+ [2026-11-18T11:32:36.626Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.631
+App
+Warning
+ [2026-11-18T11:32:36.626Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.631
+App
+Warning
+ [2026-11-18T11:32:36.626Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.631
+App
+Warning
+ [2026-11-18T11:32:36.626Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.631
+App
+Warning
+ [2026-11-18T11:32:36.627Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.631
+App
+Warning
+ [2026-11-18T11:32:36.627Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.631
+App
+Warning
+ [2026-11-18T11:32:36.627Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:36.737
+App
+Warning
+ [2026-11-18T11:32:36.714Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.227
+App
+Warning
+ [2026-11-18T11:32:37.227Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.231
+App
+Warning
+ [2026-11-18T11:32:37.227Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.422
+App
+Warning
+ [2026-11-18T11:32:37.420Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.425
+App
+Warning
+ [2026-11-18T11:32:37.421Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.425
+App
+Warning
+ [2026-11-18T11:32:37.421Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.425
+App
+Warning
+ [2026-11-18T11:32:37.421Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.425
+App
+Warning
+ [2026-11-18T11:32:37.421Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.425
+App
+Warning
+ [2026-11-18T11:32:37.421Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.425
+App
+Warning
+ [2026-11-18T11:32:37.422Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:37.425
+App
+Warning
+ [2026-11-18T11:32:37.422Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.093
+App
+Warning
+ [2026-11-18T11:32:38.093Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.096
+App
+Warning
+ [2026-11-18T11:32:38.093Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.217
+App
+Warning
+ [2026-11-18T11:32:38.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.307
+App
+Warning
+ [2026-11-18T11:32:38.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.307
+App
+Warning
+ [2026-11-18T11:32:38.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.307
+App
+Warning
+ [2026-11-18T11:32:38.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.307
+App
+Warning
+ [2026-11-18T11:32:38.189Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.307
+App
+Warning
+ [2026-11-18T11:32:38.190Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.307
+App
+Warning
+ [2026-11-18T11:32:38.190Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:38.307
+App
+Warning
+ [2026-11-18T11:32:38.190Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.092
+App
+Warning
+ [2026-11-18T11:32:39.089Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.102
+App
+Warning
+ [2026-11-18T11:32:39.090Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.102
+App
+Warning
+ [2026-11-18T11:32:39.090Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.103
+App
+Warning
+ [2026-11-18T11:32:39.090Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.103
+App
+Warning
+ [2026-11-18T11:32:39.090Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.490
+App
+Warning
+ [2026-11-18T11:32:39.489Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.493
+App
+Warning
+ [2026-11-18T11:32:39.489Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.493
+App
+Warning
+ [2026-11-18T11:32:39.490Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.496
+App
+Warning
+ [2026-11-18T11:32:39.490Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:39.496
+App
+Warning
+ [2026-11-18T11:32:39.490Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.087
+App
+Warning
+ [2026-11-18T11:32:40.087Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.090
+App
+Warning
+ [2026-11-18T11:32:40.087Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.093
+App
+Warning
+ [2026-11-18T11:32:40.087Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.093
+App
+Warning
+ [2026-11-18T11:32:40.088Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.093
+App
+Warning
+ [2026-11-18T11:32:40.088Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.093
+App
+Warning
+ [2026-11-18T11:32:40.088Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.220
+App
+Warning
+ [2026-11-18T11:32:40.220Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.223
+App
+Warning
+ [2026-11-18T11:32:40.220Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.225
+App
+Warning
+ [2026-11-18T11:32:40.220Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.225
+App
+Warning
+ [2026-11-18T11:32:40.220Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.954
+App
+Warning
+ [2026-11-18T11:32:40.953Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.958
+App
+Warning
+ [2026-11-18T11:32:40.954Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.954Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.954Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.954Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.955Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.955Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.955Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.955Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:40.960
+App
+Warning
+ [2026-11-18T11:32:40.956Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.627
+App
+Warning
+ [2026-11-18T11:32:41.627Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.631
+App
+Warning
+ [2026-11-18T11:32:41.627Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.723
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.725
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.727
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.727
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.727
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.727
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.727
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:41.727
+App
+Warning
+ [2026-11-18T11:32:41.723Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:42.443
+App
+Warning
+ [2026-11-18T11:32:42.438Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:42.742
+App
+Warning
+ [2026-11-18T11:32:42.438Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:42.743
+App
+Warning
+ [2026-11-18T11:32:42.439Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:42.743
+App
+Warning
+ [2026-11-18T11:32:42.439Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:42.743
+App
+Warning
+ [2026-11-18T11:32:42.439Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:42.743
+App
+Warning
+ [2026-11-18T11:32:42.440Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:42.743
+App
+Warning
+ [2026-11-18T11:32:42.441Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:43.054
+App
+Warning
+ [2026-11-18T11:32:42.684Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:43.055
+App
+Warning
+ [2026-11-18T11:32:42.685Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:43.055
+App
+Warning
+ [2026-11-18T11:32:42.686Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:43.551
+App
+Warning
+ [2026-11-18T11:32:43.536Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:43.702
+App
+Warning
+ [2026-11-18T11:32:43.537Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:43.702
+App
+Warning
+ [2026-11-18T11:32:43.537Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:43.703
+App
+Warning
+ [2026-11-18T11:32:43.538Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.062
+App
+Warning
+ [2026-11-18T11:32:43.725Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.280
+App
+Warning
+ [2026-11-18T11:32:43.726Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.280
+App
+Warning
+ [2026-11-18T11:32:43.726Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.281
+App
+Warning
+ [2026-11-18T11:32:43.727Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.281
+App
+Warning
+ [2026-11-18T11:32:43.727Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.281
+App
+Warning
+ [2026-11-18T11:32:44.050Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.934
+App
+Warning
+ [2026-11-18T11:32:44.934Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.939
+App
+Warning
+ [2026-11-18T11:32:44.934Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.940
+App
+Warning
+ [2026-11-18T11:32:44.934Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:44.944
+App
+Warning
+ [2026-11-18T11:32:44.935Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.089
+App
+Warning
+ [2026-11-18T11:32:45.089Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.092
+App
+Warning
+ [2026-11-18T11:32:45.089Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.095
+App
+Warning
+ [2026-11-18T11:32:45.089Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.095
+App
+Warning
+ [2026-11-18T11:32:45.089Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.095
+App
+Warning
+ [2026-11-18T11:32:45.089Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.095
+App
+Warning
+ [2026-11-18T11:32:45.090Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.725
+App
+Warning
+ [2026-11-18T11:32:45.725Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.729
+App
+Warning
+ [2026-11-18T11:32:45.725Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.751
+App
+Warning
+ [2026-11-18T11:32:45.725Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.751
+App
+Warning
+ [2026-11-18T11:32:45.725Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.751
+App
+Warning
+ [2026-11-18T11:32:45.726Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.751
+App
+Warning
+ [2026-11-18T11:32:45.726Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.751
+App
+Warning
+ [2026-11-18T11:32:45.726Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.751
+App
+Warning
+ [2026-11-18T11:32:45.726Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.829
+App
+Warning
+ [2026-11-18T11:32:45.821Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:45.851
+App
+Warning
+ [2026-11-18T11:32:45.821Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.553
+App
+Warning
+ [2026-11-18T11:32:46.553Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.557
+App
+Warning
+ [2026-11-18T11:32:46.553Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.559
+App
+Warning
+ [2026-11-18T11:32:46.554Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.559
+App
+Warning
+ [2026-11-18T11:32:46.554Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.559
+App
+Warning
+ [2026-11-18T11:32:46.554Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.559
+App
+Warning
+ [2026-11-18T11:32:46.555Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.559
+App
+Warning
+ [2026-11-18T11:32:46.555Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.559
+App
+Warning
+ [2026-11-18T11:32:46.555Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.666
+App
+Warning
+ [2026-11-18T11:32:46.664Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:46.669
+App
+Warning
+ [2026-11-18T11:32:46.665Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.326
+App
+Warning
+ [2026-11-18T11:32:47.326Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.331
+App
+Warning
+ [2026-11-18T11:32:47.326Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.326Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.327Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.327Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.327Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.327Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.328Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.328Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:47.350
+App
+Warning
+ [2026-11-18T11:32:47.328Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.199
+App
+Warning
+ [2026-11-18T11:32:48.196Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.201
+App
+Warning
+ [2026-11-18T11:32:48.197Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.201
+App
+Warning
+ [2026-11-18T11:32:48.197Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.201
+App
+Warning
+ [2026-11-18T11:32:48.197Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.201
+App
+Warning
+ [2026-11-18T11:32:48.197Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.300
+App
+Warning
+ [2026-11-18T11:32:48.299Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.304
+App
+Warning
+ [2026-11-18T11:32:48.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.306
+App
+Warning
+ [2026-11-18T11:32:48.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.306
+App
+Warning
+ [2026-11-18T11:32:48.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:48.306
+App
+Warning
+ [2026-11-18T11:32:48.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.016
+App
+Warning
+ [2026-11-18T11:32:49.016Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.020
+App
+Warning
+ [2026-11-18T11:32:49.016Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.022
+App
+Warning
+ [2026-11-18T11:32:49.016Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.022
+App
+Warning
+ [2026-11-18T11:32:49.016Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.022
+App
+Warning
+ [2026-11-18T11:32:49.016Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.022
+App
+Warning
+ [2026-11-18T11:32:49.017Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.022
+App
+Warning
+ [2026-11-18T11:32:49.017Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.111
+App
+Warning
+ [2026-11-18T11:32:49.110Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.116
+App
+Warning
+ [2026-11-18T11:32:49.110Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.600
+App
+Warning
+ [2026-11-18T11:32:49.600Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.604
+App
+Warning
+ [2026-11-18T11:32:49.600Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.606
+App
+Warning
+ [2026-11-18T11:32:49.600Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.607
+App
+Warning
+ [2026-11-18T11:32:49.600Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.607
+App
+Warning
+ [2026-11-18T11:32:49.600Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.607
+App
+Warning
+ [2026-11-18T11:32:49.601Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.706
+App
+Warning
+ [2026-11-18T11:32:49.706Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.709
+App
+Warning
+ [2026-11-18T11:32:49.706Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.709
+App
+Warning
+ [2026-11-18T11:32:49.706Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:49.801
+App
+Warning
+ [2026-11-18T11:32:49.801Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.236
+App
+Warning
+ [2026-11-18T11:32:50.235Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.242
+App
+Warning
+ [2026-11-18T11:32:50.235Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.371
+App
+Warning
+ [2026-11-18T11:32:50.368Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.379
+App
+Warning
+ [2026-11-18T11:32:50.369Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.380
+App
+Warning
+ [2026-11-18T11:32:50.369Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.380
+App
+Warning
+ [2026-11-18T11:32:50.370Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.380
+App
+Warning
+ [2026-11-18T11:32:50.370Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.527
+App
+Warning
+ [2026-11-18T11:32:50.527Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:50.532
+App
+Warning
+ [2026-11-18T11:32:50.527Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.298
+App
+Warning
+ [2026-11-18T11:32:51.296Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.303
+App
+Warning
+ [2026-11-18T11:32:51.297Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.405
+App
+Warning
+ [2026-11-18T11:32:51.404Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.408
+App
+Warning
+ [2026-11-18T11:32:51.405Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.412
+App
+Warning
+ [2026-11-18T11:32:51.405Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.412
+App
+Warning
+ [2026-11-18T11:32:51.405Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.412
+App
+Warning
+ [2026-11-18T11:32:51.405Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.412
+App
+Warning
+ [2026-11-18T11:32:51.405Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.412
+App
+Warning
+ [2026-11-18T11:32:51.405Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:51.412
+App
+Warning
+ [2026-11-18T11:32:51.406Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.116
+App
+Warning
+ [2026-11-18T11:32:52.115Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.120
+App
+Warning
+ [2026-11-18T11:32:52.115Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.120
+App
+Warning
+ [2026-11-18T11:32:52.115Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.120
+App
+Warning
+ [2026-11-18T11:32:52.115Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.120
+App
+Warning
+ [2026-11-18T11:32:52.116Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.121
+App
+Warning
+ [2026-11-18T11:32:52.116Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.123
+App
+Warning
+ [2026-11-18T11:32:52.116Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.123
+App
+Warning
+ [2026-11-18T11:32:52.116Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.123
+App
+Warning
+ [2026-11-18T11:32:52.116Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.123
+App
+Warning
+ [2026-11-18T11:32:52.117Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.724
+App
+Warning
+ [2026-11-18T11:32:52.724Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.729
+App
+Warning
+ [2026-11-18T11:32:52.724Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.817
+App
+Warning
+ [2026-11-18T11:32:52.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.821
+App
+Warning
+ [2026-11-18T11:32:52.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.823
+App
+Warning
+ [2026-11-18T11:32:52.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.823
+App
+Warning
+ [2026-11-18T11:32:52.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.823
+App
+Warning
+ [2026-11-18T11:32:52.817Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.823
+App
+Warning
+ [2026-11-18T11:32:52.818Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.823
+App
+Warning
+ [2026-11-18T11:32:52.818Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:52.823
+App
+Warning
+ [2026-11-18T11:32:52.818Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.275
+App
+Warning
+ [2026-11-18T11:32:53.275Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.280
+App
+Warning
+ [2026-11-18T11:32:53.275Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.376
+App
+Warning
+ [2026-11-18T11:32:53.375Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.380
+App
+Warning
+ [2026-11-18T11:32:53.375Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.399
+App
+Warning
+ [2026-11-18T11:32:53.376Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.399
+App
+Warning
+ [2026-11-18T11:32:53.376Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.399
+App
+Warning
+ [2026-11-18T11:32:53.376Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.399
+App
+Warning
+ [2026-11-18T11:32:53.376Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.399
+App
+Warning
+ [2026-11-18T11:32:53.376Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.818
+App
+Warning
+ [2026-11-18T11:32:53.818Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.823
+App
+Warning
+ [2026-11-18T11:32:53.818Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.915
+App
+Warning
+ [2026-11-18T11:32:53.915Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.918
+App
+Warning
+ [2026-11-18T11:32:53.915Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.920
+App
+Warning
+ [2026-11-18T11:32:53.915Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.920
+App
+Warning
+ [2026-11-18T11:32:53.915Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.920
+App
+Warning
+ [2026-11-18T11:32:53.915Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.921
+App
+Warning
+ [2026-11-18T11:32:53.916Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:53.921
+App
+Warning
+ [2026-11-18T11:32:53.916Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.593
+App
+Warning
+ [2026-11-18T11:32:54.593Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.599
+App
+Warning
+ [2026-11-18T11:32:54.593Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.623
+App
+Warning
+ [2026-11-18T11:32:54.593Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.623
+App
+Warning
+ [2026-11-18T11:32:54.594Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.623
+App
+Warning
+ [2026-11-18T11:32:54.594Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.623
+App
+Warning
+ [2026-11-18T11:32:54.594Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.623
+App
+Warning
+ [2026-11-18T11:32:54.594Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.623
+App
+Warning
+ [2026-11-18T11:32:54.594Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.624
+App
+Warning
+ [2026-11-18T11:32:54.595Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:54.624
+App
+Warning
+ [2026-11-18T11:32:54.595Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.184
+App
+Warning
+ [2026-11-18T11:32:55.184Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.187
+App
+Warning
+ [2026-11-18T11:32:55.184Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.187
+App
+Warning
+ [2026-11-18T11:32:55.184Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.189
+App
+Warning
+ [2026-11-18T11:32:55.184Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.189
+App
+Warning
+ [2026-11-18T11:32:55.184Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.189
+App
+Warning
+ [2026-11-18T11:32:55.185Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.273
+App
+Warning
+ [2026-11-18T11:32:55.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.277
+App
+Warning
+ [2026-11-18T11:32:55.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.351
+App
+Warning
+ [2026-11-18T11:32:55.350Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.353
+App
+Warning
+ [2026-11-18T11:32:55.351Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.892
+App
+Warning
+ [2026-11-18T11:32:55.891Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.986
+App
+Warning
+ [2026-11-18T11:32:55.986Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.990
+App
+Warning
+ [2026-11-18T11:32:55.986Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.993
+App
+Warning
+ [2026-11-18T11:32:55.986Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.994
+App
+Warning
+ [2026-11-18T11:32:55.987Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.994
+App
+Warning
+ [2026-11-18T11:32:55.987Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.994
+App
+Warning
+ [2026-11-18T11:32:55.987Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:55.994
+App
+Warning
+ [2026-11-18T11:32:55.987Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.083
+App
+Warning
+ [2026-11-18T11:32:56.081Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.537
+App
+Warning
+ [2026-11-18T11:32:56.537Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.645
+App
+Warning
+ [2026-11-18T11:32:56.644Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.649
+App
+Warning
+ [2026-11-18T11:32:56.645Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.670
+App
+Warning
+ [2026-11-18T11:32:56.645Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.670
+App
+Warning
+ [2026-11-18T11:32:56.645Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.670
+App
+Warning
+ [2026-11-18T11:32:56.645Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.670
+App
+Warning
+ [2026-11-18T11:32:56.646Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.670
+App
+Warning
+ [2026-11-18T11:32:56.646Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.670
+App
+Warning
+ [2026-11-18T11:32:56.646Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:56.760
+App
+Warning
+ [2026-11-18T11:32:56.759Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.282
+App
+Warning
+ [2026-11-18T11:32:57.280Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.285
+App
+Warning
+ [2026-11-18T11:32:57.280Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.285
+App
+Warning
+ [2026-11-18T11:32:57.280Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.285
+App
+Warning
+ [2026-11-18T11:32:57.281Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.376
+App
+Warning
+ [2026-11-18T11:32:57.375Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.381
+App
+Warning
+ [2026-11-18T11:32:57.376Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.399
+App
+Warning
+ [2026-11-18T11:32:57.376Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.399
+App
+Warning
+ [2026-11-18T11:32:57.377Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.509
+App
+Warning
+ [2026-11-18T11:32:57.508Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:57.512
+App
+Warning
+ [2026-11-18T11:32:57.509Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.058
+App
+Warning
+ [2026-11-18T11:32:58.058Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.063
+App
+Warning
+ [2026-11-18T11:32:58.058Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.080
+App
+Warning
+ [2026-11-18T11:32:58.058Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.081
+App
+Warning
+ [2026-11-18T11:32:58.059Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.081
+App
+Warning
+ [2026-11-18T11:32:58.059Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.081
+App
+Warning
+ [2026-11-18T11:32:58.059Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.081
+App
+Warning
+ [2026-11-18T11:32:58.059Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.081
+App
+Warning
+ [2026-11-18T11:32:58.059Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.081
+App
+Warning
+ [2026-11-18T11:32:58.059Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.182
+App
+Warning
+ [2026-11-18T11:32:58.180Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.840
+App
+Warning
+ [2026-11-18T11:32:58.840Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.845
+App
+Warning
+ [2026-11-18T11:32:58.840Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.847
+App
+Warning
+ [2026-11-18T11:32:58.840Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.847
+App
+Warning
+ [2026-11-18T11:32:58.840Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.847
+App
+Warning
+ [2026-11-18T11:32:58.841Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.847
+App
+Warning
+ [2026-11-18T11:32:58.841Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.936
+App
+Warning
+ [2026-11-18T11:32:58.935Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.941
+App
+Warning
+ [2026-11-18T11:32:58.936Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.944
+App
+Warning
+ [2026-11-18T11:32:58.936Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:58.944
+App
+Warning
+ [2026-11-18T11:32:58.937Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.454
+App
+Warning
+ [2026-11-18T11:32:59.454Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.461
+App
+Warning
+ [2026-11-18T11:32:59.454Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.551
+App
+Warning
+ [2026-11-18T11:32:59.551Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.556
+App
+Warning
+ [2026-11-18T11:32:59.551Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.559
+App
+Warning
+ [2026-11-18T11:32:59.551Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.559
+App
+Warning
+ [2026-11-18T11:32:59.552Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.559
+App
+Warning
+ [2026-11-18T11:32:59.552Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.559
+App
+Warning
+ [2026-11-18T11:32:59.552Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.559
+App
+Warning
+ [2026-11-18T11:32:59.552Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:32:59.559
+App
+Warning
+ [2026-11-18T11:32:59.552Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.125
+App
+Warning
+ [2026-11-18T11:33:00.125Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.131
+App
+Warning
+ [2026-11-18T11:33:00.125Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.151
+App
+Warning
+ [2026-11-18T11:33:00.125Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.151
+App
+Warning
+ [2026-11-18T11:33:00.125Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.221
+App
+Warning
+ [2026-11-18T11:33:00.221Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.224
+App
+Warning
+ [2026-11-18T11:33:00.221Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.227
+App
+Warning
+ [2026-11-18T11:33:00.221Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.227
+App
+Warning
+ [2026-11-18T11:33:00.221Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.227
+App
+Warning
+ [2026-11-18T11:33:00.221Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.740
+App
+Warning
+ [2026-11-18T11:33:00.740Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.832
+App
+Warning
+ [2026-11-18T11:33:00.829Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.835
+App
+Warning
+ [2026-11-18T11:33:00.829Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.836
+App
+Warning
+ [2026-11-18T11:33:00.830Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.836
+App
+Warning
+ [2026-11-18T11:33:00.830Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.836
+App
+Warning
+ [2026-11-18T11:33:00.830Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.836
+App
+Warning
+ [2026-11-18T11:33:00.830Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.836
+App
+Warning
+ [2026-11-18T11:33:00.830Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.836
+App
+Warning
+ [2026-11-18T11:33:00.830Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:00.919
+App
+Warning
+ [2026-11-18T11:33:00.919Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.584
+App
+Warning
+ [2026-11-18T11:33:01.584Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.589
+App
+Warning
+ [2026-11-18T11:33:01.584Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.591
+App
+Warning
+ [2026-11-18T11:33:01.584Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.591
+App
+Warning
+ [2026-11-18T11:33:01.584Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.683
+App
+Warning
+ [2026-11-18T11:33:01.682Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.689
+App
+Warning
+ [2026-11-18T11:33:01.683Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.689
+App
+Warning
+ [2026-11-18T11:33:01.683Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.692
+App
+Warning
+ [2026-11-18T11:33:01.683Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.692
+App
+Warning
+ [2026-11-18T11:33:01.683Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:01.692
+App
+Warning
+ [2026-11-18T11:33:01.683Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.484
+App
+Warning
+ [2026-11-18T11:33:02.484Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.489
+App
+Warning
+ [2026-11-18T11:33:02.484Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.492
+App
+Warning
+ [2026-11-18T11:33:02.484Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.492
+App
+Warning
+ [2026-11-18T11:33:02.484Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.492
+App
+Warning
+ [2026-11-18T11:33:02.485Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.492
+App
+Warning
+ [2026-11-18T11:33:02.485Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.492
+App
+Warning
+ [2026-11-18T11:33:02.485Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.492
+App
+Warning
+ [2026-11-18T11:33:02.485Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.586
+App
+Warning
+ [2026-11-18T11:33:02.586Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:02.592
+App
+Warning
+ [2026-11-18T11:33:02.586Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.300
+App
+Warning
+ [2026-11-18T11:33:03.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.303
+App
+Warning
+ [2026-11-18T11:33:03.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.303
+App
+Warning
+ [2026-11-18T11:33:03.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.306
+App
+Warning
+ [2026-11-18T11:33:03.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.306
+App
+Warning
+ [2026-11-18T11:33:03.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.306
+App
+Warning
+ [2026-11-18T11:33:03.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.306
+App
+Warning
+ [2026-11-18T11:33:03.300Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.306
+App
+Warning
+ [2026-11-18T11:33:03.301Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.392
+App
+Warning
+ [2026-11-18T11:33:03.392Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.397
+App
+Warning
+ [2026-11-18T11:33:03.392Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:03.821
+App
+Warning
+ [2026-11-18T11:33:03.820Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.017
+App
+Warning
+ [2026-11-18T11:33:04.017Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.023
+App
+Warning
+ [2026-11-18T11:33:04.017Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.117
+App
+Warning
+ [2026-11-18T11:33:04.112Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.121
+App
+Warning
+ [2026-11-18T11:33:04.112Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.121
+App
+Warning
+ [2026-11-18T11:33:04.113Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.121
+App
+Warning
+ [2026-11-18T11:33:04.113Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.121
+App
+Warning
+ [2026-11-18T11:33:04.113Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.122
+App
+Warning
+ [2026-11-18T11:33:04.114Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.122
+App
+Warning
+ [2026-11-18T11:33:04.114Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.833
+App
+Warning
+ [2026-11-18T11:33:04.832Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.837
+App
+Warning
+ [2026-11-18T11:33:04.833Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.837
+App
+Warning
+ [2026-11-18T11:33:04.833Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.837
+App
+Warning
+ [2026-11-18T11:33:04.833Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.837
+App
+Warning
+ [2026-11-18T11:33:04.833Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.837
+App
+Warning
+ [2026-11-18T11:33:04.833Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.840
+App
+Warning
+ [2026-11-18T11:33:04.834Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.840
+App
+Warning
+ [2026-11-18T11:33:04.834Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.934
+App
+Warning
+ [2026-11-18T11:33:04.933Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:04.939
+App
+Warning
+ [2026-11-18T11:33:04.934Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.511
+App
+Warning
+ [2026-11-18T11:33:05.511Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.517
+App
+Warning
+ [2026-11-18T11:33:05.511Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.535
+App
+Warning
+ [2026-11-18T11:33:05.512Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.535
+App
+Warning
+ [2026-11-18T11:33:05.512Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.535
+App
+Warning
+ [2026-11-18T11:33:05.512Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.602
+App
+Warning
+ [2026-11-18T11:33:05.602Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.606
+App
+Warning
+ [2026-11-18T11:33:05.602Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.609
+App
+Warning
+ [2026-11-18T11:33:05.602Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.609
+App
+Warning
+ [2026-11-18T11:33:05.602Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:05.609
+App
+Warning
+ [2026-11-18T11:33:05.602Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.182
+App
+Warning
+ [2026-11-18T11:33:06.180Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.186
+App
+Warning
+ [2026-11-18T11:33:06.181Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.187
+App
+Warning
+ [2026-11-18T11:33:06.181Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.273
+App
+Warning
+ [2026-11-18T11:33:06.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.276
+App
+Warning
+ [2026-11-18T11:33:06.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.280
+App
+Warning
+ [2026-11-18T11:33:06.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.280
+App
+Warning
+ [2026-11-18T11:33:06.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.280
+App
+Warning
+ [2026-11-18T11:33:06.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.280
+App
+Warning
+ [2026-11-18T11:33:06.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.280
+App
+Warning
+ [2026-11-18T11:33:06.273Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.884
+App
+Warning
+ [2026-11-18T11:33:06.883Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.889
+App
+Warning
+ [2026-11-18T11:33:06.883Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.992
+App
+Warning
+ [2026-11-18T11:33:06.992Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:06.999
+App
+Warning
+ [2026-11-18T11:33:06.992Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.019
+App
+Warning
+ [2026-11-18T11:33:06.992Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.019
+App
+Warning
+ [2026-11-18T11:33:06.993Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.019
+App
+Warning
+ [2026-11-18T11:33:06.993Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.019
+App
+Warning
+ [2026-11-18T11:33:06.993Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.019
+App
+Warning
+ [2026-11-18T11:33:06.993Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.019
+App
+Warning
+ [2026-11-18T11:33:06.993Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.811
+App
+Warning
+ [2026-11-18T11:33:07.810Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.816
+App
+Warning
+ [2026-11-18T11:33:07.810Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.811Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.811Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.811Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.811Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.811Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.811Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.812Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:07.835
+App
+Warning
+ [2026-11-18T11:33:07.812Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.534
+App
+Warning
+ [2026-11-18T11:33:08.533Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.539
+App
+Warning
+ [2026-11-18T11:33:08.534Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.534Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.534Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.534Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.535Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.535Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.535Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.535Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:08.543
+App
+Warning
+ [2026-11-18T11:33:08.535Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.352
+App
+Warning
+ [2026-11-18T11:33:09.351Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.357
+App
+Warning
+ [2026-11-18T11:33:09.352Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.360
+App
+Warning
+ [2026-11-18T11:33:09.352Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.360
+App
+Warning
+ [2026-11-18T11:33:09.352Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.360
+App
+Warning
+ [2026-11-18T11:33:09.353Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.360
+App
+Warning
+ [2026-11-18T11:33:09.353Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.360
+App
+Warning
+ [2026-11-18T11:33:09.353Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.453
+App
+Warning
+ [2026-11-18T11:33:09.453Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.459
+App
+Warning
+ [2026-11-18T11:33:09.453Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:09.464
+App
+Warning
+ [2026-11-18T11:33:09.453Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.092
+App
+Warning
+ [2026-11-18T11:33:10.092Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.098
+App
+Warning
+ [2026-11-18T11:33:10.092Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.115
+App
+Warning
+ [2026-11-18T11:33:10.092Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.115
+App
+Warning
+ [2026-11-18T11:33:10.093Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.199
+App
+Warning
+ [2026-11-18T11:33:10.198Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.203
+App
+Warning
+ [2026-11-18T11:33:10.198Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.203
+App
+Warning
+ [2026-11-18T11:33:10.198Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.203
+App
+Warning
+ [2026-11-18T11:33:10.198Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.203
+App
+Warning
+ [2026-11-18T11:33:10.198Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.203
+App
+Warning
+ [2026-11-18T11:33:10.199Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.675
+App
+Warning
+ [2026-11-18T11:33:10.675Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.681
+App
+Warning
+ [2026-11-18T11:33:10.675Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.701
+App
+Warning
+ [2026-11-18T11:33:10.675Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.701
+App
+Warning
+ [2026-11-18T11:33:10.676Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.785
+App
+Warning
+ [2026-11-18T11:33:10.785Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.790
+App
+Warning
+ [2026-11-18T11:33:10.785Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.793
+App
+Warning
+ [2026-11-18T11:33:10.785Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.793
+App
+Warning
+ [2026-11-18T11:33:10.785Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:10.793
+App
+Warning
+ [2026-11-18T11:33:10.785Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.283
+App
+Warning
+ [2026-11-18T11:33:11.281Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.287
+App
+Warning
+ [2026-11-18T11:33:11.282Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.287
+App
+Warning
+ [2026-11-18T11:33:11.282Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.287
+App
+Warning
+ [2026-11-18T11:33:11.282Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.287
+App
+Warning
+ [2026-11-18T11:33:11.282Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.287
+App
+Warning
+ [2026-11-18T11:33:11.282Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.383
+App
+Warning
+ [2026-11-18T11:33:11.383Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.387
+App
+Warning
+ [2026-11-18T11:33:11.383Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.390
+App
+Warning
+ [2026-11-18T11:33:11.383Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:11.390
+App
+Warning
+ [2026-11-18T11:33:11.383Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:12.053
+App
+Warning
+ [2026-11-18T11:33:12.053Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:12.059
+App
+Warning
+ [2026-11-18T11:33:12.053Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:12.061
+App
+Warning
+ [2026-11-18T11:33:12.053Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:12.183
+App
+Warning
+ [2026-11-18T11:33:12.179Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:12.900
+App
+Warning
+ [2026-11-18T11:33:12.898Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:13.783
+App
+Warning
+ [2026-11-18T11:33:13.782Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:14.750
+App
+Warning
+ [2026-11-18T11:33:14.749Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:14.755
+App
+Warning
+ [2026-11-18T11:33:14.750Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:15.486
+App
+Warning
+ [2026-11-18T11:33:15.486Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:16.233
+App
+Warning
+ [2026-11-18T11:33:16.230Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:17.007
+App
+Warning
+ [2026-11-18T11:33:17.006Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:17.877
+App
+Warning
+ [2026-11-18T11:33:17.876Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:18.789
+App
+Warning
+ [2026-11-18T11:33:18.788Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:19.383
+App
+Warning
+ [2026-11-18T11:33:19.383Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:20.255
+App
+Warning
+ [2026-11-18T11:33:20.254Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:21.333
+App
+Warning
+ [2026-11-18T11:33:21.330Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:21.900
+App
+Warning
+ [2026-11-18T11:33:21.900Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:21.904
+App
+Warning
+ [2026-11-18T11:33:21.900Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:21.990
+App
+Warning
+ [2026-11-18T11:33:21.990Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:21.997
+App
+Warning
+ [2026-11-18T11:33:21.990Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:22.016
+App
+Warning
+ [2026-11-18T11:33:21.990Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:22.016
+App
+Warning
+ [2026-11-18T11:33:21.991Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:22.072
+App
+Warning
+ [2026-11-18T11:33:22.072Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:22.076
+App
+Warning
+ [2026-11-18T11:33:22.072Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:22.641
+App
+Warning
+ [2026-11-18T11:33:22.641Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:22.647
+App
+Warning
+ [2026-11-18T11:33:22.641Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 
+12:33:22.666
+App
+Warning
+ [2026-11-18T11:33:22.641Z]  @firebase/firestore:
+  Firestore (12.19.0): BloomFilter error: 
+  {"name":"BloomFilterError"} 

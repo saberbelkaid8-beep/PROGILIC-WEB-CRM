@@ -43,7 +43,7 @@ import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
-import { reconcileClientPrograms, extractDeletedProgramsFromActivities, parseProgramFromActivity, isProgramDeletedAfter } from './programRecovery.js';
+import { reconcileClientPrograms, extractDeletedProgramsFromActivities, parseProgramFromActivity, isProgramDeletedAfter, getClientProgramsPurgeCutoff } from './programRecovery.js';
 
 // Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
@@ -342,10 +342,12 @@ export async function recoverMissingClientPrograms(userId, activitiesOverride = 
     if (hasUnsyncedInline) return true;
 
     if (activitiesLoaded) {
+      const purgeCutoff = getClientProgramsPurgeCutoff(c, activities);
       const clientActs = activities.filter(a => a && Number(a.clientId) === Number(c.id));
       const deletions = extractDeletedProgramsFromActivities(c.id, clientActs);
       const hasActiveActivityProgram = clientActs.some(a => {
         if (a.type !== 'PROGRAM_ADDED') return false;
+        if (purgeCutoff && (!a.timestamp || a.timestamp <= purgeCutoff)) return false;
         const parsed = parseProgramFromActivity(a, c);
         return parsed && !isProgramDeletedAfter(parsed, a.timestamp || '', deletions);
       });
@@ -382,7 +384,7 @@ export async function recoverMissingClientPrograms(userId, activitiesOverride = 
         }
 
         const inlinePrograms = Array.isArray(liveTarget.programs) ? liveTarget.programs.filter(Boolean) : [];
-        const clientActivities = activities.filter(a => a && Number(a.clientId) === Number(liveTarget.id));
+        const clientActivities = activities.filter(a => a && (Number(a.clientId) === Number(liveTarget.id) || a.type === 'SYSTEM_PURGE'));
         const reconciled = reconcileClientPrograms({
           client: liveTarget,
           subPrograms: sub?.programs || [],
@@ -479,6 +481,9 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
     setSyncing(true);
 
     const sub = (await getClientSubcollections(uid, String(clientId))) || {};
+    const purgeActivities = Array.isArray(S.globalActivities)
+      ? S.globalActivities.filter(a => a && a.type === 'SYSTEM_PURGE')
+      : [];
     let clientActivities = Array.isArray(S.globalActivities)
       ? S.globalActivities.filter(a => a && Number(a.clientId) === Number(c.id))
       : [];
@@ -508,7 +513,7 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
       client: baseClient,
       subPrograms: sub.programs || [],
       inlinePrograms: latestInlinePrograms,
-      activities: clientActivities
+      activities: [...clientActivities, ...purgeActivities]
     });
 
     const loadedFields = {
@@ -594,7 +599,7 @@ export function hydrateAllClientSubcollections(userId = null, options = {}) {
           if (!sub || typeof sub !== 'object') return null;
 
           const inlinePrograms = Array.isArray(liveTarget.programs) ? liveTarget.programs.filter(Boolean) : [];
-          const clientActivities = activities.filter(a => a && Number(a.clientId) === Number(liveTarget.id));
+          const clientActivities = activities.filter(a => a && (Number(a.clientId) === Number(liveTarget.id) || a.type === 'SYSTEM_PURGE'));
           const reconciled = reconcileClientPrograms({
             client: liveTarget,
             subPrograms: sub.programs || [],

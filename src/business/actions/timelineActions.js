@@ -1,6 +1,7 @@
-import { S, updateState, hasPermission, getActiveTenantId } from '../../state/store.js';
+import { S, clients, getClients, hasPermission, getActiveTenantId } from '../../state/store.js';
 import { R } from '../../presentation/render-core.js';
 import { loadGlobalActivities, ActivityType, getActivityVisuals, logActivity, syncCrmServicesToTimeline } from '../timelineService.js';
+import { getClientProgramsPurgeCutoff } from '../programRecovery.js';
 import { showToast } from '../../utils/toast.js';
 import { t } from '../../utils/i18n.js';
 
@@ -132,6 +133,276 @@ export function exportGlobalTimelineCSV() {
 
   logActivity(null, ActivityType.DATA_EXPORTED, 'تصدير تقرير المخطط الزمني', `تم تصدير ${activities.length} عملية بعد تطبيق الفلاتر الحالية.`).catch(console.warn);
   showToast(t("تم تصدير تقرير المخطط الزمني بنجاح!"), "success");
+}
+
+function parseMarkdownFilterDate(value) {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
+  if (!match) return null;
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+}
+
+function isTimestampInMarkdownRange(value, start, end) {
+  if (!value) return false;
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim())
+    ? parseMarkdownFilterDate(value)
+    : new Date(value);
+  if (!parsed || Number.isNaN(parsed.getTime())) return false;
+  const ts = parsed.getTime();
+  return (!start || ts >= start.getTime()) && (!end || ts < end.getTime());
+}
+
+export function buildClientsTimelineMarkdown() {
+  const rawActivities = getFilteredTimelineList();
+  const locale = S.lang === 'fr' ? 'fr-FR' : S.lang === 'en' ? 'en-US' : 'ar-DZ';
+  const fromDate = parseMarkdownFilterDate(S.timelineDateFrom);
+  const toDate = parseMarkdownFilterDate(S.timelineDateTo);
+  const afterToDate = toDate ? new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate() + 1) : null;
+  const defaultActor = S.currentUser?.email || 'المسؤول العام';
+
+  const currentClients = Array.isArray(getClients?.() || clients) ? (getClients?.() || clients) : [];
+  const clientById = new Map(currentClients.filter(Boolean).map(c => [String(c.id), c]));
+  const allGlobalActs = Array.isArray(S.globalActivities) ? S.globalActivities : rawActivities;
+
+  const activities = rawActivities.filter(act => {
+    if (!act || act.type !== ActivityType.PROGRAM_ADDED || !act.clientId) return true;
+    const clientObj = clientById.get(String(act.clientId));
+    if (!clientObj) return true;
+    const hasCurrentPrograms = Array.isArray(clientObj.programs) && clientObj.programs.length > 0;
+    if (hasCurrentPrograms) return true;
+    const purgeCutoff = getClientProgramsPurgeCutoff(clientObj, allGlobalActs);
+    if (purgeCutoff && (!act.timestamp || act.timestamp <= purgeCutoff)) {
+      return false;
+    }
+    return true;
+  });
+
+  const existingIds = new Set(activities.map(a => String(a.id)));
+  const combined = [...activities];
+
+  // Ensure all matching clients/sub-items in memory since the selected date are included even if not yet synced to globalActivities
+  if (S.timelineUserFilter === 'all' && (!S.timelineSearch || !S.timelineSearch.trim())) {
+    for (const c of currentClients) {
+      if (!c || !c.id) continue;
+      const clientName = c.fullName || c.name || `عميل #${c.id}`;
+
+      const clientActId = `act_client_${c.id}`;
+      if (
+        (S.timelineCategoryFilter === 'all' || S.timelineCategoryFilter === 'clients') &&
+        !existingIds.has(clientActId) &&
+        c.startDate &&
+        (!fromDate && !afterToDate || isTimestampInMarkdownRange(c.startDate, fromDate, afterToDate))
+      ) {
+        combined.push({
+          id: clientActId,
+          clientId: Number(c.id),
+          clientName,
+          type: ActivityType.CLIENT_CREATED,
+          category: 'clients',
+          title: `تسجيل واعتماد العميل (${clientName})`,
+          description: `تسجيل العميل في نظام PROGILIC CRM بنشاط: ${c.businessType || 'عام'}${c.businessField ? ` - ${c.businessField}` : ''}، الولاية: ${c.wilaya || 'غير محدد'}.`,
+          timestamp: `${c.startDate}T00:00:00.000Z`,
+          actorEmail: defaultActor,
+          userName: defaultActor
+        });
+        existingIds.add(clientActId);
+      }
+
+      if (
+        (S.timelineCategoryFilter === 'all' || S.timelineCategoryFilter === 'programs') &&
+        Array.isArray(c.programs)
+      ) {
+        c.programs.forEach((p, idx) => {
+          if (!p) return;
+          const progId = p.id || `p_${idx}`;
+          const progActId = `act_prog_${c.id}_${progId}`;
+          const progDate = p.startDate || c.startDate;
+          const alreadyExists = existingIds.has(progActId) || combined.some(a =>
+            Number(a.clientId) === Number(c.id) &&
+            a.type === ActivityType.PROGRAM_ADDED &&
+            ((a.meta?.programId !== undefined && String(a.meta.programId) === String(progId)) ||
+              (p.programName && String(a.description || '').includes(`"${p.programName}"`)))
+          );
+          if (!alreadyExists && progDate && (!fromDate && !afterToDate || isTimestampInMarkdownRange(progDate, fromDate, afterToDate))) {
+            combined.push({
+              id: progActId,
+              clientId: Number(c.id),
+              clientName,
+              type: ActivityType.PROGRAM_ADDED,
+              category: 'programs',
+              title: `خدمة ترخيص برنامج: ${p.programName || 'برنامج PROGILIC'}`,
+              description: `تقديم وتثبيت خدمة برمجية "${p.programName || 'برنامج'}" للعميل ${clientName} - المنصة: ${p.platform || 'Desktop'} - نوع الخدمة: ${p.type || 'تجاري'} - أجهزة مرخصة: ${p.installationsCount || 1} محطة${p.startDate ? ` (البداية: ${p.startDate})` : ''}${p.endDate ? ` (النهاية: ${p.endDate})` : ''} .`,
+              timestamp: `${progDate}T09:00:00.000Z`,
+              actorEmail: defaultActor,
+              userName: defaultActor
+            });
+            existingIds.add(progActId);
+          }
+        });
+      }
+    }
+  }
+
+  if (combined.length === 0) return '';
+
+  // Group activities by client
+  const groups = new Map();
+  for (const act of combined) {
+    const key = act.clientId ? `client:${act.clientId}` : (act.clientName ? `name:${act.clientName}` : 'system:general');
+    if (!groups.has(key)) {
+      groups.set(key, {
+        clientId: act.clientId || null,
+        clientName: act.clientName || (act.clientId ? `عميل #${act.clientId}` : 'عمليات النظام العامة'),
+        items: []
+      });
+    }
+    groups.get(key).items.push(act);
+  }
+
+  const sortedGroups = [...groups.values()].map(group => {
+    group.items.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+    return group;
+  }).sort((a, b) => String(b.items[0]?.timestamp || '').localeCompare(String(a.items[0]?.timestamp || '')));
+
+  const headerPeriod = S.timelineDateFrom || S.timelineDateTo
+    ? `${S.timelineDateFrom || 'البداية'} → ${S.timelineDateTo || 'اليوم'}`
+    : (S.timelineDatePreset && S.timelineDatePreset !== 'all' ? S.timelineDatePreset : 'كل الأوقات');
+
+  const lines = [
+    `# سجل العملاء والأنشطة — PROGILIC CRM`,
+    ``,
+    `- **الفترة:** ${headerPeriod}`,
+    `- **عدد العملاء / المجموعات:** ${sortedGroups.length}`,
+    `- **إجمالي الأنشطة:** ${combined.length}`,
+    ``,
+    `---`,
+    ``
+  ];
+
+  for (const group of sortedGroups) {
+    lines.push(`## ${group.clientName}`);
+    lines.push(`الخط الزمني للنشاط (${group.items.length})`);
+    lines.push(``);
+
+    for (const act of group.items) {
+      const vis = getActivityVisuals(act.type);
+      const dateStr = act.timestamp
+        ? new Date(act.timestamp).toLocaleString(locale, {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : '';
+      const executor = act.actorEmail || act.userName || 'المسؤول العام';
+
+      lines.push(`${vis.icon}`);
+      lines.push(`**${t(vis.label)}**`);
+      if (dateStr) lines.push(`${dateStr}`);
+      if (act.title) lines.push(`**${t(act.title)}**`);
+      if (act.description) lines.push(`${t(act.description)}`);
+      lines.push(`👤 المنفذ: ${executor}`);
+      lines.push(``);
+    }
+
+    lines.push(`---`);
+    lines.push(``);
+  }
+
+  return lines.join('\n');
+}
+
+export function exportGlobalTimelineMarkdown() {
+  if (!hasPermission('timeline.view')) return;
+  const markdownContent = buildClientsTimelineMarkdown();
+  if (!markdownContent) {
+    showToast(t("لا توجد عمليات أو عملاء لتصديرها وفق الفلاتر الحالية"), "info");
+    return;
+  }
+
+  const blob = new Blob([markdownContent], { type: "text/markdown;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const dateTag = S.timelineDateFrom ? `since_${S.timelineDateFrom}` : new Date().toISOString().split("T")[0];
+  a.href = url;
+  a.download = `progilic_crm_clients_${dateTag}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  logActivity(null, ActivityType.DATA_EXPORTED, 'تصدير سجل العملاء والنشاط (Markdown)', `تم تصدير ملف Markdown وفق الفلاتر الحالية.`).catch(console.warn);
+  showToast(t("تم تصدير ملف Markdown (.md) بنجاح!"), "success");
+}
+
+export function buildClientNamesOnlyMarkdown() {
+  const currentClients = Array.isArray(getClients?.() || clients) ? (getClients?.() || clients) : [];
+  const fromDate = parseMarkdownFilterDate(S.timelineDateFrom);
+  const toDate = parseMarkdownFilterDate(S.timelineDateTo);
+  const afterToDate = toDate ? new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate() + 1) : null;
+
+  const seenNames = new Set();
+  const matchedClients = [];
+
+  for (const c of currentClients) {
+    if (!c) continue;
+    const name = String(c.fullName || c.name || '').trim();
+    if (!name) continue;
+    if (fromDate || afterToDate) {
+      if (!c.startDate || !isTimestampInMarkdownRange(c.startDate, fromDate, afterToDate)) continue;
+    }
+    const key = name.toLowerCase().replace(/\s+/g, ' ');
+    if (seenNames.has(key)) continue;
+    seenNames.add(key);
+    matchedClients.push({ name, startDate: c.startDate || '', wilaya: c.wilaya || '' });
+  }
+
+  if (matchedClients.length === 0) return '';
+
+  const headerPeriod = S.timelineDateFrom || S.timelineDateTo
+    ? `${S.timelineDateFrom || 'البداية'} → ${S.timelineDateTo || 'اليوم'}`
+    : 'كل الأوقات';
+
+  const lines = [
+    `# قائمة أسماء العملاء — PROGILIC CRM`,
+    ``,
+    `- **الفترة:** ${headerPeriod}`,
+    `- **إجمالي العملاء:** ${matchedClients.length}`,
+    ``,
+    `---`,
+    ``
+  ];
+
+  matchedClients.forEach((item, idx) => {
+    lines.push(`${idx + 1}. ${item.name}`);
+  });
+
+  return lines.join('\n');
+}
+
+export function exportClientNamesMarkdown() {
+  if (!hasPermission('timeline.view')) return;
+  const markdownContent = buildClientNamesOnlyMarkdown();
+  if (!markdownContent) {
+    showToast(t("لا توجد أسماء عملاء مطابقة للفترة الحالية"), "info");
+    return;
+  }
+
+  const blob = new Blob([markdownContent], { type: "text/markdown;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const dateTag = S.timelineDateFrom ? `since_${S.timelineDateFrom}` : new Date().toISOString().split("T")[0];
+  a.href = url;
+  a.download = `progilic_crm_client_names_${dateTag}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast(t("تم تصدير قائمة أسماء العملاء (.md) بنجاح!"), "success");
 }
 
 export function printGlobalTimeline() {
