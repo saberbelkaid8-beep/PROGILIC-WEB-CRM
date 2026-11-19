@@ -1,14 +1,14 @@
 {
   "appName": "crm",
-  "timestamp": "2026-11-18T12:01:16.098Z",
+  "timestamp": "2026-11-19T18:00:10.807Z",
   "nodeVersion": "v22.23.2",
   "platform": "linux",
   "build": {
-    "durationMs": 8122,
-    "durationSeconds": 8.12,
+    "durationMs": 6863,
+    "durationSeconds": 6.86,
     "totalFiles": 28,
-    "totalSizeBytes": 8802761,
-    "totalSizeFormatted": "8.39 MB"
+    "totalSizeBytes": 8825413,
+    "totalSizeFormatted": "8.42 MB"
   },
   "dependencies": {
     "productionCount": 3,
@@ -67,13 +67,13 @@
       "sizeFormatted": "1.19 MB"
     },
     {
-      "file": "assets/index-CmbJYJAt.css",
-      "sizeBytes": 89088,
-      "sizeFormatted": "87 KB"
+      "file": "assets/index-BbsL5DA2.css",
+      "sizeBytes": 99557,
+      "sizeFormatted": "97.22 KB"
     },
     {
-      "file": "assets/index-RV7XW4eG.js",
-      "sizeBytes": 1219082,
+      "file": "assets/index-D8WghBpH.js",
+      "sizeBytes": 1216102,
       "sizeFormatted": "1.16 MB"
     },
     {
@@ -88,8 +88,8 @@
     },
     {
       "file": "css/dashboard.css",
-      "sizeBytes": 23551,
-      "sizeFormatted": "23 KB"
+      "sizeBytes": 38714,
+      "sizeFormatted": "37.81 KB"
     },
     {
       "file": "css/main.css",

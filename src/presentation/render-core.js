@@ -185,10 +185,11 @@ function performRender() { try {
   document.documentElement.dir = direction;
   document.body.dir = direction;
 
-  // Dark Mode Configuration safely
-  let isDark = false;
+  // Dark Mode Configuration safely (Dark Glassmorphism ON by default)
+  let isDark = true;
   try {
-    isDark = localStorage.getItem('crm_dark') === '1';
+    const stored = localStorage.getItem('crm_dark');
+    isDark = stored === null ? true : stored === '1';
   } catch (e) {
     console.warn("localStorage read blocked for dark mode config:", e);
   }
@@ -256,27 +257,31 @@ function performRender() { try {
   } catch (viewError) {
     console.error("View rendering error boundary caught:", viewError);
     pageContent = `
-      <div class="dash-error-boundary" style="padding:2.5rem; text-align:center; max-width:650px; margin:2rem auto; background:rgba(239,68,68,0.06); border:1px solid #EF4444; border-radius:12px">
-        <h2 style="color:#EF4444; margin-bottom:8px">⚠️ ${S.lang === 'fr' ? 'Erreur d’affichage' : S.lang === 'en' ? 'Display Error' : 'خطأ في عرض الصفحة'}</h2>
-        <p style="color:var(--t2); font-size:13px; margin-bottom:1rem">${S.lang === 'fr' ? 'Impossible de charger la vue demandée.' : S.lang === 'en' ? 'Unable to render the requested view.' : 'تعذر تحميل الواجهة المطلوبة بسبب خطأ غير متوقع.'}</p>
-        <button class="btn btn-primary" onclick="S.view='dashboard'; if(window.R) window.R();">📊 ${S.lang === 'fr' ? 'Retour au tableau de bord' : S.lang === 'en' ? 'Back to Dashboard' : 'العودة للوحة القيادة'}</button>
+      <div class="dashboard-root">
+        <div class="card" style="max-width:620px;margin:32px auto;text-align:center;gap:12px">
+          <h2 style="color:var(--bad-t)">${S.lang === 'fr' ? 'Erreur d’affichage' : S.lang === 'en' ? 'Display Error' : 'خطأ في عرض الصفحة'}</h2>
+          <p style="color:var(--muted);font-size:13px">${S.lang === 'fr' ? 'Impossible de charger la vue demandée.' : S.lang === 'en' ? 'Unable to render the requested view.' : 'تعذر تحميل الواجهة المطلوبة بسبب خطأ غير متوقع.'}</p>
+          <div style="display:flex;justify-content:center">
+            <button class="db-btn" onclick="S.view='dashboard'; if(window.R) window.R();">${S.lang === 'fr' ? 'Retour au tableau de bord' : S.lang === 'en' ? 'Back to Dashboard' : 'العودة للوحة القيادة'}</button>
+          </div>
+        </div>
       </div>
     `;
   }
 
   const offlineWarningBanner = (!S.isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) ? `
-    <div style="background:#dc2626; color:#ffffff; padding:10px 16px; font-weight:700; font-size:12.5px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 2px 8px rgba(220,38,38,0.3); position:sticky; top:0; z-index:9999;">
-      <span>⚠️</span>
+    <div style="background:rgba(255,69,58,0.92); backdrop-filter:blur(12px); color:#ffffff; padding:10px 16px; font-weight:700; font-size:12.5px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid rgba(255,255,255,0.2); position:sticky; top:0; z-index:9999;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
       <span>${S.lang === 'fr' ? 'PROGILIC CRM fonctionne exclusivement en ligne. Connexion Internet requise pour synchroniser vos opérations en temps réel.' : S.lang === 'en' ? 'PROGILIC CRM operates strictly online. Internet connection is required to sync operations in real time.' : 'تنبيه هام: نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين. يلزم توفر اتصال بالإنترنت لمزامنة كافة العمليات مباشرة وحفظها لحظياً.'}</span>
     </div>
   ` : '';
 
   const nextHTML = 
     offlineWarningBanner +
-    renderHdr(alerts.length) +
-    (S.view === 'list' || S.view === 'global-timeline' ? renderAlertBanner(alerts) : '') +
-    (S.view === 'dashboard' ? pageContent : `<div class="page ${S.view === 'global-timeline' ? 'dashboard-page' : ''}" style="${S.view === 'global-timeline' ? 'max-width:1300px; padding:1.25rem;' : ''}">` + pageContent + '</div>') +
-    (S.view === 'list' || S.view === 'global-timeline' ? renderStorageBar() : '') +
+    renderHdr(alerts.length, isDark) +
+    (S.view === 'list' ? renderAlertBanner(alerts) : '') +
+    pageContent +
+    (S.view === 'list' ? renderStorageBar() : '') +
     modalHTML +
     renderStaffManagerModal() +
     (S.gi ? renderGlobalIntelligence() : '') +
@@ -307,13 +312,14 @@ function performRender() { try {
       appEl.innerHTML = renderLogin();
     } else {
       appEl.innerHTML = `
-        <div style="padding:2rem; max-width:680px; margin:2rem auto; background:var(--card, #fff); border:1px solid #EF4444; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.1); font-family:sans-serif; text-align:center">
-          <div style="font-size:36px; margin-bottom:12px">⚠️</div>
-          <h2 style="color:#EF4444; margin-top:0">خطأ في معالجة واجهة التطبيق</h2>
-          <p style="color:var(--t2, #666); font-size:14px">تم تحديث واجهة المستخدم. يمكنك العودة للقائمة الرئيسية أو إعادة المحاولة.</p>
-          <div style="display:flex; justify-content:center; gap:10px; margin-top:1rem">
-            <button onclick="if(window.S) window.S.view='list'; if(window.R) window.R();" style="padding:8px 16px; background:#2563EB; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold">العودة للواجهة الرئيسية</button>
-            <button onclick="window.location.reload();" style="padding:8px 16px; background:#e5e7eb; color:#374151; border:none; border-radius:8px; cursor:pointer; font-weight:bold">إعادة تحميل الصفحة</button>
+        <div class="dashboard-root">
+          <div class="card" style="padding:2rem; max-width:640px; margin:2rem auto; border-color:rgba(255,69,58,0.35); text-align:center; gap:12px">
+            <h2 style="color:var(--bad-t); margin-top:0">خطأ في معالجة واجهة التطبيق</h2>
+            <p style="color:var(--t2); font-size:14px">تم تحديث واجهة المستخدم. يمكنك العودة للقائمة الرئيسية أو إعادة المحاولة.</p>
+            <div style="display:flex; justify-content:center; gap:10px; margin-top:0.5rem">
+              <button class="btn btn-primary" onclick="if(window.S) window.S.view='list'; if(window.R) window.R();">العودة للواجهة الرئيسية</button>
+              <button class="btn btn-outline" onclick="window.location.reload();">إعادة تحميل الصفحة</button>
+            </div>
           </div>
         </div>
       `;
@@ -333,47 +339,109 @@ export function R() {
 
 import { t, toggleLanguage, setLanguage, localizeRenderedDom } from '../utils/i18n.js';
 
+const HDR_SVG = {
+  dash: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  switchUser: '<path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3 14 10"/><path d="M3 21l7-7"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  brain: '<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+  db: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>'
+};
+
+const hIc = (name, size = 15, sw = 2) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HDR_SVG[name] || ''}</svg>`;
+
 // Helper to render Header Panel
-function renderHdr(alertCount) {
+function renderHdr(alertCount, isDark) {
   const ac = clients.filter(c => c.status === 'نشط').length;
-  return `<div class="hdr">
-    <div class="logo" onclick="setView('dashboard')" style="cursor:pointer" title="${t('الرئيسية')}">PROGI<em>LIC</em></div>
-    <span class="hdr-ver">CRM v3</span>
-    
-    <!-- View Switcher Tabs -->
-    <div style="display:inline-flex;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);padding:2px;border-radius:var(--r-md);margin-right:12px;gap:2px">
-      <button class="btn btn-xs ${S.view === 'dashboard' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('dashboard')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">📊 ${t('لوحة القيادة')}</button>
-      <button class="btn btn-xs ${S.view === 'list' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('list')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">👥 ${t('العملاء')}</button>
-      ${hasPermission('timeline.view') ? `<button class="btn btn-xs ${S.view === 'global-timeline' || S.view === 'timeline' ? 'btn-primary' : 'btn-ghost'}" onclick="setView('global-timeline')" style="margin:0;font-size:11px;padding:3px 8px;color:#fff">⏱️ ${t('المخطط الزمني العام')}</button>` : ''}
+  const activeUserLabel = currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? esc(currentUser.email) : '');
+
+  return `<header class="hdr">
+    <div class="hdr-brand" onclick="setView('dashboard')" title="${t('الرئيسية')}">
+      <div class="hdr-brand-mark">${hIc('dash', 17, 2.2)}</div>
+      <div class="logo">PROGI<em>LIC</em></div>
     </div>
 
-    <span class="hdr-pill">${ac} ${t('نشط')} / ${clients.length}</span>
+    <!-- View Switcher Tabs -->
+    <nav class="hdr-nav" aria-label="${t('التنقل')}">
+      <button class="hdr-nav-btn ${S.view === 'dashboard' ? 'on' : ''}" onclick="setView('dashboard')">
+        ${hIc('dash', 14)} <span>${t('لوحة القيادة')}</span>
+      </button>
+      <button class="hdr-nav-btn ${S.view === 'list' ? 'on' : ''}" onclick="setView('list')">
+        ${hIc('users', 14)} <span>${t('العملاء')}</span>
+      </button>
+      ${hasPermission('timeline.view') ? `
+        <button class="hdr-nav-btn ${S.view === 'global-timeline' || S.view === 'timeline' ? 'on' : ''}" onclick="setView('global-timeline')">
+          ${hIc('clock', 14)} <span>${t('المخطط الزمني العام')}</span>
+        </button>
+      ` : ''}
+      ${isGerant() || hasPermission('staff.view') ? `
+        <button class="hdr-nav-btn ${S.view === 'employees' ? 'on' : ''}" onclick="setView('employees')">
+          ${hIc('shield', 14)} <span>${t('الموظفون والأقسام')}</span>
+        </button>
+      ` : ''}
+    </nav>
+
+    <span class="hdr-count-meta num">${ac} ${t('نشط')} · ${clients.length}</span>
+
     <div class="hdr-right">
       <!-- 3-Way Language Selector -->
-      <div class="lang-switch-group language-toggle" id="lang-toggle" role="group" aria-label="${t('تغيير اللغة')}" style="display:inline-flex; align-items:center; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:var(--r-md); padding:2px; margin-left:8px; margin-right:8px; gap:2px">
-        <button class="btn btn-xs ${S.lang === 'ar' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('ar')" title="${t('اللغة العربية')}" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">${t('العربية')}</button>
-        <button class="btn btn-xs ${S.lang === 'fr' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('fr')" title="Français" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">FR</button>
-        <button class="btn btn-xs ${S.lang === 'en' ? 'btn-primary' : 'btn-ghost'}" onclick="setLanguage('en')" title="English" style="margin:0; font-size:10.5px; padding:2px 7px; font-weight:700; color:#fff">EN</button>
+      <div class="hdr-lang language-toggle" id="lang-toggle" role="group" aria-label="${t('تغيير اللغة')}">
+        <button class="hdr-lang-btn ${S.lang === 'ar' ? 'on' : ''}" onclick="setLanguage('ar')" title="${t('اللغة العربية')}">${t('العربية')}</button>
+        <button class="hdr-lang-btn ${S.lang === 'fr' ? 'on' : ''}" onclick="setLanguage('fr')" title="Français">FR</button>
+        <button class="hdr-lang-btn ${S.lang === 'en' ? 'on' : ''}" onclick="setLanguage('en')" title="English">EN</button>
       </div>
 
       <!-- Management Controls in Main Interface for President (Gérant) -->
       ${isGerant() || hasPermission('permissions.assign') ? `
-        <button class="btn btn-xs" onclick="toggleStaffManagerModal(true)" style="margin-left:4px; background:linear-gradient(135deg, rgba(56,189,248,0.25) 0%, rgba(37,99,235,0.25) 100%); border:1px solid #38bdf8; color:#38bdf8; font-weight:800; font-size:11px; padding:3px 10px; border-radius:8px;" title="التحكم الكامل في الصلاحيات الـ 68 والمستخدمين من طرف الرئيس">
-          👑 ${t('إدارة الصلاحيات (الرئيس)')}
+        <button class="hdr-admin-btn" onclick="toggleStaffManagerModal(true)" title="${t('إدارة الصلاحيات (الرئيس)')}">
+          ${hIc('shield', 14)} <span>${t('إدارة الصلاحيات (الرئيس)')}</span>
         </button>
       ` : ''}
 
-      <span style="font-size:13px;font-weight:600;margin-left:8px;color:var(--t2)">
-        👤 ${currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? currentUser.email : '')}
+      <span class="hdr-user-label" title="${activeUserLabel}">
+        ${hIc('user', 14)} <span>${activeUserLabel}</span>
       </span>
-      <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="${t('تبديل المستخدم')}" style="margin-left:4px; color:#94a3b8;">🔄 ${t('تبديل المستخدم')}</button>
-      <button class="btn btn-ghost btn-xs" onclick="logout()" title="${t('تسجيل الخروج')}" style="margin-left:10px;color:var(--r)">${t('تسجيل الخروج')}</button>
-      <button class="dm-btn" title="${t('الوضع الليلي')}" onclick="toggleDark()" id="dmBtn">🌙</button>
-      ${hasPermission('analytics.view') ? `<button class="bell-btn" title="${t('الذكاء الاصطناعي')}" onclick="S.gi=!S.gi;R()" style="font-size:14px">🧠</button>` : ''}
-      ${alertCount > 0 ? `<button class="bell-btn" title="${alertCount} ${t('تنبيه نشط')}" onclick="S.gi=!S.gi;R()">🔔<span class="bell-dot"></span></button>` : ''}
-      ${hasPermission('clients.create') ? `<button class="btn btn-primary" onclick="openModal('addClient')">+ ${t('إضافة عميل')}</button>` : ''}
+
+      <button class="btn btn-ghost btn-xs" onclick="logoutStaff()" title="${t('تبديل المستخدم')}">
+        ${hIc('switchUser', 13)} <span>${t('تبديل المستخدم')}</span>
+      </button>
+      <button class="btn btn-ghost btn-xs" onclick="logout()" title="${t('تسجيل الخروج')}" style="color:var(--rt)">
+        ${hIc('logout', 13)} <span>${t('تسجيل الخروج')}</span>
+      </button>
+
+      <button class="dm-btn" title="${t('الوضع الليلي')}" onclick="toggleDark()" id="dmBtn">
+        ${isDark ? hIc('sun', 16) : hIc('moon', 16)}
+      </button>
+      ${hasPermission('analytics.view') ? `
+        <button class="bell-btn" title="${t('لوحة الذكاء العالمي')}" onclick="S.gi=!S.gi;R()">
+          ${hIc('brain', 16)}
+        </button>
+      ` : ''}
+      ${alertCount > 0 ? `
+        <button class="bell-btn" title="${alertCount} ${t('تنبيه نشط')}" onclick="S.gi=!S.gi;R()">
+          ${hIc('bell', 16)}<span class="bell-dot"></span>
+        </button>
+      ` : ''}
+      ${hasPermission('clients.create') ? `
+        <button class="btn btn-primary btn-sm hdr-add-btn" onclick="openModal('addClient')">
+          ${hIc('plus', 14)} <span>${t('إضافة عميل')}</span>
+        </button>
+      ` : ''}
     </div>
-  </div>`;
+  </header>`;
 }
 
 // Helper to render Alerts Banner
@@ -383,11 +451,11 @@ function renderAlertBanner(alerts) {
   const arr = S.lang === 'ar' ? '←' : '→';
   return `<div class="alert-banner-wrap">
     ${top.map(a => `<div class="abanner ${a.level}" onclick="selClient(${a.cid})">
-      <span class="ab-icon">${a.icon}</span>
+      <span class="ab-icon">${hIc('warn', 15)}</span>
       <div class="ab-body"><div class="ab-title">${esc(t(a.msg))}</div><div class="ab-sub">${esc(t(a.sub))}</div></div>
       <span class="ab-arr">${arr}</span>
     </div>`).join('')}
-    ${alerts.length > 3 ? `<div class="more-alerts">+ ${alerts.length - 3} ${S.lang === 'fr' ? 'autres alertes...' : S.lang === 'en' ? 'more alerts...' : 'تنبيهات أخرى...'}</div>` : ''}
+    ${alerts.length > 3 ? `<div class="more-alerts num">+ ${alerts.length - 3} ${S.lang === 'fr' ? 'autres alertes...' : S.lang === 'en' ? 'more alerts...' : 'تنبيهات أخرى...'}</div>` : ''}
   </div>`;
 }
 
@@ -400,57 +468,46 @@ function renderStorageBar() {
   let statusHTML = '';
   if (!isOnline) {
     statusHTML = `
-      <span style="color:#ef4444; font-weight:700; display:flex; align-items:center; gap:6px;">
-        <span class="pulse-offline" style="width:10px; height:10px; border-radius:50%; background:#ef4444; display:inline-block; animation: pulse 1s infinite;"></span>
-        ⚠️ ${t('غير متصل - مطلوب اتصال بالإنترنت (نظام سحابي أونلاين فقط)')}
+      <span style="color:var(--rt); font-weight:700; display:inline-flex; align-items:center; gap:7px;">
+        ${hIc('warn', 15)}
+        <span>${t('غير متصل - مطلوب اتصال بالإنترنت (نظام سحابي أونلاين فقط)')}</span>
       </span>
     `;
   } else if (queueCount > 0) {
     statusHTML = `
-      <span style="color:#1A73E8; font-weight:600; display:flex; align-items:center; gap:6px;">
-        <span class="spin-online" style="width:10px; height:10px; border:2px solid transparent; border-top-color:#1A73E8; border-radius:50%; display:inline-block; animation: spin 1s linear infinite;"></span>
-        ☁️ ${t('جاري المزامنة السحابية الفورية')} (${queueCount} ${t('عمليات معلقة')})...
+      <span style="color:var(--bt); font-weight:600; display:inline-flex; align-items:center; gap:7px;">
+        ${hIc('cloud', 15)}
+        <span>${t('جاري المزامنة السحابية الفورية')} (<span class="num">${queueCount}</span> ${t('عمليات معلقة')})</span>
       </span>
     `;
   } else if (_saveError) {
     statusHTML = `
-      <span style="color:#ff4d4f; font-weight:600; display:flex; align-items:center; gap:6px;">
-        <span style="width:10px; height:10px; border-radius:50%; background:#ff4d4f; display:inline-block;"></span>
-        ⚠️ ${t('جاري إعادة الاتصال بالسحابة...')}
-      </span>
-    `;
-  } else if (_lastSyncedTime) {
-    statusHTML = `
-      <span style="color:var(--g); font-weight:600; display:flex; align-items:center; gap:6px;">
-        <span style="width:9px; height:9px; border-radius:50%; background:var(--g); display:inline-block; box-shadow:0 0 6px rgba(16,185,129,0.5);"></span>
-        ☁️ 🟢 ${t('متصل بالسحابة أونلاين')} (${t('مزامنة حية لحظية لكافة المستخدمين')}) ${_lastSyncedTime ? `— ${_lastSyncedTime.toLocaleTimeString(locale)}` : ''}
+      <span style="color:var(--wt); font-weight:600; display:inline-flex; align-items:center; gap:7px;">
+        ${hIc('warn', 15)}
+        <span>${t('جاري إعادة الاتصال بالسحابة...')}</span>
       </span>
     `;
   } else {
     statusHTML = `
-      <span style="color:var(--g); font-weight:600; display:flex; align-items:center; gap:6px;">
-        <span style="width:9px; height:9px; border-radius:50%; background:var(--g); display:inline-block;"></span>
-        ☁️ 🟢 ${t('متصل بالسحابة أونلاين (مزامنة حية لحظية)')}
+      <span style="color:var(--gt); font-weight:600; display:inline-flex; align-items:center; gap:7px;">
+        ${hIc('cloud', 15)}
+        <span>${t('متصل بالسحابة أونلاين')} (${t('مزامنة حية لحظية لكافة المستخدمين')})${_lastSyncedTime ? ` · <span class="num">${_lastSyncedTime.toLocaleTimeString(locale)}</span>` : ''}</span>
       </span>
     `;
   }
 
-  return `<div style="max-width:680px;margin:0 auto;padding:.5rem 1.25rem 1rem">
-    <style>
-      @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.1); } }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:.625rem .875rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);flex-wrap:wrap;">
-      <div id="sync-status-container" style="display:flex;align-items:center;font-size:11px;">
+  return `<div class="sync-bar-wrap">
+    <div class="sync-bar-card">
+      <div id="sync-status-container" style="display:flex;align-items:center;font-size:12px;">
         ${statusHTML}
       </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        ${hasPermission('backup.view') ? `<button class="btn btn-ghost btn-xs" onclick="openModal('backupManager')" title="${t('إدارة النسخ الاحتياطية')}" style="color:var(--brand);font-weight:600">💾 ${t('النسخ الاحتياطية')}</button>` : ''}
-        ${isGerant() ? `<button class="btn btn-ghost btn-xs" onclick="openDbPurgeModal()" title="${t('تصفية/محو البيانات')}" style="color:var(--r);font-weight:700">🗑️ ${t('تصفية/محو البيانات')}</button>` : ''}
-        ${hasPermission('clients.export') ? `<button class="btn btn-ghost btn-xs" onclick="exportToCSV()" title="${t('تصدير CSV')}">📊 ${t('تصدير CSV')}</button>` : ''}
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        ${hasPermission('backup.view') ? `<button class="btn btn-outline btn-xs" onclick="openModal('backupManager')" title="${t('إدارة النسخ الاحتياطية')}">${hIc('db', 13)} <span>${t('النسخ الاحتياطية')}</span></button>` : ''}
+        ${isGerant() ? `<button class="btn btn-danger-soft btn-xs" onclick="openDbPurgeModal()" title="${t('تصفية/محو البيانات')}">${hIc('trash', 13)} <span>${t('تصفية/محو البيانات')}</span></button>` : ''}
+        ${hasPermission('clients.export') ? `<button class="btn btn-outline btn-xs" onclick="exportToCSV()" title="${t('تصدير CSV')}">${hIc('download', 13)} <span>${t('تصدير CSV')}</span></button>` : ''}
         ${isGerant() || hasPermission('backup.restore') ? `
-          <label class="btn btn-ghost btn-xs" title="${t('استيراد ملف JSON أو DUM')}" style="cursor:pointer;margin:0">
-            📥 ${t('استيراد (.json / .dum)')}
+          <label class="btn btn-outline btn-xs" title="${t('استيراد ملف JSON أو DUM')}" style="cursor:pointer;margin:0">
+            ${hIc('upload', 13)} <span>${t('استيراد (.json / .dum)')}</span>
             <input type="file" accept=".json,.dum,.dump,.txt,.csv" style="display:none" onchange="importData(this.files[0]);this.value=''">
           </label>
         ` : ''}

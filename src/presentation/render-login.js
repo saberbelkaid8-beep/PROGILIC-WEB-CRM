@@ -212,9 +212,9 @@ export function renderLogin() {
       backToLogin: 'Retour à la connexion',
       verifTitle: 'Activation du compte requise',
       verifSubtitle: 'Un lien de confirmation a été envoyé à :',
-      verifCheckBtn: '⚡ Vérifier le statut',
-      verifResendBtn: '✉️ Renvoyer le lien',
-      logoutBtn: '🚪 Se déconnecter',
+      verifCheckBtn: 'Vérifier le statut',
+      verifResendBtn: 'Renvoyer le lien',
+      logoutBtn: 'Se déconnecter',
       savePassBtn: 'Enregistrer le nouveau mot de passe'
     },
     en: {
@@ -247,9 +247,9 @@ export function renderLogin() {
       backToLogin: 'Back to Login',
       verifTitle: 'Account Activation Required',
       verifSubtitle: 'A confirmation link has been sent to:',
-      verifCheckBtn: '⚡ Check Status',
-      verifResendBtn: '✉️ Resend Link',
-      logoutBtn: '🚪 Sign Out',
+      verifCheckBtn: 'Check Status',
+      verifResendBtn: 'Resend Link',
+      logoutBtn: 'Sign Out',
       savePassBtn: 'Save New Password'
     },
     ar: {
@@ -282,9 +282,9 @@ export function renderLogin() {
       backToLogin: 'العودة لتسجيل الدخول',
       verifTitle: 'تفعيل الحساب مطلوب',
       verifSubtitle: 'لقد تم إرسال رابط التفعيل إلى بريدك الإلكتروني:',
-      verifCheckBtn: '⚡ التحقق من التفعيل والدخول',
-      verifResendBtn: '✉️ إعادة إرسال الرابط',
-      logoutBtn: '🚪 تسجيل الخروج',
+      verifCheckBtn: 'التحقق من التفعيل والدخول',
+      verifResendBtn: 'إعادة إرسال الرابط',
+      logoutBtn: 'تسجيل الخروج',
       savePassBtn: 'حفظ كلمة المرور الجديدة'
     }
   };
@@ -310,19 +310,19 @@ export function renderLogin() {
       }
 
       .dark {
-        --prog-bg: #0b1324;
-        --prog-surface: #131f38;
-        --prog-card-border: rgba(255, 255, 255, 0.08);
-        --prog-card-shadow: 0 35px 80px rgba(0, 0, 0, 0.55), 0 10px 25px rgba(0, 0, 0, 0.3);
-        --prog-input-bg: #1a294a;
-        --prog-input-border: rgba(255, 255, 255, 0.08);
-        --prog-primary: #3b82f6;
-        --prog-btn-grad: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
-        --prog-btn-shadow: 0 14px 30px rgba(37, 99, 235, 0.45);
-        --prog-text-title: #f8fafc;
-        --prog-text-sub: #94a3b8;
-        --prog-text-muted: #64748b;
-        --prog-icon-box-bg: #1c2e56;
+        --prog-bg: #0B0E14;
+        --prog-surface: rgba(16, 20, 28, 0.78);
+        --prog-card-border: rgba(255, 255, 255, 0.16);
+        --prog-card-shadow: 0 32px 72px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        --prog-input-bg: rgba(255, 255, 255, 0.06);
+        --prog-input-border: rgba(255, 255, 255, 0.14);
+        --prog-primary: #0A84FF;
+        --prog-btn-grad: linear-gradient(135deg, #0A84FF 0%, #5E5CE6 100%);
+        --prog-btn-shadow: 0 14px 32px rgba(10, 132, 255, 0.36);
+        --prog-text-title: #FFFFFF;
+        --prog-text-sub: rgba(235, 235, 245, 0.72);
+        --prog-text-muted: rgba(235, 235, 245, 0.52);
+        --prog-icon-box-bg: rgba(255, 255, 255, 0.07);
       }
 
       * {
@@ -339,7 +339,7 @@ export function renderLogin() {
         background-image: 
           radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.9) 0%, transparent 40%),
           radial-gradient(circle at 90% 80%, rgba(210, 230, 255, 0.6) 0%, transparent 50%);
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Arabic", system-ui, "Segoe UI", "Noto Sans Arabic", sans-serif;
         color: var(--prog-text-title);
         display: flex;
         flex-direction: column;
@@ -348,6 +348,13 @@ export function renderLogin() {
         overflow-x: hidden;
         padding: 1.5rem 1.5rem;
         transition: background 0.3s ease;
+      }
+
+      .dark .progilic-login-page {
+        background-image:
+          radial-gradient(120% 120% at 85% 10%, rgba(10, 132, 255, 0.16) 0%, transparent 60%),
+          radial-gradient(100% 100% at 15% 30%, rgba(255, 159, 10, 0.10) 0%, transparent 55%),
+          radial-gradient(90% 90% at 50% 90%, rgba(48, 209, 88, 0.08) 0%, transparent 65%);
       }
 
       /* Crisp Layered Curved Blue Corner Artwork */
@@ -381,6 +388,12 @@ export function renderLogin() {
         overflow: hidden;
       }
 
+      .dark .prog-wave-top-right,
+      .dark .prog-wave-bottom-left {
+        opacity: 0.16;
+        filter: blur(2px);
+      }
+
       /* Top Utility Controls */
       .prog-top-bar {
         position: absolute;
@@ -402,12 +415,14 @@ export function renderLogin() {
         border: 1px solid rgba(226, 232, 240, 0.9);
         border-radius: 12px;
         padding: 3px;
-        backdrop-filter: blur(8px);
+        backdrop-filter: blur(18px) saturate(180%);
+        -webkit-backdrop-filter: blur(18px) saturate(180%);
         box-shadow: 0 4px 12px rgba(180, 205, 235, 0.25);
       }
       .dark .prog-lang-picker {
-        background: rgba(19, 31, 56, 0.85);
-        border-color: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(255, 255, 255, 0.16);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
       }
 
       .prog-lang-btn {
@@ -438,13 +453,15 @@ export function renderLogin() {
         cursor: pointer;
         font-size: 15px;
         color: var(--prog-text-title);
-        backdrop-filter: blur(8px);
+        backdrop-filter: blur(18px) saturate(180%);
+        -webkit-backdrop-filter: blur(18px) saturate(180%);
         box-shadow: 0 4px 12px rgba(180, 205, 235, 0.25);
-        transition: transform 0.2s ease;
+        transition: transform 0.2s ease, background 0.2s ease;
       }
       .dark .prog-theme-btn {
-        background: rgba(19, 31, 56, 0.85);
-        border-color: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(255, 255, 255, 0.16);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
       }
       .prog-theme-btn:hover {
         transform: translateY(-1px);
@@ -481,7 +498,11 @@ export function renderLogin() {
         letter-spacing: -0.5px;
         margin-top: 14px;
         margin-bottom: 12px;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: inherit;
+      }
+      .dark .prog-brand-title {
+        color: #FFFFFF;
+        text-shadow: 0 4px 28px rgba(10, 132, 255, 0.35);
       }
 
       .prog-hero-tagline {
@@ -494,7 +515,7 @@ export function renderLogin() {
         white-space: pre-line;
       }
       .dark .prog-hero-tagline {
-        color: #cbd5e1;
+        color: rgba(235, 235, 245, 0.88);
       }
 
       .prog-hero-sub {
@@ -537,9 +558,15 @@ export function renderLogin() {
         box-shadow: 0 4px 12px rgba(190, 215, 245, 0.35);
         transition: transform 0.25s ease, box-shadow 0.25s ease;
       }
+      .dark .prog-feature-icon-box {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #64D2FF;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(16px);
+      }
       .prog-feature-card:hover .prog-feature-icon-box {
         transform: translateY(-3px);
-        box-shadow: 0 8px 18px rgba(30, 96, 242, 0.3);
+        box-shadow: 0 8px 18px rgba(10, 132, 255, 0.3);
       }
 
       .prog-feature-text {
@@ -551,7 +578,7 @@ export function renderLogin() {
         white-space: pre-line;
       }
       .dark .prog-feature-text {
-        color: #cbd5e1;
+        color: rgba(235, 235, 245, 0.78);
       }
 
       .prog-left-kicker {
@@ -577,9 +604,11 @@ export function renderLogin() {
         max-width: 100%;
         background: var(--prog-surface);
         border: 1px solid var(--prog-card-border);
-        border-radius: 36px;
+        border-radius: 32px;
         padding: 2.75rem 2.5rem 2.25rem;
         box-shadow: var(--prog-card-shadow);
+        backdrop-filter: blur(32px) saturate(180%);
+        -webkit-backdrop-filter: blur(32px) saturate(180%);
         display: flex;
         flex-direction: column;
         position: relative;
@@ -620,6 +649,19 @@ export function renderLogin() {
         gap: 1.1rem;
       }
 
+      .prog-auth-tabs {
+        display: flex;
+        background: rgba(15, 23, 42, 0.06);
+        border-radius: 12px;
+        padding: 3px;
+        margin-bottom: 1.25rem;
+        gap: 3px;
+      }
+      .dark .prog-auth-tabs {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
       .prog-input-wrap {
         position: relative;
         display: flex;
@@ -632,7 +674,7 @@ export function renderLogin() {
         height: 52px;
         border-radius: 16px;
         background: var(--prog-input-bg);
-        border: 1.5px solid transparent;
+        border: 1px solid var(--prog-input-border);
         padding-left: 3.25rem;
         padding-right: 1.25rem;
         font-size: 14px;
@@ -640,6 +682,9 @@ export function renderLogin() {
         color: var(--prog-text-title);
         outline: none;
         transition: all 0.2s ease;
+      }
+      .dark .prog-input {
+        color-scheme: dark;
       }
       [dir="rtl"] .prog-input {
         padding-left: 1.25rem;
@@ -656,6 +701,9 @@ export function renderLogin() {
         color: #8a9bb2;
         font-weight: 400;
       }
+      .dark .prog-input::placeholder {
+        color: rgba(235, 235, 245, 0.45);
+      }
 
       .prog-input:focus {
         background: #ffffff;
@@ -663,7 +711,9 @@ export function renderLogin() {
         box-shadow: 0 0 0 3.5px rgba(30, 96, 242, 0.15);
       }
       .dark .prog-input:focus {
-        background: #1e293b;
+        background: rgba(255, 255, 255, 0.10);
+        border-color: #0A84FF;
+        box-shadow: 0 0 0 3.5px rgba(10, 132, 255, 0.22);
       }
 
       .prog-input-icon {
@@ -685,7 +735,7 @@ export function renderLogin() {
       }
 
       .prog-input:focus ~ .prog-input-icon {
-        color: #1e60f2;
+        color: var(--prog-primary);
       }
 
       .prog-eye-toggle {
@@ -869,13 +919,14 @@ export function renderLogin() {
         transition: all 0.25s ease;
       }
       .dark .prog-social-btn {
-        background: #1c2b4a;
-        border-color: rgba(255, 255, 255, 0.08);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(255, 255, 255, 0.16);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        backdrop-filter: blur(16px);
       }
       .prog-social-btn:hover {
         transform: translateY(-3px);
-        box-shadow: 0 10px 22px rgba(180, 205, 240, 0.5);
+        box-shadow: 0 10px 22px rgba(10, 132, 255, 0.28);
       }
 
       .prog-card-kicker-bottom {
@@ -964,6 +1015,11 @@ export function renderLogin() {
     </style>
   `;
 
+  const isDarkTheme = typeof document !== 'undefined' && document.body.classList.contains('dark');
+  const themeIconSVG = isDarkTheme
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`;
+
   const topBarHTML = `
     <div class="prog-top-bar" style="direction: ${isRTL ? 'rtl' : 'ltr'};">
       <div class="prog-lang-picker">
@@ -972,8 +1028,8 @@ export function renderLogin() {
         <button type="button" class="prog-lang-btn ${curLang === 'ar' ? 'active' : ''}" onclick="setLanguage('ar')">AR</button>
       </div>
 
-      <button type="button" class="prog-theme-btn" onclick="toggleDark()" title="${t('الوضع الليلي')}">
-        🌙
+      <button type="button" class="prog-theme-btn" onclick="toggleDark()" title="${t('الوضع الليلي')}" aria-label="${t('الوضع الليلي')}">
+        ${themeIconSVG}
       </button>
     </div>
   `;
@@ -1059,12 +1115,14 @@ export function renderLogin() {
       </div>
 
       <!-- Header with Back Button -->
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; direction:rtl">
-        <span style="font-size:12px; font-weight:800; color:#1e60f2; background:rgba(30,96,242,0.08); padding:4px 10px; border-radius:8px">
-          🏢 فضاء دخول الموظفين
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; direction:rtl; padding-bottom:10px; border-bottom:1px solid var(--prog-input-border)">
+        <span style="font-size:12.5px; font-weight:700; color:var(--prog-primary); display:inline-flex; align-items:center; gap:6px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/></svg>
+          <span>فضاء دخول الموظفين</span>
         </span>
-        <button type="button" class="btn btn-xs btn-ghost" onclick="window.loginMode='login'; R()" style="font-size:11.5px; font-weight:700; color:var(--prog-text-sub)">
-          ↩️ عودة لدخول المدير
+        <button type="button" class="btn btn-xs btn-ghost" onclick="window.loginMode='login'; R()" style="font-size:11.5px; font-weight:700; color:var(--prog-text-sub); display:inline-flex; align-items:center; gap:5px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+          <span>عودة لدخول المدير</span>
         </button>
       </div>
 
@@ -1156,8 +1214,8 @@ export function renderLogin() {
       </div>
 
       <!-- Auth Switch Tabs (Connexion / Inscription) -->
-      <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
-        <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
+      <div class="prog-auth-tabs">
+        <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:var(--prog-primary); color:#ffffff; box-shadow:0 2px 8px rgba(10,132,255,0.28);">
           ${L.loginBtn}
         </button>
         <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">
@@ -1289,11 +1347,11 @@ export function renderLogin() {
       </div>
 
       <!-- Auth Switch Tabs (Connexion / Inscription) -->
-      <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
+      <div class="prog-auth-tabs">
         <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">
           ${L.loginBtn}
         </button>
-        <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
+        <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:var(--prog-primary); color:#ffffff; box-shadow:0 2px 8px rgba(10,132,255,0.28);">
           ${L.createAccount}
         </button>
       </div>
@@ -1383,26 +1441,30 @@ export function renderLogin() {
   } else if (mode === 'verificationPending') {
     cardContentHTML = `
       <div class="prog-card-header" style="text-align:center;">
-        <div style="width:70px; height:70px; border-radius:50%; background:rgba(30, 96, 242, 0.1); color:#1e60f2; display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem;">
-          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        <div style="width:70px; height:70px; border-radius:50%; background:rgba(10, 132, 255, 0.14); border:1px solid rgba(10, 132, 255, 0.28); color:var(--prog-primary); display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem;">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
         </div>
         <h1 class="prog-card-title">${L.verifTitle}</h1>
-        <p class="prog-card-sub">${L.verifSubtitle}<br><strong style="color:#1e60f2; word-break:break-all;">${auth.currentUser ? auth.currentUser.email : ''}</strong></p>
+        <p class="prog-card-sub">${L.verifSubtitle}<br><strong style="color:var(--prog-primary); word-break:break-all;">${auth.currentUser ? auth.currentUser.email : ''}</strong></p>
       </div>
 
       <div style="display:flex; flex-direction:column; gap:0.75rem;">
-        <button type="button" class="prog-submit-btn" style="background:#10b981; border:none;" onclick="window.bypassVerificationAndEnter()">
-          <span>⚡ تخطي التفعيل والدخول الفوري للنظام (Gérant)</span>
+        <button type="button" class="prog-submit-btn" style="background:linear-gradient(135deg, #30D158 0%, #248A3D 100%); box-shadow:0 12px 28px rgba(48,209,88,0.28); border:none; gap:8px;" onclick="window.bypassVerificationAndEnter()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>تخطي التفعيل والدخول الفوري للنظام (Gérant)</span>
         </button>
-        <button id="check-ver-btn" class="prog-social-btn" style="width:100%; height:46px; border-radius:14px; font-weight:700; color:#1e60f2;" onclick="checkVerificationStatus()">
+        <button id="check-ver-btn" class="prog-social-btn" style="width:100%; height:46px; border-radius:14px; font-weight:700; color:var(--prog-primary); gap:8px;" onclick="checkVerificationStatus()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
           <span>${L.verifCheckBtn}</span>
         </button>
         <div style="display:flex; gap:0.75rem; margin-top:0.25rem;">
-          <button id="resend-ver-btn" class="prog-social-btn" style="flex:1; width:auto; height:46px; border-radius:14px; font-size:13px; font-weight:700; color:var(--prog-text-title);" onclick="resendVerificationEmail()">
-            ${L.verifResendBtn}
+          <button id="resend-ver-btn" class="prog-social-btn" style="flex:1; width:auto; height:46px; border-radius:14px; font-size:13px; font-weight:700; color:var(--prog-text-title); gap:6px;" onclick="resendVerificationEmail()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span>${L.verifResendBtn}</span>
           </button>
-          <button class="prog-social-btn" style="flex:1; width:auto; height:46px; border-radius:14px; font-size:13px; font-weight:700; color:#ef4444; border-color:rgba(239,68,68,0.25);" onclick="logout(true)">
-            ${L.logoutBtn}
+          <button class="prog-social-btn" style="flex:1; width:auto; height:46px; border-radius:14px; font-size:13px; font-weight:700; color:#FF453A; border-color:rgba(255,69,58,0.28); gap:6px;" onclick="logout(true)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+            <span>${L.logoutBtn}</span>
           </button>
         </div>
       </div>
@@ -1461,8 +1523,8 @@ export function renderLogin() {
       </div>
 
       <!-- Auth Switch Tabs (Connexion / Inscription) -->
-      <div class="prog-auth-tabs" style="display:flex; background:rgba(15,23,42,0.06); border-radius:12px; padding:3px; margin-bottom:1.25rem; gap:3px;">
-        <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:#1e60f2; color:#ffffff; box-shadow:0 2px 6px rgba(30,96,242,0.25);">
+      <div class="prog-auth-tabs">
+        <button type="button" onclick="window.loginMode='login'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:var(--prog-primary); color:#ffffff; box-shadow:0 2px 8px rgba(10,132,255,0.28);">
           ${L.loginBtn}
         </button>
         <button type="button" onclick="window.loginMode='register'; R();" style="flex:1; padding:9px 12px; border-radius:9px; font-weight:700; font-size:13px; border:none; cursor:pointer; background:transparent; color:var(--prog-text-sub);">

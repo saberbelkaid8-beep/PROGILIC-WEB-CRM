@@ -261,4 +261,39 @@ describe('Global timeline filters and report', () => {
     expect(namesMd).toContain('1. GC - BOUDENA NASREDINE');
     expect(namesMd).not.toContain('Desktop - تجاري V27');
   });
+
+  it('renders populated timeline and empty filtered state using the Liquid Glass dashboard layout', async () => {
+    const { renderGlobalTimeline } = await import('../../src/presentation/render-timeline-view.js');
+    setCurrentUser({ uid: 'timeline-tenant', role: 'gerant' });
+    setCurrentStaffUser({ id: 'manager', role: 'GERANT', permissions: { 'timeline.view': true } });
+    updateState({
+      globalActivities: [
+        {
+          id: 101,
+          timestamp: new Date().toISOString(),
+          type: ActivityType.CLIENT_CREATED,
+          userId: 'u1',
+          userName: 'سارة',
+          userRole: 'قسم المتابعة',
+          clientId: 10,
+          clientName: 'شركة النور',
+          category: 'clients',
+          title: 'إضافة عميل جديد',
+          description: 'تم تسجيل العميل بنجاح'
+        }
+      ]
+    });
+
+    const html = renderGlobalTimeline();
+    expect(html).toContain('dashboard-root tl-root');
+    expect(html).toContain('tl-filter-card');
+    expect(html).toContain('tl-report-card');
+    expect(html).toContain('tl-event');
+    expect(html).toContain('selClient(10)');
+    expect(html).toContain('class="hb"');
+
+    updateState({ timelineSearch: 'non-existent-query-xyz' });
+    const emptyHtml = renderGlobalTimeline();
+    expect(emptyHtml).toContain('tl-empty-card');
+  });
 });
