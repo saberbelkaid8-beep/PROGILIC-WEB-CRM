@@ -343,11 +343,20 @@ export async function getTimeline(clientId) {
  */
 export async function loadGlobalActivities() {
   const tenantId = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId() || 'offline-tenant';
+  if (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded) {
+    S.timelineCloudStatus = 'partial';
+    return S.globalActivities || [];
+  }
   if (tenantId && tenantId !== 'offline-tenant') await migrateLocalActivities(tenantId);
   try {
     let cloudActivities = [];
     if (tenantId && tenantId !== 'offline-tenant') {
-      cloudActivities = await getTenantActivities(tenantId) || [];
+      const fetched = await getTenantActivities(tenantId);
+      if (fetched === null) {
+        S.timelineCloudStatus = 'partial';
+        return S.globalActivities || [];
+      }
+      cloudActivities = fetched;
       S.timelineCloudStatus = Array.isArray(cloudActivities) ? 'synced' : 'partial';
     }
 
@@ -356,7 +365,7 @@ export async function loadGlobalActivities() {
     let merged = mergeActivities(inMemActivities || [], cloudActivities || []);
     S.globalActivities = merged;
 
-    if (tenantId && tenantId !== 'offline-tenant') {
+    if (tenantId && tenantId !== 'offline-tenant' && !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
       const generated = await syncCrmServicesToTimeline(tenantId);
       if (generated && generated.length > 0) {
         merged = mergeActivities(generated, merged);
@@ -366,7 +375,7 @@ export async function loadGlobalActivities() {
 
     return merged;
   } catch (err) {
-    console.error("Failed to load global activities:", err);
+    console.warn("Notice loading global activities:", err);
     S.timelineCloudStatus = 'partial';
     return S.globalActivities || [];
   }
@@ -380,6 +389,7 @@ export async function loadGlobalActivities() {
  */
 export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser && auth.currentUser.uid) || currentUser?.tenantId || currentUser?.uid || getActiveTenantId()) {
   if (!uid) return [];
+  if (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded) return [];
   const currentClients = Array.isArray(clients) ? clients : [];
   if (currentClients.length === 0) return [];
 

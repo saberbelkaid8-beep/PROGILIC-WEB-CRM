@@ -226,7 +226,6 @@ window.mergeDatabase = actions.mergeWithSessionAndUser;
       R();
       try {
         await loadDataFromFirestore(user);
-        actions.loadGlobalActivities().catch(console.warn);
       } catch (loadErr) {
         console.error("loadDataFromFirestore caught gracefully:", loadErr);
       } finally {
@@ -293,7 +292,6 @@ window.addEventListener('online', () => {
   if (currentUser && currentUser.uid) {
     startRealtimeSync(currentUser.uid);
     flushSyncQueue();
-    actions.loadGlobalActivities().catch(console.warn);
   }
   actions.showToast('🟢 تم الاتصال بالسحابة أونلاين - جاري المزامنة الحية لكافة العمليات.', 'success');
   R();

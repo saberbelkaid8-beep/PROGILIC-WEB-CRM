@@ -229,8 +229,31 @@ export function sanitizeClient(c) {
 let reconciledClientsWithActivities = new Set();
 let _isRecoveringPrograms = false;
 let _backfillBlockedByPermission = false;
+let _quotaBlocked = false;
+let _quotaToastShown = false;
 let _hydrationInFlightPromise = null;
 let _hydrationInFlightUid = null;
+
+function isQuotaError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  const msg = String(err?.message || err || '').toLowerCase();
+  return code === 'resource-exhausted' || code.endsWith('/resource-exhausted') ||
+    msg.includes('quota limit exceeded') || msg.includes('quota exceeded') ||
+    msg.includes('free daily read units');
+}
+
+function handleFirestoreQuotaExceeded(sourceLabel, error) {
+  _quotaBlocked = true;
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__progilicFirestoreQuotaExceeded = true;
+  }
+  setSaveError(true);
+  console.warn(`[Firestore Quota] ${sourceLabel}:`, error?.message || error);
+  if (!_quotaToastShown) {
+    _quotaToastShown = true;
+    showToast(t('تم تجاوز الحد اليومي لقراءات قاعدة البيانات السحابية. ستتجدد الحصة غداً أو بعد الترقية في Firebase Console.'), 'error');
+  }
+}
 
 async function persistRecoveredClientPrograms(userId, clientId, reconciled, updatedStats = null) {
   let permissionDenied = false;
@@ -323,7 +346,7 @@ async function persistRecoveredClientProgramsBatch(userId, batchItems = []) {
 }
 
 export async function recoverMissingClientPrograms(userId, activitiesOverride = null) {
-  if (!userId || _isRecoveringPrograms || _backfillBlockedByPermission) return 0;
+  if (!userId || _isRecoveringPrograms || _backfillBlockedByPermission || _quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) return 0;
   const currentList = Array.isArray(clients) ? clients : [];
   if (currentList.length === 0) return 0;
 
@@ -369,7 +392,7 @@ export async function recoverMissingClientPrograms(userId, activitiesOverride = 
   try {
     const READ_CONCURRENCY = 10;
     for (let i = 0; i < candidates.length; i += READ_CONCURRENCY) {
-      if (_backfillBlockedByPermission) break;
+      if (_backfillBlockedByPermission || _quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) break;
       const chunk = candidates.slice(i, i + READ_CONCURRENCY);
       const chunkResults = await Promise.all(chunk.map(async (candidate) => {
         const liveTarget = (Array.isArray(clients) ? clients : []).find(x => String(x?.id) === String(candidate.id)) || candidate;
@@ -380,7 +403,11 @@ export async function recoverMissingClientPrograms(userId, activitiesOverride = 
         try {
           sub = await getClientSubcollections(userId, String(liveTarget.id));
         } catch (subErr) {
-          console.warn(`[ProgramRecovery] Subcollection fetch notice for client ${liveTarget.id}:`, subErr);
+          if (isQuotaError(subErr)) {
+            handleFirestoreQuotaExceeded(`ProgramRecovery(${liveTarget.id})`, subErr);
+          } else {
+            console.warn(`[ProgramRecovery] Subcollection fetch notice for client ${liveTarget.id}:`, subErr);
+          }
         }
 
         const inlinePrograms = Array.isArray(liveTarget.programs) ? liveTarget.programs.filter(Boolean) : [];
@@ -563,7 +590,7 @@ export async function loadClientSubcollectionsIfNeeded(clientId) {
 
 export function hydrateAllClientSubcollections(userId = null, options = {}) {
   const uid = userId || (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
-  if (!uid) return Promise.resolve(0);
+  if (!uid || _quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) return Promise.resolve(0);
 
   const initialList = Array.isArray(clients) ? clients : [];
   if (initialList.length === 0) return Promise.resolve(0);
@@ -586,14 +613,20 @@ export function hydrateAllClientSubcollections(userId = null, options = {}) {
     setSyncing(true);
     try {
       for (let i = 0; i < targetClients.length; i += HYDRATE_CONCURRENCY) {
+        if (_quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) break;
         const chunk = targetClients.slice(i, i + HYDRATE_CONCURRENCY);
         const chunkResults = await Promise.all(chunk.map(async (candidate) => {
+          if (_quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) return null;
           const liveTarget = (Array.isArray(clients) ? clients : []).find(x => String(x?.id) === String(candidate.id)) || candidate;
           let sub = null;
           try {
             sub = await getClientSubcollections(uid, String(liveTarget.id));
           } catch (subErr) {
-            console.warn(`[DashboardSync] Subcollection fetch failed for client ${liveTarget.id}:`, subErr);
+            if (isQuotaError(subErr)) {
+              handleFirestoreQuotaExceeded(`DashboardSync(${liveTarget.id})`, subErr);
+            } else {
+              console.warn(`[DashboardSync] Subcollection fetch failed for client ${liveTarget.id}:`, subErr);
+            }
             return null;
           }
           if (!sub || typeof sub !== 'object') return null;
@@ -735,6 +768,10 @@ export function startRealtimeSync(userId) {
       });
     }
   }, (error) => {
+    if (isQuotaError(error)) {
+      handleFirestoreQuotaExceeded('User profile snapshot listener', error);
+      return;
+    }
     console.error("User profile snapshot listener error:", error);
     setSaveError(true);
   });
@@ -818,12 +855,24 @@ export function startRealtimeSync(userId) {
       setSaveError(false);
     });
 
-    if (mergedClients.some(c => c && !c._subcollectionsLoaded)) {
-      hydrateAllClientSubcollections(userId).catch(console.warn);
-    } else if (hasActivitiesSnapshot || mergedClients.some(c => (c.programs || []).length > 0)) {
-      recoverMissingClientPrograms(userId, hasActivitiesSnapshot ? S.globalActivities : null).catch(console.warn);
+    const needsFullFleetHydration =
+      S.view === 'dashboard' ||
+      S.modal === 'geoReport' ||
+      S.modal === 'licenses_explorer' ||
+      S.modal === 'tickets_and_reqs';
+
+    if (!_quotaBlocked && !globalThis?.__progilicFirestoreQuotaExceeded) {
+      if (needsFullFleetHydration && mergedClients.some(c => c && !c._subcollectionsLoaded)) {
+        hydrateAllClientSubcollections(userId).catch(console.warn);
+      } else if (hasActivitiesSnapshot || mergedClients.some(c => (c.programs || []).length > 0)) {
+        recoverMissingClientPrograms(userId, hasActivitiesSnapshot ? S.globalActivities : null).catch(console.warn);
+      }
     }
   }, (error) => {
+    if (isQuotaError(error)) {
+      handleFirestoreQuotaExceeded('Clients collection snapshot listener', error);
+      return;
+    }
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
   });
@@ -840,6 +889,10 @@ export function startRealtimeSync(userId) {
       setStaffUsers(remoteStaff, userId);
     }
   }, (error) => {
+    if (isQuotaError(error)) {
+      handleFirestoreQuotaExceeded('Employees collection snapshot listener', error);
+      return;
+    }
     console.warn("Employees collection snapshot listener notice:", error);
   });
 
@@ -868,10 +921,14 @@ export function startRealtimeSync(userId) {
         }
       });
     }
-    if (hasClientsSnapshot) {
+    if (hasClientsSnapshot && !_quotaBlocked && !globalThis?.__progilicFirestoreQuotaExceeded) {
       recoverMissingClientPrograms(userId, remoteActivities).catch(console.warn);
     }
   }, (error) => {
+    if (isQuotaError(error)) {
+      handleFirestoreQuotaExceeded('Activities collection snapshot listener', error);
+      return;
+    }
     console.warn("Activities collection snapshot listener notice:", error);
   });
 
@@ -881,6 +938,11 @@ export function startRealtimeSync(userId) {
 export function stopRealtimeSync() {
   reconciledClientsWithActivities = new Set();
   _backfillBlockedByPermission = false;
+  _quotaBlocked = false;
+  _quotaToastShown = false;
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__progilicFirestoreQuotaExceeded = false;
+  }
   _hydrationInFlightPromise = null;
   _hydrationInFlightUid = null;
   if (activeUnsubscribers.length > 0) {

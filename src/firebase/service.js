@@ -29,6 +29,14 @@ export const OperationType = {
   MIGRATION: 'migration'
 };
 
+export function isQuotaExceededError(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const msg = String(error?.message || error || '').toLowerCase();
+  return code === 'resource-exhausted' || code.endsWith('/resource-exhausted') ||
+    msg.includes('quota limit exceeded') || msg.includes('quota exceeded') ||
+    msg.includes('free daily read units');
+}
+
 export function handleFirestoreError(error, operationType, path) {
   const errInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -42,6 +50,12 @@ export function handleFirestoreError(error, operationType, path) {
     path
   };
   console.warn('Firestore Notice: ', JSON.stringify(errInfo));
+  if (isQuotaExceededError(error)) {
+    if (typeof globalThis !== 'undefined') {
+      globalThis.__progilicFirestoreQuotaExceeded = true;
+    }
+    return null;
+  }
   // If user signed out, don't crash with an unhandled exception
   if (!auth?.currentUser || error?.code === 'permission-denied' || (error?.message && error.message.includes('permissions'))) {
     return null;
