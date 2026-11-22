@@ -36,7 +36,16 @@ let internalState = {
   viewportHeight: typeof window !== 'undefined' ? window.innerHeight : 600,
   dbSearchQuery: '',
   globalActivities: [],
-  timelineCloudStatus: 'local-only',
+  clientActivities: [],
+  timelineCloudStatus: 'idle',
+  connectionState: 'idle',
+  quotaExceeded: false,
+  dataIsStale: false,
+  lastListenerError: null,
+  isMutating: false,
+  activeDetailClientId: null,
+  hasConfirmedServerSync: false,
+  clientsFromCache: false,
   timelineUserFilter: 'all',
   timelineDatePreset: 'today',
   timelineDateFrom: '',
@@ -275,6 +284,60 @@ export function updateState(newState) {
     return;
   }
   internalState = Object.freeze(nextState);
+  scheduleRender();
+}
+
+export function resetTenantSessionState() {
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__progilicFirestoreQuotaExceeded = false;
+  }
+  clients = Object.freeze([]);
+  buildSearchIndex([]);
+  staffUsers = [];
+  currentStaffUser = null;
+  _isSyncing = false;
+  _lastSyncedTime = null;
+  _saveError = false;
+
+  internalState = Object.freeze({
+    ...internalState,
+    view: 'dashboard',
+    selId: null,
+    tab: 'overview',
+    modal: null,
+    form: {},
+    filter: 'الكل',
+    q: '',
+    nid: 100,
+    gi: false,
+    showAdvFil: false,
+    showStaffManager: false,
+    conflictItem: null,
+    conflictServerData: null,
+    syncQueue: [],
+    isLoading: false,
+    globalActivities: [],
+    clientActivities: [],
+    timelineCloudStatus: 'idle',
+    connectionState: 'idle',
+    quotaExceeded: false,
+    dataIsStale: false,
+    lastListenerError: null,
+    isMutating: false,
+    activeDetailClientId: null,
+    hasConfirmedServerSync: false,
+    clientsFromCache: false,
+    stats: {
+      activeClients: 0,
+      prospectiveClients: 0,
+      stoppedClients: 0,
+      totalClients: 0,
+      totalPrograms: 0,
+      totalLicensedDevices: 0,
+      averageScore: 100,
+      totalOpenIssues: 0
+    }
+  });
   scheduleRender();
 }
 

@@ -51,6 +51,11 @@
   --dm-t3: rgba(235, 235, 245, 0.58);
 }
 
+html, body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Arabic", Inter, system-ui, "Segoe UI", "Noto Sans Arabic", Tahoma, sans-serif;
   direction: rtl;

@@ -440,8 +440,10 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const kpiCards = Array.from(doc.querySelectorAll('.card.kpi'));
 
-    // 1. Exact devices count = 5 (4 Desktop + 1 Mobile), zero phantom device added for clientZeroPrograms
-    expect(html).toContain('على 5 جهازًا');
+    // 1. Exact devices count = 5 (4 Desktop + 1 Mobile), KPI 2 shows 5 الأجهزة المرخصة عبر 2 برامج
+    expect(kpiCards[1].textContent).toContain('الأجهزة المرخصة');
+    expect(kpiCards[1].querySelector('.val b')?.textContent?.trim()).toBe('5');
+    expect(html).toContain('عبر 2 برنامج مرخص');
 
     // 2. Open issues counts both 'مفتوح' and 'جديد' = 2
     expect(html).toContain('تذاكر دعم مفتوحة');
@@ -454,15 +456,22 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     expect(expectedAvg).toBeLessThan(100);
     expect(html).toContain(`<b class="num">${expectedAvg}</b><small>/ 100</small>`);
 
-    // 4. Real 30d delta for Card 1 (clients: 1 new in 30d) & Card 2 (programs: 2 new in 30d)
+    // 4. Real 30d delta for Card 1 (clients: 1 new in 30d) & Card 2 (devices: 5 added in 30d)
     expect(kpiCards[0].textContent).toContain('+1 هذا الشهر');
     expect(kpiCards[0].textContent).not.toContain('+2 هذا الشهر');
-    expect(kpiCards[1].textContent).toContain('+2 هذا الشهر');
+    expect(kpiCards[1].textContent).toContain('+5 هذا الشهر');
 
-    // 5. Recent activities show real actor names/email prefix and link to client card
+    // 5. Recent activities filter out BACKUP_CREATED, show real actor names/email prefix and link to client card
     expect(html).toContain('أحمد التجاري');
     expect(html).toContain('suivi');
+    expect(html).not.toContain('نسخة احتياطية');
     expect(html).toContain('selClient(1)');
+
+    // 6. Contracts & Client Health replaced cleanly
+    expect(html).not.toContain('عقود تنتهي');
+    expect(html).not.toContain('صحة العملاء');
+    expect(html).toContain('تغطية المتابعة');
+    expect(html).toContain('الأجهزة المباعة حسب الفئة');
 
     // 6. Department Commercial has exactly 2 events (prog 10 deduplicated between globalActivities and c.programs + prog 11), NOT 3
     const deptCards = Array.from(doc.querySelectorAll('.card.dept'));
@@ -607,18 +616,18 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     const dashDoc = new DOMParser().parseFromString(dashHtml, 'text/html');
     const kpiCards = Array.from(dashDoc.querySelectorAll('.card.kpi'));
 
-    // Card 2 is "البرامج المرخّصة"
+    // Card 2 is "الأجهزة المرخصة" showing total devices (9) across 4 programs
     const progCard = kpiCards[1];
-    expect(progCard.textContent).toContain('البرامج المرخّصة');
-    expect(progCard.querySelector('.val b')?.textContent?.trim()).toBe('4');
-    expect(progCard.textContent).toContain('على 9 جهازًا');
+    expect(progCard.textContent).toContain('الأجهزة المرخصة');
+    expect(progCard.querySelector('.val b')?.textContent?.trim()).toBe('9');
+    expect(progCard.textContent).toContain('عبر 4 برنامج مرخص');
 
-    // Platform Column Chart: Desktop = 2, Mobile = 1, Web = 1
+    // Platform Column Chart counts DEVICES: Desktop = 6 (4+2), Mobile = 2, Web = 1 => 67%, 22%, 11%
     const colChartSvg = dashDoc.querySelector('.plat-col-group');
     expect(colChartSvg).toBeTruthy();
-    expect(dashHtml).toContain('<title>Desktop: 2 (50%)');
-    expect(dashHtml).toContain('<title>Mobile: 1 (25%)');
-    expect(dashHtml).toContain('<title>Web: 1 (25%)');
+    expect(dashHtml).toContain('<title>Desktop: 6 جهاز (67%');
+    expect(dashHtml).toContain('<title>Mobile: 2 جهاز (22%');
+    expect(dashHtml).toContain('<title>Web: 1 جهاز (11%');
 
     // 3. Licenses Explorer Modal Verification
     S.modal = 'licenses_explorer';
@@ -645,7 +654,7 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     expect(geoHtml).toContain('وهران');
 
     // 5. Dynamic Mutation Consistency
-    // Remove one program from Client 1
+    // Remove Web program from Client 1
     const updatedClients = [
       {
         ...testClients[0],
@@ -663,7 +672,7 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     const updatedDashHtml = renderDashboard();
     const updatedDoc = new DOMParser().parseFromString(updatedDashHtml, 'text/html');
     const updatedProgCard = Array.from(updatedDoc.querySelectorAll('.card.kpi'))[1];
-    expect(updatedProgCard.querySelector('.val b')?.textContent?.trim()).toBe('3');
-    expect(updatedProgCard.textContent).toContain('على 8 جهازًا');
+    expect(updatedProgCard.querySelector('.val b')?.textContent?.trim()).toBe('8');
+    expect(updatedProgCard.textContent).toContain('عبر 3 برنامج مرخص');
   });
 });

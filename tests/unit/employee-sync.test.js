@@ -47,7 +47,7 @@ describe('Employee Multi-Device Synchronization', () => {
     expect(sanitized._subcollectionsLoaded).toBeUndefined();
   });
 
-  it('upsertEmployee should set tenantId, status, and persist to state store and local storage', () => {
+  it('upsertEmployee should set tenantId, status, and update reactive state store without localStorage caching', () => {
     const employees = upsertEmployee({
       fullName: 'جمال قاسم',
       username: 'djamel.k',
@@ -65,14 +65,12 @@ describe('Employee Multi-Device Synchronization', () => {
     expect(added.department).toBe('technique');
     expect(added.status).toBe('نشط');
 
-    // Verify stored in localStorage for offline hydration
-    const rawCache = localStorage.getItem(`crm_staff_users_${TEST_UID}`);
-    expect(rawCache).toBeDefined();
-    const parsedCache = JSON.parse(rawCache);
-    expect(parsedCache.some(e => e.username === 'djamel.k')).toBe(true);
+    // Strictly online mode: employee directory must NOT be persisted in localStorage
+    expect(localStorage.getItem(`crm_staff_users_${TEST_UID}`)).toBeNull();
 
-    // Verify in reactive store
+    // Verify in reactive store and service getter
     expect(S.staffUsers.some(e => e.username === 'djamel.k')).toBe(true);
+    expect(getEmployees().some(e => e.username === 'djamel.k')).toBe(true);
   });
 
   it('deleteEmployee should remove employee and update store', () => {

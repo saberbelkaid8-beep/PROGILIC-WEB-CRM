@@ -74,8 +74,8 @@ import { createDefaultGerant } from './constants/index.js';
 
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
-import { S, currentUser, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState } from './state/store.js';
-import { loadDataFromFirestore, stopRealtimeSync, startRealtimeSync, flushSyncQueue, loadCache } from './business/storage.js';
+import { S, currentUser, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState, resetTenantSessionState } from './state/store.js';
+import { loadDataFromFirestore, stopRealtimeSync, stopClientDetailSync, startRealtimeSync, reconnectRealtimeSync } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
@@ -106,6 +106,7 @@ window.R = R;
 window.setClients = setClients;
 window.getClients = getClients;
 window.resolveConflict = resolveConflict;
+window.reconnectRealtimeSync = reconnectRealtimeSync;
 window.mergeDatabase = actions.mergeWithSessionAndUser;
 
   // Boot application
@@ -201,9 +202,17 @@ window.mergeDatabase = actions.mergeWithSessionAndUser;
       return;
     }
 
+    const previousUid = lastUserUid;
     lastUserUid = currentUid;
     lastUserEmail = currentEmail;
     lastUserVerified = isVerified;
+
+    // Strict account isolation on sign-out or tenant switch
+    if ((previousUid && previousUid !== currentUid) || !user) {
+      stopRealtimeSync();
+      stopClientDetailSync();
+      resetTenantSessionState();
+    }
 
     if (user) {
       const activeGerant = {
@@ -222,7 +231,7 @@ window.mergeDatabase = actions.mergeWithSessionAndUser;
         S.showStaffPortal = true;
       }
       
-      // Trigger initial render immediately with cached or empty state so screen never stays white
+      // Trigger initial render immediately so screen never stays white
       R();
       try {
         await loadDataFromFirestore(user);
@@ -232,7 +241,6 @@ window.mergeDatabase = actions.mergeWithSessionAndUser;
         R();
       }
     } else {
-      stopRealtimeSync();
       window.loginMode = 'login';
       setCurrentUser(null);
       setCurrentStaffUser(null);
@@ -287,20 +295,25 @@ subscribe(() => {
 
 // Strict Online Cloud Sync Network Listeners
 window.addEventListener('online', () => {
-  console.log('[Online Sync] Internet connection detected. Resuming live cloud sync...');
-  updateState({ isOnline: true });
-  if (currentUser && currentUser.uid) {
+  console.log('[Online Sync] Internet connection detected.');
+  const isQuotaBlocked = S.quotaExceeded || (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded);
+  updateState({
+    isOnline: true,
+    connectionState: isQuotaBlocked ? 'quota-exceeded' : 'connecting'
+  });
+  if (!isQuotaBlocked && currentUser && currentUser.uid) {
     startRealtimeSync(currentUser.uid);
-    flushSyncQueue();
   }
-  actions.showToast('🟢 تم الاتصال بالسحابة أونلاين - جاري المزامنة الحية لكافة العمليات.', 'success');
+  if (!isQuotaBlocked) {
+    actions.showToast('🟢 تم الاتصال بالسحابة أونلاين - جاري إعادة مزامنة القراءة الحية من الخادم.', 'success');
+  }
   R();
 });
 
 window.addEventListener('offline', () => {
   console.warn('[Online Sync] Internet connection lost.');
-  updateState({ isOnline: false });
-  actions.showToast('🔴 انقطع الاتصال بالإنترنت - نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين.', 'error');
+  updateState({ isOnline: false, connectionState: 'offline', dataIsStale: true });
+  actions.showToast('🔴 انقطع الاتصال بالإنترنت - نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين (تم إيقاف الحفظ).', 'error');
   R();
 });
 

@@ -1,7 +1,5 @@
-import { INITIAL_IMPORTED_CLIENTS } from '../data/importedClients.js';
 import { S, clients, setClients, updateState, currentUser } from '../state/store.js';
-import { saveClients, setMeta, getClients } from './idbStorage.js';
-import { saveUserData } from '../firebase/service.js';
+import { saveUserData, assertOnlineForWrite } from '../firebase/service.js';
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { auth } from '../firebase/config.js';
 import { computeScore } from './intelligence.js';
@@ -62,51 +60,30 @@ export function mergeClientLists(currentList = []) {
 }
 
 /**
- * Ensures data is persisted into the current session and active account.
+ * Ensures data is persisted strictly online to Cloud Firestore before updating session state.
  */
 export async function mergeWithSessionAndUser(user = currentUser) {
+  assertOnlineForWrite();
   const currentInMemory = Array.isArray(clients) && clients.length > 0 ? clients : [];
   const merged = mergeClientLists(currentInMemory);
   const { stats, nid } = computeStats(merged);
 
-  setClients(merged);
-  updateState({ stats, nid });
-
   const activeUser = user || currentUser;
   const primaryUid = (auth && auth.currentUser && auth.currentUser.uid) || activeUser?.uid;
-
-  if (primaryUid) {
-    try {
-      await saveClients(primaryUid, merged);
-      await setMeta(primaryUid, 'stats', stats);
-      await setMeta(primaryUid, 'nid', nid);
-    } catch (idbErr) {
-      console.warn(`[Database Merge] IDB save notice for ${primaryUid}:`, idbErr);
-    }
+  if (!primaryUid) {
+    throw new Error('لا يوجد حساب موثق للمزامنة السحابية.');
   }
 
-  console.log(`[Database Merge] Successfully merged ${merged.length} clients to user ${primaryUid || 'active'} and active session.`);
+  await saveUserData(primaryUid, {
+    v: 3,
+    updatedAt: new Date().toISOString(),
+    nid,
+    stats
+  });
+  await migrateLegacyDataIfNeeded(primaryUid, { clients: merged }, nid);
 
-  // If user is actively authenticated with Firebase Auth, trigger cloud Firestore sync
-  if (primaryUid && auth && auth.currentUser) {
-    try {
-      console.log(`[Database Merge] Syncing ${merged.length} clients to Firestore for account ${activeUser.email || 'active_user'} (${primaryUid})...`);
-      await saveUserData(primaryUid, {
-        v: 3,
-        updatedAt: new Date().toISOString(),
-        nid,
-        stats
-      });
-      // Background migration to subcollections
-      migrateLegacyDataIfNeeded(primaryUid, { clients: merged }, nid).then(() => {
-        console.log(`[Database Merge] Cloud migration completed for account ${activeUser.email || 'active_user'}.`);
-      }).catch(cloudErr => {
-        console.warn("[Database Merge] Cloud migration notice:", cloudErr);
-      });
-    } catch (cloudErr) {
-      console.warn("[Database Merge] Cloud save notice:", cloudErr);
-    }
-  }
+  setClients(merged);
+  updateState({ stats, nid });
 
   return merged;
 }

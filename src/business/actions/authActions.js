@@ -1,5 +1,5 @@
-import { S, clients, setClients, updateState, currentUser, setCurrentUser, setCurrentStaffUser } from '../../state/store.js';
-import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction, stopRealtimeSync, loadDataFromFirestore } from '../storage.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, setCurrentStaffUser, resetTenantSessionState } from '../../state/store.js';
+import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction, stopRealtimeSync, stopClientDetailSync, loadDataFromFirestore } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
 import { getBackups, deleteBackup } from '../idbStorage.js';
@@ -68,6 +68,8 @@ export function loginUser(username, password, fullname = '') {
   
   // Clean up any active listeners before authenticating a new session to prevent permissions race conditions
   stopRealtimeSync();
+  stopClientDetailSync();
+  resetTenantSessionState();
   setCurrentStaffUser(null);
   S.showStaffPortal = true;
 
@@ -114,11 +116,6 @@ export function loginUser(username, password, fullname = '') {
         setCurrentUser(activeUser);
         setCurrentStaffUser(null);
         S.showStaffPortal = true;
-        try {
-          localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
-          localStorage.removeItem('crm_active_employee_session');
-          localStorage.removeItem('crm_logged_out');
-        } catch (e) {}
         window.loginMode = 'main';
         await loadDataFromFirestore(user);
         R();
@@ -141,11 +138,6 @@ export function loginUser(username, password, fullname = '') {
               setCurrentUser(activeUser);
               setCurrentStaffUser(null);
               S.showStaffPortal = true;
-              try {
-                localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
-                localStorage.removeItem('crm_active_employee_session');
-                localStorage.removeItem('crm_logged_out');
-              } catch (e) {}
               window.loginMode = 'main';
               await loadDataFromFirestore(user);
               R();
@@ -189,11 +181,6 @@ export function loginUser(username, password, fullname = '') {
         setCurrentUser(activeUser);
         setCurrentStaffUser(null);
         S.showStaffPortal = true;
-        try {
-          localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
-          localStorage.removeItem('crm_active_employee_session');
-          localStorage.removeItem('crm_logged_out');
-        } catch (e) {}
         window.loginMode = 'main';
         await loadDataFromFirestore(user);
         R();
@@ -223,21 +210,11 @@ export async function logout(force = false) {
   const confirmed = force ? true : await showConfirm("هل أنت متأكد من رغبتك في تسجيل الخروج؟", "تسجيل الخروج");
   if (confirmed) {
     stopRealtimeSync();
+    stopClientDetailSync();
+    resetTenantSessionState();
     window.loginMode = 'login';
     setCurrentStaffUser(null);
     setCurrentUser(null);
-    try {
-      localStorage.removeItem('crm_currentUser');
-      localStorage.removeItem('crm_current_staff');
-      localStorage.removeItem('crm_active_gerant_user');
-      localStorage.removeItem('crm_active_employee_session');
-      localStorage.setItem('crm_logged_out', '1');
-    } catch (e) {
-      console.warn("localStorage.removeItem failed for crm_currentUser", e);
-    }
-    setClients([]);
-    S.view = 'list';
-    S.selId = null;
     try {
       if (auth && auth.currentUser) {
         await auth.signOut();
@@ -378,11 +355,6 @@ export async function checkVerificationStatus() {
       setCurrentUser(activeUser);
 
       if (isVerified) {
-        try {
-          localStorage.setItem('crm_active_gerant_user', JSON.stringify(activeUser));
-          localStorage.removeItem('crm_active_employee_session');
-          localStorage.removeItem('crm_logged_out');
-        } catch (e) {}
         showToast("تم تفعيل حسابك بنجاح! جاري تحميل البيانات...", "success");
         try {
           await user.getIdToken(true);
@@ -417,6 +389,8 @@ export async function loginWithGoogle() {
   }
   try {
     stopRealtimeSync();
+    stopClientDetailSync();
+    resetTenantSessionState();
     setCurrentStaffUser(null);
     S.showStaffPortal = true;
     await signInWithPopup(auth, googleProvider);
@@ -460,6 +434,8 @@ export async function verifyEmail() {
 export async function loginWithFacebook() {
   try {
     stopRealtimeSync();
+    stopClientDetailSync();
+    resetTenantSessionState();
     setCurrentStaffUser(null);
     S.showStaffPortal = true;
     await signInWithPopup(auth, facebookProvider);
@@ -476,6 +452,8 @@ export async function loginWithFacebook() {
 export async function loginWithApple() {
   try {
     stopRealtimeSync();
+    stopClientDetailSync();
+    resetTenantSessionState();
     setCurrentStaffUser(null);
     S.showStaffPortal = true;
     await signInWithPopup(auth, appleProvider);

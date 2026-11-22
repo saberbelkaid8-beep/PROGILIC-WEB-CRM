@@ -3,6 +3,7 @@ import { BUSINESS_TYPES, PLATFORMS, PROGRAM_TYPES, PROGRAM_VERSIONS, ISSUE_TYPES
 import { gc, selOpts, td, wOpts, actTypeOpts, esc, isClientAtRisk } from '../utils/index.js';
 import { getPurgeAuditLogs } from '../business/purgeService.js';
 import { computeScore, scoreColor } from '../business/intelligence.js';
+import { normalizeProgramCategory } from '../business/programMetrics.js';
 
 const CSTATUSES = ['نشط', 'محتمل', 'متوقف'];
 const ITYPES = ISSUE_TYPES;
@@ -118,7 +119,7 @@ function renderClientModal(){
       <div class="fgroup"><label class="flbl">${t('النشاط الرئيسي')} *</label><select class="fctl" id="f_bt" onchange="updateActTypeOpts()"><option value="">${t('اختر النشاط')}</option>${selOpts(ACTIVITIES,c.businessType)}</select></div>
       <div class="fgroup"><label class="flbl">${t('تخصص النشاط')} *</label><select class="fctl" id="f_bf">${actTypeOpts(c.businessType||'',c.businessField)}</select></div>
     </div>
-    <div class="fsec">${t('حالة العقد والارتباط')}</div>
+    <div class="fsec">${t('حالة العميل والتسجيل')}</div>
     <div class="frow">
       <div class="fgroup"><label class="flbl">${t('الحالة')} *</label><select class="fctl" id="f_st" onchange="onClientStatusChange()">${selOpts(CSTATUSES,curStatus)}</select></div>
       <div class="fgroup"><label class="flbl">${t('آخر تواصل')} *</label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||td()}"></div>
@@ -219,6 +220,7 @@ function renderProgramModal(){
       <label class="flbl">${t('تاريخ البداية / التثبيت')} <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة — Licence à vie')})</span></label>
       <input type="date" class="fctl" id="fp_sd" value="${p.startDate||td()}">
     </div>
+    ${!isEdit ? `<div style="font-size:11.5px;color:var(--t2);background:rgba(10,132,255,0.08);border:1px solid rgba(10,132,255,0.22);border-radius:var(--r-sm);padding:8px 10px;margin-top:6px">${t('ملاحظة: عند إضافة نفس نوع البرنامج وإصداره، يتم دمج عدد الأجهزة تلقائياً على الترخيص الموجود دون تكرار البرنامج.')}</div>` : ''}
     <div class="facts">
       <button class="btn btn-ghost" onclick="closeModal()">${t('إلغاء')}</button>
       <button class="btn btn-primary" onclick="saveProgram(${isEdit?p.id:null})">${isEdit?t('حفظ التغييرات'):t('إضافة البرنامج')}</button>
@@ -1127,7 +1129,7 @@ export function renderTicketsAndReqsModal() {
     </div>
 
     <!-- Items List -->
-    <div style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+    <div class="tickets-modal-list">
       ${displayItems.length ? displayItems.map(item => {
         const isSolved = item.status === 'محلول' || item.status === 'منفذ';
         const prioColor = item.priority === 'عاجل' ? 'var(--rt)' : (item.priority === 'عالية' ? 'var(--wt)' : 'var(--bt)');
@@ -1135,10 +1137,7 @@ export function renderTicketsAndReqsModal() {
         const statusColor = isSolved ? 'var(--gt)' : 'var(--wt)';
         return `
           <div 
-            class="card" 
-            style="padding:12px 16px;cursor:pointer;transition:transform .15s"
-            onmouseover="this.style.transform='translateY(-1px)'" 
-            onmouseout="this.style.transform=''"
+            class="ticket-modal-item" 
             onclick="closeModal(); selClient(${item.clientId}); setTab('${curTab === 'issues' ? 'issues' : 'requirements'}');"
             title="${t('اضغط لفتح بطاقة العميل والتفاصيل الكاملة')}"
           >
@@ -1244,7 +1243,7 @@ export function renderHealthScoreExplainerModal() {
           ${mIc('flame', 15)} <span>خطر عالٍ (أقل من <span class="num">25</span> نقطة)</span>
         </div>
         <div style="font-size:12px;color:var(--t2);line-height:1.55">
-          حساب حرج جداً مهدد بالإلغاء أو التوقف؛ تراكم مشاكل عاجلة، عقد منتهي دون تجديد، أو انقطاع التواصل لأكثر من 60 يوماً.
+          حساب حرج يحتاج متابعة عاجلة؛ تراكم مشاكل غير محلولة، أو انقطاع التواصل لأكثر من 60 يوماً.
         </div>
       </div>
     </div>
@@ -1320,21 +1319,23 @@ export function renderLicensesExplorerModal() {
         const names = Array.isArray(c.programNames) && c.programNames.length > 0
           ? c.programNames
           : Array(summaryProgCount).fill('PROGILIC');
+        const totalInst = Math.max(names.length, Number(c.installationsCount) || names.length);
+        const baseInst = Math.floor(totalInst / names.length);
+        let remInst = totalInst % names.length;
         names.forEach((name, idx) => {
-          const lower = String(name || '').toLowerCase();
-          const plat = lower.startsWith('mobile') || lower.includes('vdd') || lower.includes('التاجر') || lower.includes('لوحة القيادة')
-            ? 'Mobile'
-            : (lower.startsWith('web') || lower.includes('الويب') ? 'Web' : 'Desktop');
-          const vMatch = (name || '').match(/V\d+/i);
+          const norm = normalizeProgramCategory(name);
+          const devices = baseInst + (remInst > 0 ? 1 : 0);
+          if (remInst > 0) remInst--;
           allLicenses.push({
             id: `summary_${c.id}_${idx}`,
             programName: name,
-            platform: plat,
-            type: 'تجاري',
-            version: plat === 'Mobile' ? '' : (vMatch ? vMatch[0].toUpperCase() : '—'),
-            installationsCount: Math.max(1, Math.round((Number(c.installationsCount) || summaryProgCount) / summaryProgCount)),
+            platform: norm.platform,
+            type: norm.labelAr,
+            categoryKey: norm.categoryKey,
+            version: norm.platform === 'Mobile' ? '' : (norm.version || '—'),
+            installationsCount: devices,
             startDate: c.startDate || '',
-            endDate: c.endDate || '',
+            endDate: '',
             clientId: c.id,
             clientName: c.fullName || 'عميل غير مسمى',
             clientCompany: c.company || '—',
@@ -1360,8 +1361,12 @@ export function renderLicensesExplorerModal() {
     if (curPlatform !== 'all' && plat !== curPlatform) return false;
     if (curVersion !== 'all' && (l.version || '').toUpperCase() !== curVersion.toUpperCase()) return false;
     if (curType !== 'all') {
+      const norm = normalizeProgramCategory(l);
       const lType = (l.type || '').toLowerCase();
-      if (!lType.includes(curType.toLowerCase())) return false;
+      const lName = (l.programName || '').toLowerCase();
+      if (norm.categoryKey.toLowerCase() !== curType.toLowerCase() && !lType.includes(curType.toLowerCase()) && !lName.includes(curType.toLowerCase())) {
+        return false;
+      }
     }
     if (curSearch) {
       const q = curSearch;
@@ -1377,6 +1382,8 @@ export function renderLicensesExplorerModal() {
     return true;
   });
 
+  const filteredDevicesSum = filtered.reduce((sum, l) => sum + (Number(l.installationsCount) || 1), 0);
+
   // Sort by client name, then program
   filtered.sort((a, b) => {
     const nameCmp = (a.clientName || '').localeCompare(b.clientName || '', 'ar');
@@ -1391,7 +1398,7 @@ export function renderLicensesExplorerModal() {
         <div class="mtitle" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="width:32px;height:32px;border-radius:10px;background:rgba(10,132,255,0.14);border:1px solid rgba(10,132,255,0.28);color:var(--bt);display:inline-flex;align-items:center;justify-content:center">${mIc('box', 16)}</span>
           <span style="font-size:16px;font-weight:800">${t('مستكشف التراخيص والبرامج حسب الإصدار والمنصة')}</span>
-          <span class="num" style="font-size:12.5px;font-weight:700;color:var(--bt)">· ${filtered.length} ${t('ترخيص')}</span>
+          <span class="num" style="font-size:12.5px;font-weight:700;color:var(--bt)">· ${filtered.length} ${t('ترخيص')} · ${filteredDevicesSum} ${t('جهاز')}</span>
         </div>
         <div style="font-size:12px;color:var(--t2);margin-top:4px">
           ${t('استعراض تفصيلي ومقارنة حية لتراخيص العملاء والمنصات (Desktop · Mobile · Web) والإصدارات في الـ CRM')}
@@ -1424,8 +1431,8 @@ export function renderLicensesExplorerModal() {
       </div>
     </div>
 
-    <!-- Platform Tabs (Desktop / Mobile / Web) -->
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    <!-- Platform Tabs (Desktop / Mobile / Web) & Category Pills -->
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       ${[
         { id: 'all', label: 'كافة المنصات (الكل)', ico: 'globe', count: totalLicenses },
         { id: 'Desktop', label: 'برامج Desktop', ico: 'desktop', count: desktopLicenses },
@@ -1446,6 +1453,25 @@ export function renderLicensesExplorerModal() {
           </button>
         `;
       }).join('')}
+    </div>
+
+    <!-- Category Filter Strip -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:11.5px;color:var(--t3);font-weight:700;margin-inline-end:2px">${t('الفئة')}:</span>
+      ${[
+        { id: 'all', label: t('الكل') },
+        { id: 'Commercial', label: 'Commercial' },
+        { id: 'Production', label: 'Production' },
+        { id: 'Distribution', label: 'Distribution' }
+      ].map(cat => `
+        <button type="button"
+          class="fpill ${curType === cat.id ? 'on' : ''}"
+          onclick="S.form.type='${cat.id}'; ${cat.id !== 'all' ? "S.form.platform='Desktop';" : ''} R();"
+          style="font-size:11.5px;padding:4px 10px"
+        >
+          ${cat.label}
+        </button>
+      `).join('')}
     </div>
 
     <!-- Sub-Filters Toolbar: Search, Version, View Mode Switcher, and Export -->

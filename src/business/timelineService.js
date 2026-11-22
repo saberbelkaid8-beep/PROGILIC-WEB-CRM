@@ -396,33 +396,25 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
   const existingActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
   const existingIds = new Set(existingActivities.map(a => String(a.id)));
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  
-  const yesterday = new Date(now.getTime() - 86400000);
-  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-  
-  const dayBeforeYesterday = new Date(now.getTime() - 2 * 86400000);
-  const dayBeforeYesterdayStr = `${dayBeforeYesterday.getFullYear()}-${String(dayBeforeYesterday.getMonth() + 1).padStart(2, '0')}-${String(dayBeforeYesterday.getDate()).padStart(2, '0')}`;
-
-  const recentDates = [todayStr, yesterdayStr, dayBeforeYesterdayStr];
-
   const generated = [];
   let itemCounter = 0;
 
-  function toIsoTimestamp(dateVal, fallbackIndex) {
+  function toIsoTimestamp(dateVal, fallbackId, fallbackIndex) {
     if (dateVal && String(dateVal).includes('T')) {
       const d = new Date(dateVal);
       if (!Number.isNaN(d.getTime())) return d.toISOString();
     }
-    const cleanDate = dateVal && /^\d{4}-\d{2}-\d{2}$/.test(String(dateVal).trim())
-      ? String(dateVal).trim()
-      : recentDates[fallbackIndex % recentDates.length];
-    
-    // Distribute hours nicely throughout the day
-    const hour = 9 + (fallbackIndex % 8);
-    const minute = (fallbackIndex * 17) % 60;
-    return `${cleanDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
+    if (dateVal && /^\d{4}-\d{2}-\d{2}$/.test(String(dateVal).trim())) {
+      const cleanDate = String(dateVal).trim();
+      const hour = 9 + (fallbackIndex % 8);
+      const minute = (fallbackIndex * 17) % 60;
+      return `${cleanDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
+    }
+    const numId = Number(fallbackId);
+    if (Number.isFinite(numId) && numId >= 1577836800000 && numId <= 4102444800000) {
+      return new Date(numId).toISOString();
+    }
+    return null;
   }
 
   for (const c of currentClients) {
@@ -431,25 +423,31 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
 
     // 1. Client Creation / Registration service
     const clientActId = `act_client_${c.id}`;
-    if (!existingIds.has(clientActId)) {
-      itemCounter++;
-      generated.push({
-        id: clientActId,
-        clientId: Number(c.id),
-        clientName,
-        type: ActivityType.CLIENT_CREATED,
-        category: 'clients',
-        title: `تسجيل واعتماد العميل (${clientName})`,
-        description: `تسجيل العميل في نظام PROGILIC CRM بنشاط: ${c.businessType || 'عام'} - ${c.businessField || ''}، الولاية: ${c.wilaya || 'غير محدد'}.`,
-        timestamp: toIsoTimestamp(c.startDate, itemCounter),
-        userName: 'المسؤول العام',
-        userRole: 'الإدارة العامة (Gérant)',
-        userId: 'gerant',
-        actorUid: uid,
-        actorEmail: currentUser?.email || '',
-        source: 'crm-sync'
-      });
-      existingIds.add(clientActId);
+    const clientAlreadyLogged = existingIds.has(clientActId) || existingActivities.some(a =>
+      a && Number(a.clientId) === Number(c.id) && a.type === ActivityType.CLIENT_CREATED
+    );
+    if (!clientAlreadyLogged) {
+      const ts = toIsoTimestamp(c.startDate, c.id, itemCounter + 1);
+      if (ts) {
+        itemCounter++;
+        generated.push({
+          id: clientActId,
+          clientId: Number(c.id),
+          clientName,
+          type: ActivityType.CLIENT_CREATED,
+          category: 'clients',
+          title: `تسجيل واعتماد العميل (${clientName})`,
+          description: `تسجيل العميل في نظام PROGILIC CRM بنشاط: ${c.businessType || 'عام'} - ${c.businessField || ''}، الولاية: ${c.wilaya || 'غير محدد'}.`,
+          timestamp: ts,
+          userName: 'المسؤول العام',
+          userRole: 'الإدارة العامة (Gérant)',
+          userId: 'gerant',
+          actorUid: uid,
+          actorEmail: currentUser?.email || '',
+          source: 'crm-sync'
+        });
+        existingIds.add(clientActId);
+      }
     }
 
     // 2. Program Services (الخدمات والبرمجيات المرخصة)
@@ -461,41 +459,44 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
         const alreadyLogged = existingIds.has(progActId) || existingActivities.some(a =>
           a &&
           Number(a.clientId) === Number(c.id) &&
-          a.type === ActivityType.PROGRAM_ADDED &&
+          (a.type === ActivityType.PROGRAM_ADDED || a.type === ActivityType.PROGRAM_EDITED) &&
           (
             (a.meta?.programId !== undefined && String(a.meta.programId) === String(progId)) ||
             (p.programName && String(a.description || '').includes(`"${p.programName}"`))
           )
         );
         if (!alreadyLogged) {
-          itemCounter++;
-          generated.push({
-            id: progActId,
-            clientId: Number(c.id),
-            clientName,
-            type: ActivityType.PROGRAM_ADDED,
-            category: 'programs',
-            title: `خدمة ترخيص برنامج: ${p.programName || 'برنامج PROGILIC'}`,
-            description: `تقديم وتثبيت خدمة برمجية "${p.programName || 'برنامج'}" للعميل ${clientName} - المنصة: ${p.platform || 'Desktop'} - نوع الخدمة: ${p.type || 'تجاري'} - أجهزة مرخصة: ${p.installationsCount || 1} محطة ${p.startDate ? `(البداية: ${p.startDate})` : ''} ${p.endDate ? `(النهاية: ${p.endDate})` : ''}.`,
-            timestamp: toIsoTimestamp(p.startDate || c.startDate, itemCounter),
-            userName: 'المسؤول العام',
-            userRole: 'الإدارة العامة (Gérant)',
-            userId: 'gerant',
-            actorUid: uid,
-            actorEmail: currentUser?.email || '',
-            source: 'crm-sync',
-            meta: {
-              programId: progId,
-              programName: p.programName || '',
-              platform: p.platform || 'Desktop',
-              type: p.type || 'تجاري',
-              version: p.platform === 'Mobile' ? '' : (p.version || ''),
-              installationsCount: Number(p.installationsCount) || 1,
-              startDate: p.startDate || '',
-              endDate: p.endDate || ''
-            }
-          });
-          existingIds.add(progActId);
+          const ts = toIsoTimestamp(p.startDate || c.startDate, p.id, itemCounter + 1);
+          if (ts) {
+            itemCounter++;
+            generated.push({
+              id: progActId,
+              clientId: Number(c.id),
+              clientName,
+              type: ActivityType.PROGRAM_ADDED,
+              category: 'programs',
+              title: `خدمة ترخيص برنامج: ${p.programName || 'برنامج PROGILIC'}`,
+              description: `تقديم وتثبيت خدمة برمجية "${p.programName || 'برنامج'}" للعميل ${clientName} - المنصة: ${p.platform || 'Desktop'} - نوع الخدمة: ${p.type || 'تجاري'} - أجهزة مرخصة: ${p.installationsCount || 1} محطة ${p.startDate ? `(البداية: ${p.startDate})` : ''}.`,
+              timestamp: ts,
+              userName: 'المسؤول العام',
+              userRole: 'الإدارة العامة (Gérant)',
+              userId: 'gerant',
+              actorUid: uid,
+              actorEmail: currentUser?.email || '',
+              source: 'crm-sync',
+              meta: {
+                programId: progId,
+                programName: p.programName || '',
+                platform: p.platform || 'Desktop',
+                type: p.type || 'تجاري',
+                version: p.platform === 'Mobile' ? '' : (p.version || ''),
+                installationsCount: Number(p.installationsCount) || 1,
+                startDate: p.startDate || '',
+                endDate: ''
+              }
+            });
+            existingIds.add(progActId);
+          }
         }
       });
     }
@@ -506,26 +507,39 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
         if (!iss) return;
         const issueId = iss.id || `iss_${iIdx}`;
         const issueActId = `act_issue_${c.id}_${issueId}`;
-        if (!existingIds.has(issueActId)) {
-          itemCounter++;
-          const isResolved = iss.status === 'محلول' || iss.status === 'مغلق';
-          generated.push({
-            id: issueActId,
-            clientId: Number(c.id),
-            clientName,
-            type: isResolved ? ActivityType.ISSUE_RESOLVED : ActivityType.ISSUE_ADDED,
-            category: 'issues',
-            title: `خدمة صيانة ودعم فني: ${iss.title || 'تذكرة دعم'}`,
-            description: `معالجة مشكلة "${iss.title || 'دعم فني'}" للعميل ${clientName} - الأولوية: ${iss.priority || 'متوسطة'} - الحالة: ${iss.status || 'مفتوح'} ${iss.solution ? `(الحل المعتمد: ${iss.solution})` : ''}.`,
-            timestamp: toIsoTimestamp(iss.date, itemCounter),
-            userName: 'المسؤول العام',
-            userRole: 'الإدارة العامة (Gérant)',
-            userId: 'gerant',
-            actorUid: uid,
-            actorEmail: currentUser?.email || '',
-            source: 'crm-sync'
-          });
-          existingIds.add(issueActId);
+        const isResolved = iss.status === 'محلول' || iss.status === 'مغلق';
+        const alreadyLogged = existingIds.has(issueActId) || existingActivities.some(a =>
+          a &&
+          Number(a.clientId) === Number(c.id) &&
+          (a.type === ActivityType.ISSUE_ADDED || a.type === ActivityType.ISSUE_RESOLVED) &&
+          (
+            (a.meta?.issueId !== undefined && String(a.meta.issueId) === String(issueId)) ||
+            (iss.title && String(a.description || a.title || '').includes(iss.title))
+          )
+        );
+        if (!alreadyLogged) {
+          const ts = toIsoTimestamp(iss.date, iss.id, itemCounter + 1);
+          if (ts) {
+            itemCounter++;
+            generated.push({
+              id: issueActId,
+              clientId: Number(c.id),
+              clientName,
+              type: isResolved ? ActivityType.ISSUE_RESOLVED : ActivityType.ISSUE_ADDED,
+              category: 'issues',
+              title: `خدمة صيانة ودعم فني: ${iss.title || 'تذكرة دعم'}`,
+              description: `معالجة مشكلة "${iss.title || 'دعم فني'}" للعميل ${clientName} - الأولوية: ${iss.priority || 'متوسطة'} - الحالة: ${iss.status || 'مفتوح'} ${iss.solution ? `(الحل المعتمد: ${iss.solution})` : ''}.`,
+              timestamp: ts,
+              userName: 'المسؤول العام',
+              userRole: 'الإدارة العامة (Gérant)',
+              userId: 'gerant',
+              actorUid: uid,
+              actorEmail: currentUser?.email || '',
+              source: 'crm-sync',
+              meta: { issueId }
+            });
+            existingIds.add(issueActId);
+          }
         }
       });
     }
@@ -536,25 +550,38 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
         if (!ch) return;
         const contactId = ch.id || `ch_${chIdx}`;
         const contactActId = `act_contact_${c.id}_${contactId}`;
-        if (!existingIds.has(contactActId)) {
-          itemCounter++;
-          generated.push({
-            id: contactActId,
-            clientId: Number(c.id),
-            clientName,
-            type: ActivityType.CONTACT_ADDED,
-            category: 'contacts',
-            title: `خدمة تواصل ومتابعة: ${clientName}`,
-            description: `تسجيل تواصل مع العميل ${clientName}: "${ch.note || 'متابعة دورية'}" بتاريخ ${ch.date || ''}.`,
-            timestamp: toIsoTimestamp(ch.date || c.lastContact, itemCounter),
-            userName: 'المسؤول العام',
-            userRole: 'الإدارة العامة (Gérant)',
-            userId: 'gerant',
-            actorUid: uid,
-            actorEmail: currentUser?.email || '',
-            source: 'crm-sync'
-          });
-          existingIds.add(contactActId);
+        const alreadyLogged = existingIds.has(contactActId) || existingActivities.some(a =>
+          a &&
+          Number(a.clientId) === Number(c.id) &&
+          a.type === ActivityType.CONTACT_ADDED &&
+          (
+            (a.meta?.contactId !== undefined && String(a.meta.contactId) === String(contactId)) ||
+            (ch.note && String(a.description || '').includes(ch.note) && (!ch.date || String(a.timestamp || '').startsWith(ch.date)))
+          )
+        );
+        if (!alreadyLogged) {
+          const ts = toIsoTimestamp(ch.date || c.lastContact, ch.id, itemCounter + 1);
+          if (ts) {
+            itemCounter++;
+            generated.push({
+              id: contactActId,
+              clientId: Number(c.id),
+              clientName,
+              type: ActivityType.CONTACT_ADDED,
+              category: 'contacts',
+              title: `خدمة تواصل ومتابعة: ${clientName}`,
+              description: `تسجيل تواصل مع العميل ${clientName}: "${ch.note || 'متابعة دورية'}" بتاريخ ${ch.date || ''}.`,
+              timestamp: ts,
+              userName: 'المسؤول العام',
+              userRole: 'الإدارة العامة (Gérant)',
+              userId: 'gerant',
+              actorUid: uid,
+              actorEmail: currentUser?.email || '',
+              source: 'crm-sync',
+              meta: { contactId }
+            });
+            existingIds.add(contactActId);
+          }
         }
       });
     }
@@ -565,25 +592,38 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
         if (!req) return;
         const reqId = req.id || `r_${rIdx}`;
         const reqActId = `act_req_${c.id}_${reqId}`;
-        if (!existingIds.has(reqActId)) {
-          itemCounter++;
-          generated.push({
-            id: reqActId,
-            clientId: Number(c.id),
-            clientName,
-            type: ActivityType.REQUIREMENT_ADDED,
-            category: 'requirements',
-            title: `طلب ميزة وخدمة تطوير: ${req.title || 'ميزة جديدة'}`,
-            description: `طلب خدمة تطوير وإضافة ميزة "${req.title || 'ميزة'}" للعميل ${clientName} - الأولوية: ${req.priority || 'متوسطة'} - الحالة: ${req.status || 'مقترح'}.`,
-            timestamp: toIsoTimestamp(req.date, itemCounter),
-            userName: 'المسؤول العام',
-            userRole: 'الإدارة العامة (Gérant)',
-            userId: 'gerant',
-            actorUid: uid,
-            actorEmail: currentUser?.email || '',
-            source: 'crm-sync'
-          });
-          existingIds.add(reqActId);
+        const alreadyLogged = existingIds.has(reqActId) || existingActivities.some(a =>
+          a &&
+          Number(a.clientId) === Number(c.id) &&
+          a.type === ActivityType.REQUIREMENT_ADDED &&
+          (
+            (a.meta?.reqId !== undefined && String(a.meta.reqId) === String(reqId)) ||
+            (req.title && String(a.description || a.title || '').includes(req.title))
+          )
+        );
+        if (!alreadyLogged) {
+          const ts = toIsoTimestamp(req.date, req.id, itemCounter + 1);
+          if (ts) {
+            itemCounter++;
+            generated.push({
+              id: reqActId,
+              clientId: Number(c.id),
+              clientName,
+              type: ActivityType.REQUIREMENT_ADDED,
+              category: 'requirements',
+              title: `طلب ميزة وخدمة تطوير: ${req.title || 'ميزة جديدة'}`,
+              description: `طلب خدمة تطوير وإضافة ميزة "${req.title || 'ميزة'}" للعميل ${clientName} - الأولوية: ${req.priority || 'متوسطة'} - الحالة: ${req.status || 'مقترح'}.`,
+              timestamp: ts,
+              userName: 'المسؤول العام',
+              userRole: 'الإدارة العامة (Gérant)',
+              userId: 'gerant',
+              actorUid: uid,
+              actorEmail: currentUser?.email || '',
+              source: 'crm-sync',
+              meta: { reqId }
+            });
+            existingIds.add(reqActId);
+          }
         }
       });
     }

@@ -22,6 +22,8 @@ import {
 
 
 
+let lastDashboardActivitiesLoadMs = 0;
+
 export function goBack() { S.view = 'list'; S.selId = null; R(); }
 
 export async function setView(v) {
@@ -32,8 +34,14 @@ export async function setView(v) {
     if (clients.some(c => c && !c._subcollectionsLoaded)) {
       hydrateAllClientSubcollections().catch(console.warn);
     }
-    if (!Array.isArray(S.globalActivities) || S.globalActivities.length === 0) {
-      loadGlobalActivities().catch(console.warn);
+    const nowMs = Date.now();
+    const shouldRefreshActs = (!Array.isArray(S.globalActivities) || S.globalActivities.length === 0 || (nowMs - lastDashboardActivitiesLoadMs) > 15000) &&
+      !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded);
+    if (shouldRefreshActs) {
+      lastDashboardActivitiesLoadMs = nowMs;
+      loadGlobalActivities().then(() => {
+        if (S.view === 'dashboard') R();
+      }).catch(console.warn);
     }
     return;
   }
@@ -282,11 +290,11 @@ export function openHealthScoreExplainerModal() {
   openModal('healthScoreExplainer');
 }
 
-export function openLicensesExplorerModal(platform = 'all', version = 'all') {
+export function openLicensesExplorerModal(platform = 'all', version = 'all', type = 'all') {
   if (clients.some(c => c && !c._subcollectionsLoaded)) {
     hydrateAllClientSubcollections().catch(console.warn);
   }
-  openModal('licensesExplorer', { platform, version, type: 'all', search: '' });
+  openModal('licensesExplorer', { platform, version, type, search: '' });
 }
 
 export function exportLicensesCSV() {

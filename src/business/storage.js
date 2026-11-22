@@ -27,17 +27,21 @@ import {
   getActiveTenantId
 } from '../state/store.js';
 import { createDefaultGerant } from '../constants/index.js';
-import { 
-  getUserData, 
-  saveUserData, 
-  getClientsPage, 
-  getClientSubcollections, 
-  
-  addClientTransaction, 
-  updateClientTransaction, 
-  deleteClientTransaction, 
-  saveClientSubItemTransaction, 
-  deleteClientSubItemTransaction 
+import {
+  getUserDataStrict,
+  getUserData,
+  saveUserData,
+  getClientsPage,
+  getClientSubcollections,
+  subscribeClientSubcollections,
+  subscribeEmployeesForTenant,
+  subscribeTenantActivities,
+  addClientTransaction,
+  updateClientTransaction,
+  deleteClientTransaction,
+  saveClientSubItemTransaction,
+  deleteClientSubItemTransaction,
+  classifyFirestoreError
 } from '../firebase/service.js';
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
@@ -233,6 +237,37 @@ let _quotaBlocked = false;
 let _quotaToastShown = false;
 let _hydrationInFlightPromise = null;
 let _hydrationInFlightUid = null;
+let activeUnsubscribers = [];
+let detailUnsubscribe = null;
+let activeDetailClientId = null;
+
+function detachMainRealtimeListeners() {
+  if (activeUnsubscribers.length > 0) {
+    activeUnsubscribers.forEach(unsub => {
+      try {
+        unsub();
+      } catch (err) {
+        console.error("Error unsubscribing:", err);
+      }
+    });
+    activeUnsubscribers = [];
+  }
+}
+
+export function stopClientDetailSync() {
+  if (detailUnsubscribe) {
+    try {
+      detailUnsubscribe();
+    } catch (err) {
+      console.error("Error unsubscribing client detail listener:", err);
+    }
+    detailUnsubscribe = null;
+  }
+  activeDetailClientId = null;
+  if (S.activeDetailClientId !== null) {
+    updateState({ activeDetailClientId: null });
+  }
+}
 
 function isQuotaError(err) {
   const code = String(err?.code || '').toLowerCase();
@@ -242,16 +277,31 @@ function isQuotaError(err) {
     msg.includes('free daily read units');
 }
 
-function handleFirestoreQuotaExceeded(sourceLabel, error) {
+export function handleFirestoreQuotaExceeded(sourceLabel, error) {
   _quotaBlocked = true;
   if (typeof globalThis !== 'undefined') {
     globalThis.__progilicFirestoreQuotaExceeded = true;
   }
-  setSaveError(true);
-  console.warn(`[Firestore Quota] ${sourceLabel}:`, error?.message || error);
+  // Immediately trip circuit breaker: detach all active listeners so zero additional reads/retries fire
+  detachMainRealtimeListeners();
+  stopClientDetailSync();
+
+  batch(() => {
+    setSyncing(false);
+    setSaveError(true);
+    updateState({
+      quotaExceeded: true,
+      dataIsStale: true,
+      isMutating: false,
+      connectionState: 'quota-exceeded',
+      timelineCloudStatus: 'quota-exceeded',
+      lastListenerError: error?.message || String(error || 'Quota limit exceeded')
+    });
+  });
+  console.warn(`[Firestore Quota Circuit Breaker] ${sourceLabel}:`, error?.message || error);
   if (!_quotaToastShown) {
     _quotaToastShown = true;
-    showToast(t('تم تجاوز الحد اليومي لقراءات قاعدة البيانات السحابية. ستتجدد الحصة غداً أو بعد الترقية في Firebase Console.'), 'error');
+    showToast(t('تم تجاوز الحد اليومي لقراءات قاعدة البيانات السحابية. تم إيقاف المزامنة التلقائية مؤقتاً لحماية الحصة مع الإبقاء على آخر نسخة مؤكدة للعرض فقط.'), 'error');
   }
 }
 
@@ -732,39 +782,227 @@ export function hydrateAllClientSubcollections(userId = null, options = {}) {
   return promise;
 }
 
-// Real-Time Sync State Listeners
-let activeUnsubscribers = [];
+// Real-Time Single-Client Detail Subcollection Subscription (Programs, Issues, Requirements, Contacts)
+export function startClientDetailSync(userId, clientId) {
+  const uid = userId || (auth && auth.currentUser && auth.currentUser.uid) || getActiveTenantId();
+  const cidStr = clientId !== null && clientId !== undefined ? String(clientId) : '';
+  if (!uid || !cidStr) return () => {};
+  if (_quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) {
+    return () => {};
+  }
+  if (activeDetailClientId === cidStr && detailUnsubscribe) {
+    return detailUnsubscribe;
+  }
+
+  stopClientDetailSync();
+  activeDetailClientId = cidStr;
+  updateState({ activeDetailClientId: cidStr });
+
+  const receivedCollections = new Set();
+  const bufferedSubData = {};
+
+  detailUnsubscribe = subscribeClientSubcollections(
+    uid,
+    cidStr,
+    ({ collectionName, fieldName, items, fromCache }) => {
+      if (_quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) return;
+      receivedCollections.add(collectionName);
+      bufferedSubData[fieldName] = Array.isArray(items) ? items : [];
+
+      const latestList = Array.isArray(clients) ? [...clients] : [];
+      const idx = latestList.findIndex(x => String(x?.id) === cidStr);
+      if (idx === -1) return;
+
+      const target = latestList[idx];
+      let resolvedValue = bufferedSubData[fieldName];
+      if (fieldName === 'programs' && resolvedValue.length === 0 && Array.isArray(target.programs) && target.programs.length > 0) {
+        const clientActs = Array.isArray(S.globalActivities)
+          ? S.globalActivities.filter(a => a && (Number(a.clientId) === Number(target.id) || a.type === 'SYSTEM_PURGE'))
+          : [];
+        const reconciled = reconcileClientPrograms({
+          client: target,
+          subPrograms: [],
+          inlinePrograms: target.programs.filter(Boolean),
+          activities: clientActs
+        });
+        resolvedValue = reconciled.programs;
+        if (!fromCache && !_backfillBlockedByPermission && (reconciled.needsBackfill || reconciled.needsCounterSync)) {
+          persistRecoveredClientPrograms(uid, cidStr, reconciled, null).catch(console.warn);
+        }
+      }
+
+      const nextClient = {
+        ...target,
+        [fieldName]: resolvedValue,
+        _subcollectionsLoaded: receivedCollections.size >= 4 ? true : Boolean(target._subcollectionsLoaded)
+      };
+
+      // Recompute local summary fields when subcollections update in real time
+      if (fieldName === 'programs') {
+        const progs = nextClient.programs || [];
+        nextClient.programsCount = progs.length;
+        nextClient.installationsCount = progs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0);
+        nextClient.programNames = progs.map(p => p?.programName).filter(Boolean);
+      } else if (fieldName === 'issues') {
+        const iss = nextClient.issues || [];
+        const open = iss.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد'));
+        nextClient.openIssuesCount = open.length;
+        nextClient.solvedIssuesCount = iss.filter(i => i && (i.status === 'محلول' || i.status === 'مغلق')).length;
+        nextClient.issuesByPriority = {
+          عاجل: open.filter(i => i.priority === 'عاجل' || i.priority === 'عاجلة').length,
+          عالية: open.filter(i => i.priority === 'عالية').length,
+          متوسطة: open.filter(i => i.priority === 'متوسطة').length,
+          منخفضة: open.filter(i => i.priority === 'منخفضة' || !i.priority).length
+        };
+        nextClient.urgentIssuesCount = (nextClient.issuesByPriority.عاجل || 0) + (nextClient.issuesByPriority.عالية || 0);
+      } else if (fieldName === 'requirements') {
+        const reqs = nextClient.requirements || [];
+        nextClient.requirementsCount = reqs.length;
+        nextClient.reqsByStatus = {
+          مقترح: reqs.filter(r => r.status === 'مقترح' || !r.status).length,
+          'قيد الدراسة': reqs.filter(r => r.status === 'قيد الدراسة').length,
+          مخطط: reqs.filter(r => r.status === 'مخطط').length,
+          منفذ: reqs.filter(r => r.status === 'منفذ').length
+        };
+      } else if (fieldName === 'contactHistory') {
+        const ch = nextClient.contactHistory || [];
+        nextClient.contactsCount = ch.length;
+        const latestContact = ch.reduce((latest, entry) => {
+          const d = entry?.date ? String(entry.date) : '';
+          return d && d > latest ? d : latest;
+        }, target.lastContact || '');
+        if (latestContact) nextClient.lastContact = latestContact;
+      }
+
+      if (nextClient._subcollectionsLoaded) {
+        nextClient.score = computeScore(nextClient).total;
+      }
+
+      latestList[idx] = nextClient;
+      batch(() => {
+        setClients(latestList);
+        if (!fromCache) {
+          setLastSyncedTime(new Date());
+        }
+      });
+    },
+    (error, collName) => {
+      if (isQuotaError(error)) {
+        handleFirestoreQuotaExceeded(`Client detail listener (${collName})`, error);
+        return;
+      }
+      console.warn(`[DetailSync] Subcollection listener notice (${collName}):`, error);
+    }
+  );
+
+  return detailUnsubscribe;
+}
+
+// Helper: build normalized client summary document preserving hydrated subcollections only when valid
+function normalizeClientSummary(docSnap, existingClient = null, preserveSubcollections = true) {
+  const data = docSnap && typeof docSnap.data === 'function' ? docSnap.data() : (docSnap || {});
+  const inlineProgs = Array.isArray(data.programs) ? data.programs : [];
+  const effectiveProgramsCount = inlineProgs.length > 0
+    ? Math.max(Number(data.programsCount || 0), inlineProgs.length)
+    : (data.programsCount || 0);
+  const effectiveInstallsCount = inlineProgs.length > 0
+    ? Math.max(Number(data.installationsCount || 0), inlineProgs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0))
+    : (data.installationsCount || 0);
+
+  const base = {
+    ...data,
+    id: data.id !== undefined ? data.id : docSnap?.id,
+    programs: inlineProgs,
+    programsCount: effectiveProgramsCount,
+    installationsCount: effectiveInstallsCount,
+    programNames: Array.isArray(data.programNames) && data.programNames.length > 0
+      ? data.programNames
+      : inlineProgs.map(p => p?.programName).filter(Boolean),
+    issues: data.issues || [],
+    requirements: data.requirements || [],
+    contactHistory: data.contactHistory || [],
+    gps: data.gps || { lat: null, lng: null },
+    _subcollectionsLoaded: false
+  };
+
+  if (preserveSubcollections && existingClient && existingClient._subcollectionsLoaded) {
+    const existingOpenIssuesCount = (existingClient.issues || []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')).length;
+    const existingReqCount = (existingClient.requirements || []).length;
+    const existingProgCount = (existingClient.programs || []).length;
+    const isDetailSubscribed = activeDetailClientId === String(base.id);
+    const remoteChangedCounts =
+      (base.programsCount !== undefined && Number(base.programsCount) !== existingProgCount) ||
+      (base.openIssuesCount !== undefined && Number(base.openIssuesCount) !== existingOpenIssuesCount) ||
+      (base.requirementsCount !== undefined && Number(base.requirementsCount) !== existingReqCount);
+
+    if (isDetailSubscribed || !remoteChangedCounts) {
+      return {
+        ...base,
+        programs: existingClient.programs,
+        programsCount: existingProgCount,
+        installationsCount: existingClient.programs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0),
+        programNames: existingClient.programs.map(p => p?.programName).filter(Boolean),
+        issues: existingClient.issues,
+        requirements: existingClient.requirements,
+        contactHistory: existingClient.contactHistory,
+        score: existingClient.score !== undefined ? existingClient.score : base.score,
+        _subcollectionsLoaded: true
+      };
+    }
+  }
+
+  return base;
+}
 
 export function startRealtimeSync(userId) {
-  stopRealtimeSync();
+  if (!userId) return;
+  if (_quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) {
+    updateState({
+      quotaExceeded: true,
+      dataIsStale: true,
+      connectionState: 'quota-exceeded'
+    });
+    return;
+  }
+
+  detachMainRealtimeListeners();
   reconciledClientsWithActivities = new Set();
   _backfillBlockedByPermission = false;
 
   let hasClientsSnapshot = false;
   let hasActivitiesSnapshot = false;
+  let clientMapById = new Map();
 
-  console.log("Starting real-time synchronization for user:", userId);
+  updateState({
+    connectionState: navigator?.onLine === false ? 'offline' : 'connecting',
+    lastListenerError: null
+  });
 
   // 1. Listen to user profile document (for stats and next ID sequence)
   const userDocRef = doc(db, 'users', userId);
   const unsubUser = onSnapshot(userDocRef, (snapshot) => {
+    const fromCache = Boolean(snapshot.metadata?.fromCache);
     if (snapshot.exists()) {
       const data = snapshot.data();
       const nextNid = data.nid || 100;
       const nextStats = data.stats || {};
-      const userDocChanged = S.nid !== nextNid || JSON.stringify(S.stats || {}) !== JSON.stringify(nextStats);
-      if (!userDocChanged && !snapshot.metadata.hasPendingWrites && _lastSyncedTime) {
-        return;
-      }
+      const nextConnState = navigator?.onLine === false
+        ? 'offline'
+        : (fromCache ? 'cached-stale' : 'live');
       batch(() => {
         updateState({
           nid: nextNid,
-          stats: nextStats
+          stats: nextStats,
+          hasConfirmedServerSync: !fromCache || S.hasConfirmedServerSync,
+          dataIsStale: fromCache && !S.hasConfirmedServerSync,
+          connectionState: nextConnState,
+          lastListenerError: null
         });
-        if (userDocChanged || !_lastSyncedTime || (Date.now() - _lastSyncedTime.getTime() > 15000)) {
+        if (!fromCache) {
           setLastSyncedTime(new Date());
         }
-        setSyncing(snapshot.metadata.hasPendingWrites);
+        setSyncing(false);
+        setSaveError(false);
       });
     }
   }, (error) => {
@@ -774,97 +1012,103 @@ export function startRealtimeSync(userId) {
     }
     console.error("User profile snapshot listener error:", error);
     setSaveError(true);
+    updateState({
+      dataIsStale: true,
+      connectionState: navigator?.onLine === false ? 'offline' : 'error',
+      lastListenerError: error?.message || String(error)
+    });
   });
 
-  // 2. Listen to clients collection (real-time summaries)
+  // 2. Listen to clients collection incrementally using docChanges()
   const clientsCollRef = collection(db, 'users', userId, 'clients');
   const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
-    hasClientsSnapshot = true;
-    const summaries = snapshot.docs.map(doc => {
-      const data = doc.data();
-      const inlineProgs = Array.isArray(data.programs) ? data.programs : [];
-      const effectiveProgramsCount = inlineProgs.length > 0
-        ? Math.max(Number(data.programsCount || 0), inlineProgs.length)
-        : (data.programsCount || 0);
-      const effectiveInstallsCount = inlineProgs.length > 0
-        ? Math.max(Number(data.installationsCount || 0), inlineProgs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0))
-        : (data.installationsCount || 0);
-      return {
-        ...data,
-        programs: inlineProgs,
-        programsCount: effectiveProgramsCount,
-        installationsCount: effectiveInstallsCount,
-        programNames: Array.isArray(data.programNames) && data.programNames.length > 0
-          ? data.programNames
-          : inlineProgs.map(p => p?.programName).filter(Boolean),
-        issues: data.issues || [],
-        requirements: data.requirements || [],
-        contactHistory: data.contactHistory || [],
-        gps: data.gps || { lat: null, lng: null },
-        _subcollectionsLoaded: false
-      };
-    });
+    const fromCache = Boolean(snapshot.metadata?.fromCache);
+    const prevClients = Array.isArray(clients) ? clients : [];
+    const existingById = new Map(prevClients.map(x => [String(x?.id), x]));
 
-    // Merge summaries with existing clients using O(1) map lookup to preserve already loaded details in memory
-    const existingById = new Map((clients || []).map(x => [String(x?.id), x]));
-    let mergedClients = summaries.map(newC => {
-      const existingC = existingById.get(String(newC.id));
-      if (existingC && existingC._subcollectionsLoaded) {
-        const existingOpenIssuesCount = (existingC.issues || []).filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')).length;
-        const existingReqCount = (existingC.requirements || []).length;
-        const existingProgCount = (existingC.programs || []).length;
-        const remoteChangedCounts = !snapshot.metadata.hasPendingWrites && (
-          (newC.programsCount !== undefined && Number(newC.programsCount) !== existingProgCount) ||
-          (newC.openIssuesCount !== undefined && Number(newC.openIssuesCount) !== existingOpenIssuesCount) ||
-          (newC.requirementsCount !== undefined && Number(newC.requirementsCount) !== existingReqCount)
-        );
-        if (!remoteChangedCounts) {
-          return {
-            ...newC,
-            programs: existingC.programs,
-            programsCount: existingProgCount,
-            installationsCount: existingC.programs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0),
-            programNames: existingC.programs.map(p => p?.programName).filter(Boolean),
-            issues: existingC.issues,
-            requirements: existingC.requirements,
-            contactHistory: existingC.contactHistory,
-            score: existingC.score !== undefined ? existingC.score : newC.score,
-            _subcollectionsLoaded: true
-          };
-        }
-      }
-      return newC;
-    });
-
-    // Safety guard: If subcollection listener reports 0 docs, but we already have loaded clients
-    // (e.g. from data.clients in the user doc or IndexedDB), preserve them!
-    if (summaries.length === 0 && clients && clients.length > 0) {
-      console.log(`[Realtime Sync] Subcollection empty but ${clients.length} clients exist in state. Preserving current client list.`);
-      mergedClients = clients;
+    // Integrity check: if cache claims 0 docs while confirmed server state already exists, do not wipe memory
+    if (snapshot.empty && fromCache && prevClients.length > 0) {
+      updateState({
+        clientsFromCache: true,
+        dataIsStale: true,
+        connectionState: navigator?.onLine === false ? 'offline' : 'cached-stale'
+      });
+      return;
     }
 
-    const clientsChanged = mergedClients !== clients && JSON.stringify(clients) !== JSON.stringify(mergedClients);
-    batch(() => {
-      setSyncing(snapshot.metadata.hasPendingWrites);
-      if (clientsChanged) {
-        setClients(mergedClients);
+    const canUseDocChanges = hasClientsSnapshot && typeof snapshot.docChanges === 'function';
+    let nextClients;
+
+    if (canUseDocChanges) {
+      const changes = snapshot.docChanges();
+      if (changes.length === 0 && !fromCache && prevClients.length > 0) {
+        updateState({
+          clientsFromCache: false,
+          hasConfirmedServerSync: true,
+          dataIsStale: false,
+          connectionState: 'live',
+          lastListenerError: null
+        });
+        setLastSyncedTime(new Date());
+        setSaveError(false);
+        return;
       }
-      if (clientsChanged || !_lastSyncedTime || (Date.now() - _lastSyncedTime.getTime() > 15000)) {
+
+      for (const change of changes) {
+        const docId = String(change.doc.data()?.id ?? change.doc.id);
+        if (change.type === 'removed') {
+          clientMapById.delete(docId);
+        } else {
+          const prevItem = existingById.get(docId) || clientMapById.get(docId);
+          clientMapById.set(docId, normalizeClientSummary(change.doc, prevItem, true));
+        }
+      }
+      nextClients = Array.from(clientMapById.values());
+    } else {
+      clientMapById = new Map();
+      for (const d of snapshot.docs) {
+        const docId = String(d.data()?.id ?? d.id);
+        const prevItem = existingById.get(docId);
+        clientMapById.set(docId, normalizeClientSummary(d, prevItem, true));
+      }
+      nextClients = Array.from(clientMapById.values());
+    }
+
+    hasClientsSnapshot = true;
+
+    // Maintain consistent order matching current state
+    nextClients.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+
+    const clientsChanged = JSON.stringify(prevClients) !== JSON.stringify(nextClients);
+    const nextConnState = navigator?.onLine === false
+      ? 'offline'
+      : (fromCache ? 'cached-stale' : 'live');
+
+    batch(() => {
+      setSyncing(false);
+      if (clientsChanged) {
+        setClients(nextClients);
+      }
+      updateState({
+        clientsFromCache: fromCache,
+        hasConfirmedServerSync: !fromCache || S.hasConfirmedServerSync,
+        dataIsStale: fromCache,
+        connectionState: nextConnState,
+        lastListenerError: null
+      });
+      if (!fromCache) {
         setLastSyncedTime(new Date());
       }
       setSaveError(false);
     });
 
-    const needsFullFleetHydration =
-      S.view === 'dashboard' ||
-      S.modal === 'geoReport' ||
-      S.modal === 'licenses_explorer' ||
-      S.modal === 'tickets_and_reqs';
-
-    if (!_quotaBlocked && !globalThis?.__progilicFirestoreQuotaExceeded) {
-      if (needsFullFleetHydration && mergedClients.some(c => c && !c._subcollectionsLoaded)) {
-        hydrateAllClientSubcollections(userId).catch(console.warn);
-      } else if (hasActivitiesSnapshot || mergedClients.some(c => (c.programs || []).length > 0)) {
+    // Never run eager 4xN fleet hydration! Only repair genuinely legacy unbackfilled inline programs after server confirmation.
+    if (!fromCache && !_quotaBlocked && !globalThis?.__progilicFirestoreQuotaExceeded) {
+      const hasLegacyInlineUnbackfilled = nextClients.some(c => {
+        const inlineProgs = Array.isArray(c?.programs) ? c.programs.filter(Boolean) : [];
+        return inlineProgs.length > 0 && Number(c?.programsCount || 0) < inlineProgs.length;
+      });
+      if (hasLegacyInlineUnbackfilled) {
         recoverMissingClientPrograms(userId, hasActivitiesSnapshot ? S.globalActivities : null).catch(console.warn);
       }
     }
@@ -875,62 +1119,84 @@ export function startRealtimeSync(userId) {
     }
     console.error("Clients collection snapshot listener error:", error);
     setSaveError(true);
+    updateState({
+      dataIsStale: true,
+      connectionState: navigator?.onLine === false ? 'offline' : 'error',
+      lastListenerError: error?.message || String(error)
+    });
   });
 
-  // 3. Listen to employees collection (real-time cross-device sync)
-  const employeesCollRef = collection(db, 'users', userId, 'employees');
-  const unsubEmployees = onSnapshot(employeesCollRef, (snapshot) => {
-    const remoteStaff = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }));
-    if (remoteStaff.length > 0) {
-      console.log(`[Realtime Sync] Received ${remoteStaff.length} employees from Firestore for user ${userId}`);
-      setStaffUsers(remoteStaff, userId);
+  // 3. Listen to employees collection (real-time cross-device sync, zero duplicate initial fetch)
+  let defaultGerantProvisioned = false;
+  const unsubEmployees = subscribeEmployeesForTenant(
+    userId,
+    (remoteStaff, meta = {}) => {
+      const fromCache = Boolean(meta.fromCache);
+      if (remoteStaff.length > 0) {
+        setStaffUsers(remoteStaff, userId);
+      } else if (!fromCache && !defaultGerantProvisioned && !_quotaBlocked && navigator?.onLine !== false) {
+        // Server confirmed 0 employee docs for this tenant -> create default Gerant once
+        defaultGerantProvisioned = true;
+        import('../firebase/service.js').then(({ saveEmployeeForTenant }) => {
+          const authEmail = auth?.currentUser?.email || '';
+          const authName = auth?.currentUser?.displayName || authEmail.split('@')[0] || 'المدير العام (GERANT)';
+          const defaultGerant = createDefaultGerant(userId, authName);
+          defaultGerant.adminEmail = authEmail;
+          defaultGerant.status = 'نشط';
+          defaultGerant.createdAt = new Date().toISOString().split('T')[0];
+          return saveEmployeeForTenant(userId, defaultGerant).then(() => {
+            setStaffUsers([defaultGerant], userId);
+          });
+        }).catch(err => {
+          defaultGerantProvisioned = false;
+          if (isQuotaError(err)) handleFirestoreQuotaExceeded('Provision default gerant', err);
+          else console.warn("[Realtime Sync] Default gerant provision failed:", err);
+        });
+      }
+    },
+    (error) => {
+      if (isQuotaError(error)) {
+        handleFirestoreQuotaExceeded('Employees collection snapshot listener', error);
+        return;
+      }
+      console.warn("Employees collection snapshot listener notice:", error);
     }
-  }, (error) => {
-    if (isQuotaError(error)) {
-      handleFirestoreQuotaExceeded('Employees collection snapshot listener', error);
-      return;
-    }
-    console.warn("Employees collection snapshot listener notice:", error);
-  });
+  );
 
-  // 4. Listen to activities subcollection (real-time cross-device and multi-user audit timeline sync)
-  const activitiesCollRef = collection(db, 'users', userId, 'activities');
-  const unsubActivities = onSnapshot(activitiesCollRef, (snapshot) => {
-    hasActivitiesSnapshot = true;
-    const remoteActivities = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }));
-    remoteActivities.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+  // 4. Listen to bounded recent activities subcollection (limit 200, ordered newest-first)
+  const unsubActivities = subscribeTenantActivities(
+    userId,
+    200,
+    (remoteActivities, meta = {}) => {
+      hasActivitiesSnapshot = true;
+      const fromCache = Boolean(meta.fromCache);
+      const prevActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
+      const activitiesChanged = prevActivities.length !== remoteActivities.length ||
+        JSON.stringify(prevActivities) !== JSON.stringify(remoteActivities);
 
-    const prevActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
-    const activitiesChanged = prevActivities.length !== remoteActivities.length ||
-      JSON.stringify(prevActivities) !== JSON.stringify(remoteActivities);
-
-    if (activitiesChanged) {
       batch(() => {
-        S.globalActivities = remoteActivities;
-        if (S.selId) {
-          S.clientActivities = remoteActivities.filter(a => Number(a.clientId) === Number(S.selId));
+        if (activitiesChanged) {
+          S.globalActivities = remoteActivities;
+          if (S.selId) {
+            S.clientActivities = remoteActivities.filter(a => Number(a.clientId) === Number(S.selId));
+          }
         }
-        if (!_lastSyncedTime || (Date.now() - _lastSyncedTime.getTime() > 15000)) {
+        updateState({
+          timelineCloudStatus: fromCache ? 'cached' : 'synced'
+        });
+        if (!fromCache && activitiesChanged) {
           setLastSyncedTime(new Date());
         }
       });
+    },
+    (error) => {
+      if (isQuotaError(error)) {
+        handleFirestoreQuotaExceeded('Activities collection snapshot listener', error);
+        return;
+      }
+      console.warn("Activities collection snapshot listener notice:", error);
     }
-    if (hasClientsSnapshot && !_quotaBlocked && !globalThis?.__progilicFirestoreQuotaExceeded) {
-      recoverMissingClientPrograms(userId, remoteActivities).catch(console.warn);
-    }
-  }, (error) => {
-    if (isQuotaError(error)) {
-      handleFirestoreQuotaExceeded('Activities collection snapshot listener', error);
-      return;
-    }
-    console.warn("Activities collection snapshot listener notice:", error);
-  });
+  );
 
   activeUnsubscribers.push(unsubUser, unsubClients, unsubEmployees, unsubActivities);
 }
@@ -945,17 +1211,37 @@ export function stopRealtimeSync() {
   }
   _hydrationInFlightPromise = null;
   _hydrationInFlightUid = null;
-  if (activeUnsubscribers.length > 0) {
-    console.log("Stopping real-time synchronization, cleaning up listeners...");
-    activeUnsubscribers.forEach(unsub => {
-      try {
-        unsub();
-      } catch (err) {
-        console.error("Error unsubscribing:", err);
-      }
-    });
-    activeUnsubscribers = [];
+  detachMainRealtimeListeners();
+  stopClientDetailSync();
+}
+
+export async function reconnectRealtimeSync() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    updateState({ isOnline: false, connectionState: 'offline' });
+    showToast(t('لا يوجد اتصال بالإنترنت حالياً. يرجى التحقق من الشبكة ثم المحاولة.'), 'error');
+    return false;
   }
+  const activeAuthUser = auth?.currentUser;
+  if (!activeAuthUser || !activeAuthUser.uid) {
+    showToast(t('يرجى تسجيل الدخول لإعادة الاتصال بالسحابة.'), 'error');
+    return false;
+  }
+
+  _quotaBlocked = false;
+  _quotaToastShown = false;
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__progilicFirestoreQuotaExceeded = false;
+  }
+  updateState({
+    quotaExceeded: false,
+    dataIsStale: false,
+    lastListenerError: null,
+    connectionState: 'connecting'
+  });
+  setSaveError(false);
+
+  await loadDataFromFirestore(activeAuthUser);
+  return !_quotaBlocked;
 }
 
 /**
@@ -985,105 +1271,94 @@ export function loadDataFromFirestore(user) {
 }
 
 async function doLoadDataFromFirestore(user) {
-  let data = null;
-  let fetchFailed = false;
+  if (!user || !user.uid) return;
+  if (_quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) {
+    updateState({
+      quotaExceeded: true,
+      dataIsStale: true,
+      connectionState: 'quota-exceeded'
+    });
+    return;
+  }
 
   try {
-    console.log("loadDataFromFirestore: start");
     batch(() => {
+      setLoading(true);
       setSyncing(true);
       setSaveError(false);
+      updateState({
+        connectionState: navigator?.onLine === false ? 'offline' : 'connecting',
+        lastListenerError: null
+      });
     });
 
-    // Strict Online Mode: Direct Cloud Firestore loading without local disk cache
-    setLoading(true);
-
-    try {
-      if (user && (user.emailVerified || user.providerData.some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com'))) {
-        try {
-          // Use standard cached token; only force refresh upon permission errors to prevent multi-device token contention
-          await user.getIdToken();
-        } catch (tokErr) {
-          console.warn("Failed to retrieve ID token:", tokErr);
-        }
-      }
-      console.log("loadDataFromFirestore: before getUserData with 12s timeout");
-      
-      // Resilient 12-second race timeout: provides ample time for cellular/cold connections while local cache serves UI
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 12000)
-      );
-      data = await Promise.race([getUserData(user.uid), timeoutPromise]);
-      console.log("loadDataFromFirestore: after getUserData", data);
-    } catch (fetchErr) {
-      const isPermissionErr = fetchErr.message && (
-        fetchErr.message.includes("permission") || 
-        fetchErr.message.includes("permissions") || 
-        fetchErr.message.includes("Missing or insufficient permissions")
-      );
-      if (isPermissionErr && user) {
-        try {
-          console.log("Permission error in loadDataFromFirestore, attempting ID token force refresh and retry...");
-          await user.getIdToken(true);
-          const retryTimeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 8000)
-          );
-          data = await Promise.race([getUserData(user.uid), retryTimeoutPromise]);
-          console.log("Retry getUserData succeeded after ID token force refresh");
-        } catch (retryErr) {
-          console.error("Retry getUserData failed after ID token force refresh:", retryErr);
-          fetchFailed = true;
-          if (!clients || clients.length === 0) setSaveError(true);
-        }
-      } else {
-        console.warn("Could not load user data from Firestore server within timeout, operating with local cache:", fetchErr);
-        fetchFailed = true;
-        // If we already have clients in local cache, do not show an alarming red error
-        if (!clients || clients.length === 0) {
-          setSaveError(true);
-        }
+    if (user && typeof user.getIdToken === 'function' && (user.emailVerified || (user.providerData || []).some(p => p.providerId === 'google.com' || p.providerId === 'facebook.com'))) {
+      try {
+        await user.getIdToken();
+      } catch (tokErr) {
+        console.warn("Failed to retrieve ID token:", tokErr);
       }
     }
 
-    if (!fetchFailed) {
-      const baseClients = (data && data.clients && Array.isArray(data.clients) && data.clients.length > 0)
-        ? data.clients
-        : (clients && clients.length > 0 ? clients : []);
-      const mergedClients = mergeClientLists(baseClients);
-      const { stats: computedStats, nid: computedNid } = computeStats(mergedClients);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(Object.assign(new Error('FIRESTORE_TIMEOUT'), { code: 'network-offline' })), 12000)
+    );
 
-      console.log(`[Storage] User profile metadata loaded (Clients will be populated via real-time subcollection listener).`);
-      batch(() => {
-        setClients(mergedClients);
-        updateState({
-          nid: Math.max(Number(data?.nid) || 100, computedNid),
-          stats: computedStats
-        });
-      });
+    let res;
+    try {
+      res = await Promise.race([getUserDataStrict(user.uid), timeoutPromise]);
+    } catch (timeoutOrErr) {
+      res = {
+        status: classifyFirestoreError(timeoutOrErr),
+        exists: false,
+        fromCache: false,
+        data: null,
+        error: timeoutOrErr
+      };
+    }
 
-      // Strictly Online: No local persistence.
-      import('./timelineService.js').then(m => m.syncCrmServicesToTimeline(user.uid)).catch(console.warn);
-
-      // If user doc didn't exist or had older schema or fewer clients, commit to Cloud Firestore
-      if (!data || data.v === undefined || Number(data.v) < 3 || (data.clients && data.clients.length < mergedClients.length)) {
-        console.log(`[Storage] Syncing merged database (${mergedClients.length} clients) to Cloud Firestore...`);
-        const payload = {
-          v: SCHEMA_VERSION,
-          updatedAt: new Date().toISOString(),
-          nid: computedNid,
-          stats: computedStats
+    if (res.status === 'permission-denied' && typeof user.getIdToken === 'function') {
+      try {
+        await user.getIdToken(true);
+        const retryTimeout = new Promise((_, reject) =>
+          setTimeout(() => reject(Object.assign(new Error('FIRESTORE_TIMEOUT'), { code: 'network-offline' })), 8000)
+        );
+        res = await Promise.race([getUserDataStrict(user.uid), retryTimeout]);
+      } catch (retryErr) {
+        res = {
+          status: classifyFirestoreError(retryErr),
+          exists: false,
+          fromCache: false,
+          data: null,
+          error: retryErr
         };
-        saveUserData(user.uid, payload).catch(console.warn);
-        migrateLegacyDataIfNeeded(user.uid, { clients: mergedClients }, computedNid).catch(err => {
-          console.warn("[Storage] Cloud migration notice:", err);
-        });
       }
-    } else {
-      // Fetch failed or timed out, make sure we fallback to loaded cache states safely
-      console.log("Using cached stats and sequence ID:", S.stats, S.nid);
+    }
+
+    if (res.status === 'quota-exceeded') {
+      handleFirestoreQuotaExceeded('Initial user profile load', res.error);
+      return;
+    }
+
+    if (res.status === 'permission-denied' || res.status === 'network-offline' || res.status === 'unauthenticated' || res.status === 'unknown') {
+      console.warn(`[Storage] Initial user doc load failed (${res.status}). Preserving confirmed state without overwriting cloud.`, res.error);
+      setSaveError(true);
       updateState({
-        nid: S.nid || 100,
-        stats: S.stats || {
+        dataIsStale: true,
+        connectionState: res.status === 'network-offline' ? 'offline' : 'error',
+        lastListenerError: res.error?.message || res.status
+      });
+      // Do NOT attach migration or overwrite { v: 3 } on failed read!
+      if (res.status !== 'permission-denied' && res.status !== 'unauthenticated' && navigator?.onLine !== false) {
+        startRealtimeSync(user.uid);
+      }
+      return;
+    }
+
+    if (res.status === 'missing') {
+      // Only initialize new tenant profile when server explicitly confirmed missing (!fromCache && online)
+      if (!res.fromCache && navigator?.onLine !== false) {
+        const emptyStats = {
           activeClients: 0,
           prospectiveClients: 0,
           stoppedClients: 0,
@@ -1092,65 +1367,78 @@ async function doLoadDataFromFirestore(user) {
           totalLicensedDevices: 0,
           averageScore: 100,
           totalOpenIssues: 0
-        }
-      });
-    }
-
-    // 2. Load tenant-isolated employees from Firestore
-    try {
-      const { getEmployeesForTenant, saveEmployeeForTenant } = await import('../firebase/service.js');
-      const remoteStaff = await getEmployeesForTenant(user.uid);
-      if (Array.isArray(remoteStaff) && remoteStaff.length > 0) {
-        setStaffUsers(remoteStaff, user.uid);
-
-        // Upload any locally created offline employees that are missing in remote
-        const { getEmployees } = await import('./employeeService.js');
-        const localList = getEmployees();
-        const missingInRemote = (localList || []).filter(loc => 
-          loc.id !== 'gerant' && !remoteStaff.some(rem => rem.id === loc.id || rem.username === loc.username)
-        );
-        if (missingInRemote.length > 0) {
-          console.log(`[Storage] Uploading ${missingInRemote.length} offline employees to Firestore...`);
-          for (const emp of missingInRemote) {
-            await saveEmployeeForTenant(user.uid, emp);
+        };
+        try {
+          await saveUserData(user.uid, {
+            v: SCHEMA_VERSION,
+            updatedAt: new Date().toISOString(),
+            nid: 100,
+            stats: emptyStats
+          });
+          updateState({
+            nid: 100,
+            stats: emptyStats,
+            hasConfirmedServerSync: true,
+            dataIsStale: false,
+            connectionState: 'live'
+          });
+        } catch (initErr) {
+          if (isQuotaError(initErr)) {
+            handleFirestoreQuotaExceeded('Initialize new user profile', initErr);
+            return;
           }
-        }
-      } else {
-        // Firestore is empty: check if this device already has local employees from previous sessions
-        const { getEmployees } = await import('./employeeService.js');
-        const localList = getEmployees();
-        const nonGerant = (localList || []).filter(e => e.id !== 'gerant');
-        if (nonGerant.length > 0) {
-          console.log(`[Storage] Pushing ${localList.length} local employees to Firestore for first-time cloud sync...`);
-          for (const emp of localList) {
-            await saveEmployeeForTenant(user.uid, emp);
-          }
-          setStaffUsers(localList, user.uid);
-        } else {
-          const defaultGerant = createDefaultGerant(user.uid, user.displayName || user.email?.split('@')[0] || 'المدير العام (GERANT)');
-          defaultGerant.adminEmail = user.email || '';
-          defaultGerant.status = 'نشط';
-          defaultGerant.createdAt = new Date().toISOString().split('T')[0];
-          await saveEmployeeForTenant(user.uid, defaultGerant);
-          setStaffUsers([ defaultGerant ], user.uid);
+          console.warn('[Storage] User profile initialization notice:', initErr);
         }
       }
-    } catch (staffSyncErr) {
-      console.warn("[Storage] Tenant staff sync notice:", staffSyncErr);
+    } else if (res.status === 'ok' && res.data) {
+      const data = res.data;
+      const legacyClients = Array.isArray(data.clients) && data.clients.length > 0 ? data.clients : null;
+
+      batch(() => {
+        if (legacyClients) {
+          const merged = mergeClientLists(legacyClients);
+          const { stats: computedStats, nid: computedNid } = computeStats(merged);
+          setClients(merged);
+          updateState({
+            nid: Math.max(Number(data.nid) || 100, computedNid),
+            stats: data.stats || computedStats
+          });
+        } else {
+          updateState({
+            nid: Math.max(Number(data.nid) || 100, S.nid || 100),
+            stats: data.stats || S.stats
+          });
+        }
+        updateState({
+          hasConfirmedServerSync: !res.fromCache,
+          dataIsStale: Boolean(res.fromCache),
+          connectionState: res.fromCache ? 'cached-stale' : 'live'
+        });
+      });
+
+      // Only migrate if doc explicitly contains legacy inline clients & schema < 3 & confirmed from server
+      if (!res.fromCache && legacyClients && (data.v === undefined || Number(data.v) < 3) && navigator?.onLine !== false) {
+        const { nid: computedNid } = computeStats(legacyClients);
+        migrateLegacyDataIfNeeded(user.uid, { clients: legacyClients }, computedNid).catch(err => {
+          console.warn("[Storage] Cloud migration notice:", err);
+        });
+      }
     }
 
-    // 3. Start the real-time sync listeners
-    console.log("loadDataFromFirestore: before startRealtimeSync");
+    // Start real-time listeners (clients, user profile, employees, bounded activities)
     startRealtimeSync(user.uid);
-    console.log("loadDataFromFirestore: after startRealtimeSync");
   } catch (err) {
-    console.error("Error loading from Firestore:", err.message || String(err));
-    // Support robust offline-first: do not overwrite clients in memory if we already have some loaded
-    if (!clients || clients.length === 0) {
-      setClients([]);
+    if (isQuotaError(err)) {
+      handleFirestoreQuotaExceeded('loadDataFromFirestore', err);
+      return;
     }
-    updateState({ nid: S.nid || 100 });
+    console.error("Error loading from Firestore:", err?.message || String(err));
     setSaveError(true);
+    updateState({
+      dataIsStale: true,
+      connectionState: navigator?.onLine === false ? 'offline' : 'error',
+      lastListenerError: err?.message || String(err)
+    });
   } finally {
     batch(() => {
       setLoading(false);
@@ -1587,39 +1875,41 @@ export function importData(file){
       const confirmed = await showConfirm(confirmPrompt, t('استيراد البيانات'));
       if(!confirmed)return;
       
-      setSyncing(true);
-
-      const maxId=d.clients.reduce((m,c)=>Math.max(m,Number(c.id)||0,...(c.issues||[]).map(i=>Number(i.id)||0),...(c.requirements||[]).map(r=>Number(r.id)||0)),0);
-      const nextNid = Math.max(d.nid||0, maxId)+1;
-      
-      // Perform automated import schema migration onto the subcollections in the background!
-      if (currentUser && currentUser.uid) {
-        migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid).catch(err => {
-          console.warn("Background migration failed (offline), will rely on local persistence:", err);
-        });
+      if (S.quotaExceeded || _quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) {
+        showToast(t('تم تجاوز حصة القراءة والكتابة اليومية، تعذر الاستيراد السحابي الآن.'), 'error');
+        return;
       }
-      
-      const stats = d.stats || {
-        activeClients: d.clients.filter(c => c.status === 'نشط').length,
-        prospectiveClients: d.clients.filter(c => c.status === 'محتمل').length,
-        stoppedClients: d.clients.filter(c => c.status === 'متوقف').length,
-        totalClients: d.clients.length,
-        totalPrograms: d.clients.reduce((acc, c) => acc + (c.programs || []).length, 0),
-        totalLicensedDevices: d.clients.reduce((acc, c) => acc + (c.programs || []).reduce((sum, p) => sum + (Number(p.installationsCount) || 1), 0), 0),
-        averageScore: d.clients.length > 0 ? Math.round(d.clients.reduce((acc, c) => acc + (c.score || 100), 0) / d.clients.length) : 100,
-        totalOpenIssues: d.clients.reduce((acc, c) => acc + (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length, 0)
-      };
-      
+      if (!S.isOnline || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+        showToast(t('النظام يعمل حصرياً أونلاين: لا يمكن استيراد البيانات بدون اتصال فعلي بالسحابة.'), 'error');
+        return;
+      }
+
+      setSyncing(true);
+      updateState({ isMutating: true });
+
+      const maxId = d.clients.reduce((m, c) => Math.max(m, Number(c.id) || 0, ...(c.issues || []).map(i => Number(i.id) || 0), ...(c.requirements || []).map(r => Number(r.id) || 0)), 0);
+      const nextNid = Math.max(d.nid || 0, maxId) + 1;
+
+      if (!currentUser || !currentUser.uid) {
+        throw new Error(t('يجب تسجيل الدخول لاستيراد البيانات إلى السحابة.'));
+      }
+
+      // Await Cloud Firestore acknowledgement BEFORE updating confirmed UI state
+      await migrateLegacyDataIfNeeded(currentUser.uid, d, nextNid);
+
+      const stats = d.stats || computeStats(d.clients).stats;
       setClients(d.clients.map(c => ({ ...c, _subcollectionsLoaded: true })));
-      updateState({ nid: nextNid, stats });
+      updateState({ nid: nextNid, stats, hasConfirmedServerSync: true });
       setLastSyncedTime(new Date());
-      showToast(t(`تم استيراد ${d.clients.length} عميل بنجاح من ملف ${fileTypeLabel}!`), "success");
-      S.view='list';S.selId=null;S.modal=null;S.gi=false;
+      showToast(t(`تم استيراد ${d.clients.length} عميل وحفظهم في السحابة بنجاح!`), "success");
+      S.view = 'list'; S.selId = null; S.modal = null; S.gi = false;
       R();
-    }catch(er){
-      showToast(t('خطأ في الاستيراد: ')+er.message, 'error');
+    } catch (er) {
+      if (isQuotaError(er)) handleFirestoreQuotaExceeded('Import backup', er);
+      else showToast(t('فشل الحفظ السحابي للاستيراد: ') + er.message, 'error');
     } finally {
       setSyncing(false);
+      updateState({ isMutating: false });
     }
   };
   reader.readAsText(file);
@@ -1704,258 +1994,196 @@ export async function clearAllData(){
 }
 
 // ==========================================
-// ENTERPRISE OFFLINE SYNCHRONIZATION ENGINE
+// STRICT ONLINE-ONLY TRANSACTIONAL SYNC ENGINE
+// (Zero offline queue, zero deferred sync, zero polling retry loops)
 // ==========================================
 
-let _isFlushing = false;
-let retryTimer = null;
-
 export async function loadCache() {
+  updateState({
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    connectionState: (typeof navigator !== 'undefined' && navigator.onLine === false) ? 'offline' : S.connectionState
+  });
+}
+
+export async function commitOnlineMutation(type, payload) {
+  const browserOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+  if (!browserOnline || !S.isOnline) {
+    const offlineErr = new Error(t('الاتصال بالإنترنت مقطوع. لا يمكن حفظ أي تعديل إلا بعد تأكيده من السحابة.'));
+    offlineErr.code = 'network-offline';
+    setSaveError(true);
+    updateState({ isOnline: false, connectionState: 'offline' });
+    throw offlineErr;
+  }
+
+  if (_quotaBlocked || S.quotaExceeded || globalThis?.__progilicFirestoreQuotaExceeded) {
+    const quotaErr = new Error(t('تم تجاوز الحد اليومي لحصة Firestore. الكتابة معلقة مؤقتاً لحماية قاعدة البيانات.'));
+    quotaErr.code = 'resource-exhausted';
+    throw quotaErr;
+  }
+
+  const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || (currentUser && !currentUser.isEmployee ? currentUser.uid : null) || getActiveTenantId() || currentUser?.uid;
+  if (!uid) {
+    const authErr = new Error(t('يجب تسجيل الدخول بحساب سحابي صالح قبل حفظ التعديلات.'));
+    authErr.code = 'unauthenticated';
+    throw authErr;
+  }
+
+  updateState({ isMutating: true, syncQueue: [] });
+  setSyncing(true);
+  setSaveError(false);
+
   try {
-    updateState({ isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
-    const uid = currentUser?.uid;
-    if (!uid) return;
-    const cached = await getClients(uid);
-    const merged = mergeClientLists(cached && cached.length > 0 ? cached : clients);
-    const { stats, nid } = computeStats(merged);
-    
-    batch(() => {
-      setClients(merged);
-      updateState({ stats, nid });
+    let result = null;
+    switch (type) {
+      case 'ADD_CLIENT':
+        result = await addClientTransaction(uid, payload.clientData, payload.stats);
+        break;
+      case 'UPDATE_CLIENT':
+        result = await updateClientTransaction(
+          uid,
+          payload.clientId,
+          payload.clientData,
+          payload.oldStatus,
+          payload.stats,
+          payload.baseVersion ?? 0
+        );
+        break;
+      case 'DELETE_CLIENT':
+        result = await deleteClientTransaction(uid, payload.clientId, payload.clientData, payload.stats);
+        break;
+      case 'SAVE_SUB_ITEM':
+        result = await saveClientSubItemTransaction(
+          uid,
+          payload.clientId,
+          payload.collectionName,
+          payload.itemId,
+          payload.itemData,
+          payload.counterUpdates,
+          payload.stats
+        );
+        break;
+      case 'DELETE_SUB_ITEM':
+        result = await deleteClientSubItemTransaction(
+          uid,
+          payload.clientId,
+          payload.collectionName,
+          payload.itemId,
+          payload.counterUpdates,
+          payload.stats
+        );
+        break;
+      default:
+        throw new Error(`Unsupported mutation type: ${type}`);
+    }
+
+    setLastSyncedTime(new Date());
+    setSaveError(false);
+    updateState({
+      hasConfirmedServerSync: true,
+      dataIsStale: false,
+      connectionState: 'live',
+      lastListenerError: null
     });
 
-    console.log(`[Offline Cache] Session hydrated with ${merged.length} clients for tenant ${uid}.`);
-    saveClients(uid, merged).catch(console.warn);
-    setMeta(uid, 'stats', stats).catch(console.warn);
-    setMeta(uid, 'nid', nid).catch(console.warn);
-  } catch (e) {
-    console.error("[Offline Cache] Error loading from local cache:", e);
+    createSnapshotBackup(uid, "تلقائي بعد المزامنة", clients, S.stats, S.nid)
+      .catch(err => console.warn("[Backup] Snapshot after sync notice:", err));
+
+    return result || { acknowledged: true };
+  } catch (err) {
+    if (err?.code === 'VERSION_CONFLICT' || (err?.message && err.message.includes('VERSION_CONFLICT'))) {
+      setSaveError(true);
+      updateState({
+        conflictItem: {
+          id: `${Date.now()}-conflict`,
+          type,
+          payload,
+          timestamp: new Date().toISOString()
+        },
+        conflictServerData: err.serverData || null,
+        modal: 'conflict'
+      });
+      if (typeof window !== 'undefined' && typeof window.R === 'function') window.R();
+      else R();
+      throw err;
+    }
+
+    if (isQuotaError(err)) {
+      handleFirestoreQuotaExceeded(`Mutation(${type})`, err);
+      throw err;
+    }
+
+    setSaveError(true);
+    const kind = classifyFirestoreError(err);
+    if (kind === 'network-offline') {
+      updateState({ connectionState: 'offline' });
+    }
+    throw err;
+  } finally {
+    setSyncing(false);
+    updateState({ isMutating: false });
   }
 }
 
 export async function flushSyncQueue() {
-  if (_isFlushing) return;
-  if (!S.isOnline || !currentUser) return;
-  
-  const queue = S.syncQueue || [];
-  if (queue.length === 0) {
-    setSyncing(false);
-    return;
+  // No offline queue in strict online-only architecture
+  if (Array.isArray(S.syncQueue) && S.syncQueue.length > 0) {
+    updateState({ syncQueue: [] });
   }
-
-  _isFlushing = true;
-  setSyncing(true);
-  setSaveError(false);
-  console.log(`[Offline Sync] Starting to flush ${queue.length} pending operations...`);
-
-  const nextQueue = [...queue];
-  let errorOccurred = false;
-
-  while (nextQueue.length > 0 && S.isOnline) {
-    const item = nextQueue[0];
-    try {
-      console.log(`[Offline Sync] Processing action: ${item.type}`, item.payload);
-      
-      const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || (currentUser && !currentUser.isEmployee ? currentUser.uid : null) || getActiveTenantId() || currentUser?.uid;
-      switch (item.type) {
-        case 'ADD_CLIENT':
-          await addClientTransaction(uid, item.payload.clientData, item.payload.stats);
-          break;
-        case 'UPDATE_CLIENT':
-          await updateClientTransaction(uid, item.payload.clientId, item.payload.clientData, item.payload.oldStatus, item.payload.stats);
-          break;
-        case 'DELETE_CLIENT':
-          await deleteClientTransaction(uid, item.payload.clientId, item.payload.clientData, item.payload.stats);
-          break;
-        case 'SAVE_SUB_ITEM':
-          await saveClientSubItemTransaction(
-            uid,
-            item.payload.clientId,
-            item.payload.collectionName,
-            item.payload.itemId,
-            item.payload.itemData,
-            item.payload.counterUpdates,
-            item.payload.stats
-          );
-          break;
-        case 'DELETE_SUB_ITEM':
-          await deleteClientSubItemTransaction(
-            uid,
-            item.payload.clientId,
-            item.payload.collectionName,
-            item.payload.itemId,
-            item.payload.counterUpdates,
-            item.payload.stats
-          );
-          break;
-        default:
-          console.warn(`[Offline Sync] Unknown action type: ${item.type}`);
-      }
-
-      // Success! Remove from local queue
-      nextQueue.shift();
-      updateState({ syncQueue: nextQueue });
-      setLastSyncedTime(new Date());
-    } catch (err) {
-      console.error(`[Offline Sync] Failed to process action ${item.type}:`, err);
-      
-      if (err.code === 'VERSION_CONFLICT' || (err.message && err.message.includes('VERSION_CONFLICT'))) {
-        _isFlushing = false;
-        errorOccurred = true;
-        setSaveError(true);
-        updateState({ 
-          conflictItem: item, 
-          conflictServerData: err.serverData,
-          modal: 'conflict'
-        });
-        if (typeof window !== 'undefined' && window.R) window.R();
-        break; 
-      }
-      
-      const isNetworkError = !navigator.onLine || 
-                            err.message.includes("network") || 
-                            err.message.includes("failed-precondition") ||
-                            err.message.includes("offline") ||
-                            err.message.includes("Unavailable");
-
-      if (isNetworkError) {
-        errorOccurred = true;
-        setSaveError(true);
-        break; // Stop loop, keep item in queue
-      } else {
-        // Discard permanent errors
-        console.warn(`[Offline Sync] Non-retryable error on action ${item.type}. Dropping operation.`, err);
-        nextQueue.shift();
-        updateState({ syncQueue: nextQueue });
-      }
-    }
-  }
-
-  _isFlushing = false;
-  setSyncing(false);
-
-  if (errorOccurred) {
-    scheduleRetry();
-  } else {
-    if (retryTimer) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-    console.log("[Offline Sync] All pending operations successfully flushed.");
-    
-    // Create an automatic rolling snapshot backup after successful sync completion!
-    const backupUid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
-    if (backupUid) {
-      createSnapshotBackup(backupUid, "تلقائي بعد المزامنة", clients, S.stats, S.nid)
-        .catch(err => console.error("[Backup] Snapshot after sync failed:", err));
-    }
-  }
-}
-
-function scheduleRetry() {
-  if (retryTimer) return;
-  retryTimer = setTimeout(() => {
-    retryTimer = null;
-    if (S.isOnline) {
-      flushSyncQueue();
-    } else {
-      scheduleRetry();
-    }
-  }, 10000);
+  return true;
 }
 
 export function enqueueSyncAction(type, payload) {
-  const currentQueue = S.syncQueue || [];
-  const newItem = {
-    id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-    type,
-    payload,
-    timestamp: new Date().toISOString()
-  };
-  
-  updateState({ syncQueue: [...currentQueue, newItem] });
-  
-  if (S.isOnline) {
-    flushSyncQueue();
-  }
+  return commitOnlineMutation(type, payload);
 }
 
-// Strict Online Mode: Local IndexedDB disk caching is disabled. All state is maintained online via Cloud Firestore.
-
-
-// Setup global network event listeners
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    console.log("[Network] Browser online, initiating queue flush...");
-    updateState({ isOnline: true });
-    flushSyncQueue();
-  });
-  
-  window.addEventListener('offline', () => {
-    console.log("[Network] Browser offline, sync suspended.");
-    updateState({ isOnline: false });
-    setSaveError(true);
-  });
-}
-
-
-export function resolveConflict(decision) {
+export async function resolveConflict(decision) {
   const item = S.conflictItem;
   const serverData = S.conflictServerData;
-  if (!item || !serverData) return;
+  if (!item || !serverData) return false;
 
-  const currentQueue = S.syncQueue || [];
-  
   if (decision === 'server') {
-    // Drop the local change, adopt server data
-    // First, update local state to match server
-    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...serverData } : c);
+    const nextClients = clients.map(c =>
+      String(c.id) === String(item.payload.clientId)
+        ? { ...c, ...serverData }
+        : c
+    );
     setClients(nextClients);
-    
-    // Remove item from queue
-    const nextQueue = currentQueue.filter(q => q.id !== item.id);
-    updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
-    
-  } else if (decision === 'local') {
-    // Re-enqueue with the updated baseVersion to force it through
-    const nextQueue = currentQueue.map(q => {
-      if (q.id === item.id) {
-        return {
-          ...q,
-          payload: {
-            ...q.payload,
-            baseVersion: serverData.version || 0
-          }
-        };
-      }
-      return q;
-    });
-    updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
-  } else if (decision === 'merge') {
-    // Basic merge: combine fields, preferring local, and bump baseVersion
-    const mergedData = { ...serverData, ...item.payload.clientData };
-    
-    const nextClients = clients.map(c => c.id == item.payload.clientId ? { ...c, ...mergedData } : c);
-    setClients(nextClients);
-    
-    const nextQueue = currentQueue.map(q => {
-      if (q.id === item.id) {
-        return {
-          ...q,
-          payload: {
-            ...q.payload,
-            clientData: mergedData,
-            baseVersion: serverData.version || 0
-          }
-        };
-      }
-      return q;
-    });
-    updateState({ syncQueue: nextQueue, modal: null, conflictItem: null, conflictServerData: null });
+    updateState({ syncQueue: [], modal: null, conflictItem: null, conflictServerData: null });
+    setSaveError(false);
+    R();
+    showToast(t('تم اعتماد النسخة السحابية الأحدث بنجاح.'), 'success');
+    return true;
   }
-  
-  R();
-  setTimeout(() => {
-    flushSyncQueue();
-  }, 500);
+
+  if (decision === 'local' || decision === 'merge') {
+    const mergedData = decision === 'merge'
+      ? { ...serverData, ...item.payload.clientData }
+      : { ...item.payload.clientData };
+
+    const nextPayload = {
+      ...item.payload,
+      clientData: mergedData,
+      baseVersion: Number(serverData.version || 0)
+    };
+
+    try {
+      const ack = await commitOnlineMutation(item.type || 'UPDATE_CLIENT', nextPayload);
+      const nextClients = clients.map(c =>
+        String(c.id) === String(item.payload.clientId)
+          ? { ...c, ...mergedData, version: ack?.version ?? (Number(serverData.version || 0) + 1) }
+          : c
+      );
+      setClients(nextClients);
+      updateState({ syncQueue: [], modal: null, conflictItem: null, conflictServerData: null });
+      R();
+      showToast(t(decision === 'merge' ? 'تم دمج التعديلات وحفظها في السحابة.' : 'تم فرض حفظ تعديلاتك في السحابة.'), 'success');
+      return true;
+    } catch (err) {
+      if (err?.code !== 'VERSION_CONFLICT') {
+        showToast(t('تعذر تأكيد حل التعارض على السحابة: ') + (err?.message || ''), 'error');
+      }
+      return false;
+    }
+  }
+  return false;
 }

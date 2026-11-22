@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { saveClient } from '../../src/business/actions/clientActions.js';
 import * as utilsIndex from '../../src/utils/index.js';
 import * as utilsToast from '../../src/utils/toast.js';
-import * as uiActions from '../../src/business/actions/uiActions.js';
-import { S, updateState, setClients, setCurrentUser } from '../../src/state/store.js';
+import { S, updateState, setCurrentUser } from '../../src/state/store.js';
 import { validateClient, validateProgram } from '../../src/firebase/validation.js';
 import * as storage from '../../src/business/storage.js';
 
@@ -27,11 +26,12 @@ vi.mock('../../src/business/actions/uiActions.js', async (importOriginal) => {
   };
 });
 
-// Avoid executing Firebase transactions during unit test
 vi.mock('../../src/business/storage.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
+    commitOnlineMutation: vi.fn().mockResolvedValue({ version: 1, updatedAt: '2026-11-20T00:00:00Z' }),
+    startClientDetailSync: vi.fn(),
     enqueueSyncAction: vi.fn()
   };
 });
@@ -40,11 +40,10 @@ describe('Validation Logic', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setCurrentUser({ uid: 'test-admin', role: 'gerant', email: 'admin@progilic.dz' });
-    updateState({ clients: [], stats: {} });
+    updateState({ clients: [], stats: {}, isOnline: true, quotaExceeded: false });
   });
 
   it('saveClient should fail if fullName is empty', async () => {
-    // Mock gv to return empty for 'f_fn'
     utilsIndex.gv.mockImplementation((id) => {
       if (id === 'f_fn') return '';
       return 'test';
@@ -52,34 +51,48 @@ describe('Validation Logic', () => {
 
     await saveClient(null);
 
-    expect(utilsToast.showToast).toHaveBeenCalledWith('الرجاء إدخال اسم العميل', 'error');
+    expect(utilsToast.showToast).toHaveBeenCalledWith('الرجاء إدخال الاسم الكامل للعميل *', 'error');
   });
 
-  it('saveClient should proceed if fullName is provided', async () => {
-    // Mock gv to return valid data
-    utilsIndex.gv.mockImplementation((id) => {
-      if (id === 'f_fn') return 'Test Client';
-      if (id === 'f_st') return 'نشط';
-      return 'test';
-    });
-    
+  it('saveClient should proceed if all mandatory fields are provided', async () => {
+    utilsIndex.gv.mockImplementation((id) => ({
+      f_fn: 'Test Client',
+      f_co: 'Test Company',
+      f_ph: '0550123456',
+      f_wi: 'الجزائر',
+      f_bt: 'تجارة تجزئة',
+      f_bf: 'سوبرماركت / بقالة',
+      f_st: 'نشط',
+      f_lc: '2026-11-20',
+      f_sd: '2026-11-20'
+    })[id] || '');
+
     await saveClient(null);
-    
+
+    expect(storage.commitOnlineMutation).toHaveBeenCalledWith('ADD_CLIENT', expect.any(Object));
     expect(utilsToast.showToast).toHaveBeenCalledWith('تم إضافة العميل بنجاح');
   });
 
   it('saveClient should retain the Gmail account and initial program version', async () => {
     utilsIndex.gv.mockImplementation((id) => ({
       f_fn: 'Test Client',
+      f_co: 'Test Company',
+      f_ph: '0550123456',
+      f_wi: 'الجزائر',
+      f_bt: 'تجارة تجزئة',
+      f_bf: 'سوبرماركت / بقالة',
       f_gmail: 'client@gmail.com',
       f_st: 'نشط',
-      f_p_nm: 'PROGILIC POS',
+      f_lc: '2026-11-20',
+      f_sd: '2026-11-20',
+      f_p_pl: 'Desktop',
+      f_p_ty: 'تجاري',
       f_p_ver: 'V24'
     })[id] || '');
 
     await saveClient(null);
 
-    expect(storage.enqueueSyncAction).toHaveBeenCalledWith('ADD_CLIENT', expect.objectContaining({
+    expect(storage.commitOnlineMutation).toHaveBeenCalledWith('ADD_CLIENT', expect.objectContaining({
       clientData: expect.objectContaining({
         gmailAccount: 'client@gmail.com',
         programs: [expect.objectContaining({ version: 'V24' })]
@@ -87,10 +100,10 @@ describe('Validation Logic', () => {
     }));
   });
 
-  it('Firebase validation should retain Gmail and supported program versions', () => {
+  it('Firebase validation should retain Gmail and program versions properly', () => {
     expect(validateClient({ fullName: 'Test Client', gmailAccount: 'client@gmail.com' }).gmailAccount)
       .toBe('client@gmail.com');
     expect(validateProgram({ programName: 'PROGILIC POS', version: 'V24' }).version).toBe('V24');
-    expect(validateProgram({ programName: 'PROGILIC POS', version: 'V25' }).version).toBe('');
+    expect(validateProgram({ programName: 'PROGILIC Mobile', platform: 'Mobile', version: 'V25' }).version).toBe('');
   });
 });

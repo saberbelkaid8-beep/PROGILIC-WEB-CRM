@@ -34,6 +34,7 @@ describe('Global timeline filters and report', () => {
   it('combines user, category and every-term search filters', () => {
     updateState({
       globalActivities: activities,
+      timelineDatePreset: 'all',
       timelineUserFilter: 'u1',
       timelineCategoryFilter: 'issues',
       timelineSearch: 'زبون شبكة'
@@ -134,7 +135,7 @@ describe('Global timeline filters and report', () => {
     await loadGlobalActivities();
     expect(S.globalActivities.map(activity => activity.id)).toContain('remote-1');
     expect(S.timelineCloudStatus).toBe('synced');
-    expect(localStorage.getItem('progilic_crm_activity_migration_timeline-tenant')).toBe('complete');
+    expect(localStorage.getItem('progilic_crm_activity_migration_timeline-tenant')).toBeNull();
   });
 
   it('filters day_before_yesterday preset correctly', () => {

@@ -13,6 +13,7 @@ import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
 import { t } from '../../utils/i18n.js';
 import { hasPermission } from '../../state/store.js';
+import { mergeOrAddClientProgram, adjustClientProgramDevices } from '../programMetrics.js';
 import { 
   addClientTransaction, 
   updateClientTransaction, 
@@ -102,6 +103,64 @@ export async function delProgram(cid, pid) {
   R();
 }
 
+export async function adjustProgramDevices(cid, pid, delta) {
+  if (!hasPermission('programs.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل بيانات البرامج والتراخيص.'), 'error');
+    return;
+  }
+  const c = clients.find(x => String(x.id) === String(cid));
+  if (!c || !Array.isArray(c.programs)) return;
+
+  const res = adjustClientProgramDevices(c.programs, pid, delta);
+  if (!res.targetProgram || res.diffDevices === 0) return;
+
+  const stats = { ...(S.stats || {}) };
+  stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) + res.diffDevices);
+
+  const nextInstalls = res.nextPrograms.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
+  c.programs = res.nextPrograms;
+  c.programsCount = res.nextPrograms.length;
+  c.installationsCount = nextInstalls;
+  c.endDate = '';
+  c.programNames = res.nextPrograms.map(p => p.programName);
+  S.stats = stats;
+  setClients([...clients]);
+
+  enqueueSyncAction('SAVE_SUB_ITEM', {
+    clientId: String(c.id),
+    collectionName: 'programs',
+    itemId: String(res.targetProgram.id),
+    itemData: res.targetProgram,
+    counterUpdates: {
+      programs: res.nextPrograms,
+      programsCount: res.nextPrograms.length,
+      installationsCount: nextInstalls,
+      endDate: '',
+      programNames: c.programNames
+    },
+    stats
+  });
+
+  logActivity(
+    c.id,
+    ActivityType.PROGRAM_EDITED,
+    "تحديث عدد أجهزة الترخيص",
+    `تم تعديل عدد أجهزة البرنامج "${res.targetProgram.programName}" إلى ${res.targetProgram.installationsCount} أجهزة.`,
+    'local',
+    {
+      clientName: c.fullName,
+      programId: res.targetProgram.id,
+      programName: res.targetProgram.programName,
+      platform: res.targetProgram.platform,
+      type: res.targetProgram.type,
+      version: res.targetProgram.version,
+      installationsCount: res.targetProgram.installationsCount
+    }
+  ).catch(err => console.error(err));
+
+  R();
+}
+
 export async function saveProgram(editId) {
   const programEditId = editId !== null && editId !== 'null' ? editId : null;
   if (programEditId === null && !hasPermission('programs.create')) {
@@ -139,20 +198,21 @@ export async function saveProgram(editId) {
     ? `${platform} - ${typeDisplay}`.trim()
     : `${platform} - ${typeDisplay} ${version}`.trim();
   
-  const d = {
+  let d = {
     programName: derivedProgramName,
     platform: platform,
     type: type || 'الويب',
     version: platform === 'Mobile' ? '' : version,
     installationsCount: installationsCount,
     startDate: gv('fp_sd') || td(),
-    endDate: gv('fp_ed') || ''
+    endDate: ''
   };
 
   if (!Array.isArray(c.programs)) c.programs = [];
 
   let nextProgs = [...c.programs];
   const stats = { ...(S.stats || {}) };
+  let mergedExisting = false;
 
   if (programEditId !== null) {
     const i = nextProgs.findIndex(p => p.id === programEditId);
@@ -166,20 +226,21 @@ export async function saveProgram(editId) {
     }
   } else {
     d.id = Date.now();
-    nextProgs.push(d);
-    stats.totalPrograms = (stats.totalPrograms || 0) + 1;
-    stats.totalLicensedDevices = (stats.totalLicensedDevices || 0) + d.installationsCount;
+    const mergeRes = mergeOrAddClientProgram(nextProgs, d);
+    nextProgs = mergeRes.nextPrograms;
+    d = mergeRes.targetProgram;
+    stats.totalPrograms = (stats.totalPrograms || 0) + mergeRes.addedProgramsCount;
+    stats.totalLicensedDevices = (stats.totalLicensedDevices || 0) + mergeRes.addedDevices;
+    mergedExisting = mergeRes.action === 'merged';
   }
 
-  const activeProg = nextProgs.filter(p => p.endDate).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
-  const nextEndDate = activeProg.length > 0 ? activeProg[0].endDate : '';
   const nextInstalls = nextProgs.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
 
   // Optimistic Local Update
   c.programs = nextProgs;
   c.programsCount = nextProgs.length;
   c.installationsCount = nextInstalls;
-  c.endDate = nextEndDate;
+  c.endDate = '';
   c.programNames = nextProgs.map(p => p.programName);
   S.stats = stats;
   setClients([...clients]);
@@ -194,19 +255,21 @@ export async function saveProgram(editId) {
       programs: nextProgs,
       programsCount: nextProgs.length, 
       installationsCount: nextInstalls, 
-      endDate: nextEndDate,
+      endDate: '',
       programNames: nextProgs.map(p => p.programName)
     },
     stats
   });
 
   // Log timeline activity
-  if (programEditId !== null) {
+  if (programEditId !== null || mergedExisting) {
     logActivity(
       c.id,
       ActivityType.PROGRAM_EDITED,
-      "تعديل ترخيص برنامج",
-      `تم تعديل بيانات ترخيص البرنامج "${d.programName}". الأجهزة المرخصة: ${d.installationsCount}.`,
+      mergedExisting ? "زيادة أجهزة برنامج مرخص" : "تعديل ترخيص برنامج",
+      mergedExisting
+        ? `تم دمج ${installationsCount} جهاز(أجهزة) على البرنامج "${d.programName}" ليصبح المجموع ${d.installationsCount} أجهزة مرخصة.`
+        : `تم تعديل بيانات ترخيص البرنامج "${d.programName}". الأجهزة المرخصة: ${d.installationsCount}.`,
       'local',
       {
         clientName: c.fullName,
@@ -217,9 +280,12 @@ export async function saveProgram(editId) {
         version: d.version,
         installationsCount: d.installationsCount,
         startDate: d.startDate,
-        endDate: d.endDate
+        endDate: ''
       }
     ).catch(err => console.error(err));
+    if (mergedExisting) {
+      showToast(`${t('تمت إضافة الأجهزة على البرنامج الموجود')} (${d.installationsCount} ${t('جهاز')})`);
+    }
   } else {
     logActivity(
       c.id,
@@ -237,7 +303,7 @@ export async function saveProgram(editId) {
         version: d.version,
         installationsCount: d.installationsCount,
         startDate: d.startDate,
-        endDate: d.endDate
+        endDate: ''
       }
     ).catch(err => console.error(err));
   }
@@ -426,7 +492,7 @@ export async function saveClient(editId) {
         version: pPl === 'Mobile' ? '' : pVer,
         installationsCount: Math.max(1, gn('f_p_ic', 1)),
         startDate: startDateVal || td(),
-        endDate: gv('f_ed') || ''
+        endDate: ''
       };
       newClient.programs = [initialProg];
       newClient.programsCount = 1;

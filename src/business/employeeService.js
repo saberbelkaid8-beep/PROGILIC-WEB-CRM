@@ -366,7 +366,7 @@ export function upsertEmployee(employeeData) {
   saveEmployees(list);
 
   // Sync to Firestore under tenant isolation
-  if (uid && uid !== 'default' && finalEmp) {
+  if (uid && uid !== 'default' && finalEmp && !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
     saveEmployeeForTenant(uid, finalEmp).catch(err => {
       console.warn("[EmployeeService] Background Firestore employee save notice:", err);
     });
@@ -469,7 +469,7 @@ export function deleteEmployee(id) {
   const list = getEmployees().filter(e => e.id !== id);
   saveEmployees(list);
 
-  if (uid && uid !== 'default' && id) {
+  if (uid && uid !== 'default' && id && !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
     deleteEmployeeForTenant(uid, id).catch(err => {
       console.warn("[EmployeeService] Background Firestore employee delete notice:", err);
     });
@@ -494,7 +494,7 @@ export function updateEmployeePermissions(id, permissions) {
   }
 
   const uid = getCurrentUserUid() || 'default';
-  if (uid && uid !== 'default') {
+  if (uid && uid !== 'default' && !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
     saveEmployeeForTenant(uid, emp).catch(err => {
       console.warn("[EmployeeService] Background Firestore permissions save notice:", err);
     });
@@ -524,7 +524,7 @@ export function updateEmployeePassword(id, newPassword) {
   saveEmployees(list);
 
   const uid = getCurrentUserUid() || 'default';
-  if (uid && uid !== 'default') {
+  if (uid && uid !== 'default' && !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
     saveEmployeeForTenant(uid, emp).catch(err => {
       console.warn("[EmployeeService] Background Firestore password save notice:", err);
     });

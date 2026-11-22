@@ -54,14 +54,16 @@ service cloud.firestore {
     function isValidClient(data) {
       return data.keys().hasAll(['id', 'fullName', 'status'])
           && data.keys().hasOnly([
-            'id', 'fullName', 'status', 'phone', 'gmailAccount', 'company', 'wilaya', 'commune', 'location',
+            'id', 'version', 'fullName', 'status', 'phone', 'gmailAccount', 'company', 'wilaya', 'commune', 'location',
             'businessType', 'businessField', 'startDate', 'endDate', 'lastContact', 'notes',
-            'gps', 'score', 'openIssuesCount', 'requirementsCount', 'programsCount',
-            'installationsCount', 'updatedAt', '_subcollectionsLoaded'
+            'gps', 'score', 'openIssuesCount', 'urgentIssuesCount', 'solvedIssuesCount', 'issuesByPriority',
+            'requirementsCount', 'reqsByStatus', 'programsCount', 'installationsCount', 'contactsCount',
+            'programNames', 'programs', 'programsPurgedAt', 'updatedAt', '_subcollectionsLoaded'
           ])
           && data.id is number
           && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
           && data.status is string && data.status in ["نشط", "محتمل", "متوقف"]
+          && (!data.keys().contains('version') || data.version is number)
           && (!data.keys().contains('phone') || data.phone is string && data.phone.size() <= 30)
           && (!data.keys().contains('gmailAccount') || data.gmailAccount is string && data.gmailAccount.size() <= 254)
           && (!data.keys().contains('company') || data.company is string && data.company.size() <= 100)
@@ -77,20 +79,29 @@ service cloud.firestore {
           && (!data.keys().contains('gps') || data.gps is map)
           && (!data.keys().contains('score') || data.score is number)
           && (!data.keys().contains('openIssuesCount') || data.openIssuesCount is number)
+          && (!data.keys().contains('urgentIssuesCount') || data.urgentIssuesCount is number)
+          && (!data.keys().contains('solvedIssuesCount') || data.solvedIssuesCount is number)
+          && (!data.keys().contains('issuesByPriority') || data.issuesByPriority is map)
           && (!data.keys().contains('requirementsCount') || data.requirementsCount is number)
+          && (!data.keys().contains('reqsByStatus') || data.reqsByStatus is map)
           && (!data.keys().contains('programsCount') || data.programsCount is number)
           && (!data.keys().contains('installationsCount') || data.installationsCount is number)
+          && (!data.keys().contains('contactsCount') || data.contactsCount is number)
+          && (!data.keys().contains('programNames') || data.programNames is list)
+          && (!data.keys().contains('programs') || data.programs is list)
+          && (!data.keys().contains('programsPurgedAt') || data.programsPurgedAt is string)
           && (!data.keys().contains('updatedAt') || (data.updatedAt is string || data.updatedAt is timestamp));
     }
 
     function isValidProgram(data) {
       return data.keys().hasAll(['id', 'programName', 'platform', 'type'])
-          && data.keys().hasOnly(['id', 'programName', 'platform', 'type', 'version', 'installationsCount', 'startDate', 'endDate'])
+          && data.keys().hasOnly(['id', 'versionNum', 'programName', 'platform', 'type', 'version', 'installationsCount', 'startDate', 'endDate'])
           && data.id is number
           && data.programName is string && data.programName.size() >= 1 && data.programName.size() <= 100
           && data.platform is string && data.platform in ["Desktop", "Mobile", "Web", "Hybrid"]
-          && data.type is string && data.type in ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"]
-          && (!data.keys().contains('version') || data.version is string && data.version in ["", "V21", "V23", "V24", "V26", "V27"])
+          && data.type is string && data.type.size() <= 100
+          && (!data.keys().contains('versionNum') || data.versionNum is number)
+          && (!data.keys().contains('version') || data.version is string && data.version in ["", "V21", "V23", "V24", "V26", "V27", "v18", "V18", "v16", "V16", "v15", "V15", "R+", "r+", "arabe", "Arabe"])
           && (!data.keys().contains('installationsCount') || data.installationsCount is number)
           && (!data.keys().contains('startDate') || data.startDate is string && data.startDate.size() <= 20)
           && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20);
@@ -98,29 +109,32 @@ service cloud.firestore {
 
     function isValidIssue(data) {
       return data.keys().hasAll(['id', 'title', 'type', 'priority', 'status'])
-          && data.keys().hasOnly(['id', 'title', 'type', 'priority', 'status', 'repeatCount', 'featureOpp', 'source', 'confidence', 'date', 'notes', 'solution'])
+          && data.keys().hasOnly(['id', 'version', 'title', 'type', 'priority', 'status', 'repeatCount', 'featureOpp', 'source', 'confidence', 'date', 'resolvedDate', 'notes', 'solution'])
           && data.id is number
           && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
           && data.type is string && data.type in ["خطأ تقني", "أداء", "استفسار", "طلب ميزة", "خطأ مستخدم", "أخرى"]
-          && data.priority is string && data.priority in ["عاجل", "عالية", "متوسطة", "منخفضة"]
-          && data.status is string && data.status in ["مفتوح", "قيد المعالجة", "محلول", "مغلق"]
+          && data.priority is string && data.priority in ["عاجل", "عاجلة", "عالية", "متوسطة", "منخفضة"]
+          && data.status is string && data.status in ["مفتوح", "جديد", "قيد المعالجة", "محلول", "مغلق"]
+          && (!data.keys().contains('version') || data.version is number)
           && (!data.keys().contains('repeatCount') || data.repeatCount is number)
           && (!data.keys().contains('featureOpp') || data.featureOpp is bool)
           && (!data.keys().contains('source') || data.source is string && data.source in ["نظام", "عميل", "سوء استخدام", "شبكة", "غير محدد"])
           && (!data.keys().contains('confidence') || data.confidence is number)
           && (!data.keys().contains('date') || data.date is string && data.date.size() <= 20)
+          && (!data.keys().contains('resolvedDate') || data.resolvedDate is string && data.resolvedDate.size() <= 20)
           && (!data.keys().contains('notes') || data.notes is string && data.notes.size() <= 1000)
           && (!data.keys().contains('solution') || data.solution is string && data.solution.size() <= 1000);
     }
 
     function isValidRequirement(data) {
       return data.keys().hasAll(['id', 'title', 'priority', 'status', 'impact'])
-          && data.keys().hasOnly(['id', 'title', 'priority', 'status', 'impact', 'type', 'date', 'notes'])
+          && data.keys().hasOnly(['id', 'version', 'title', 'priority', 'status', 'impact', 'type', 'date', 'notes'])
           && data.id is number
           && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
           && data.priority is string && data.priority in ["عاجل", "عالية", "متوسطة", "منخفضة"]
           && data.status is string && data.status in ["مقترح", "قيد الدراسة", "مخطط", "منفذ", "مرفوض"]
           && data.impact is string && data.impact in ["عالي", "متوسط", "منخفض"]
+          && (!data.keys().contains('version') || data.version is number)
           && (!data.keys().contains('type') || data.type is string && data.type.size() <= 100)
           && (!data.keys().contains('date') || data.date is string && data.date.size() <= 20)
           && (!data.keys().contains('notes') || data.notes is string && data.notes.size() <= 1000);
@@ -128,14 +142,20 @@ service cloud.firestore {
 
     function isValidContact(data) {
       return data.keys().hasAll(['id', 'date', 'note'])
-          && data.keys().hasOnly(['id', 'date', 'note'])
+          && data.keys().hasOnly(['id', 'version', 'date', 'note'])
           && data.id is number
           && data.date is string && data.date.size() <= 20
-          && data.note is string && data.note.size() >= 1 && data.note.size() <= 2000;
+          && data.note is string && data.note.size() >= 1 && data.note.size() <= 2000
+          && (!data.keys().contains('version') || data.version is number);
     }
 
     function isValidEmployee(data) {
       return data.keys().hasAll(['id', 'tenantId', 'fullName'])
+          && data.keys().hasOnly([
+            'id', 'tenantId', 'fullName', 'name', 'username', 'department', 'status',
+            'position', 'supervisor', 'phone', 'email', 'tasks', 'role',
+            'createdAt', 'updatedAt', 'lastLogin', 'adminEmail', 'passwordHash', 'passwordSalt', 'permissions'
+          ])
           && !data.keys().contains('password')
           && !data.keys().contains('pwd')
           && data.tenantId is string
@@ -143,6 +163,19 @@ service cloud.firestore {
           && (!data.keys().contains('department') || (data.department is string && data.department.size() <= 100))
           && (!data.keys().contains('status') || (data.status is string && data.status in ["نشط", "معطل", "active", "inactive"]))
           && (!data.keys().contains('permissions') || data.permissions is map);
+    }
+
+    function isValidBackup(data, userId) {
+      return data.keys().hasAll(['id', 'uid', 'timestamp', 'clients', 'clientCount'])
+          && data.keys().hasOnly(['id', 'uid', 'timestamp', 'reason', 'clients', 'clientCount', 'nid', 'stats'])
+          && data.id is string && data.id.size() <= 128
+          && data.uid == userId
+          && data.timestamp is string && data.timestamp.size() <= 40
+          && data.clients is list
+          && data.clientCount is number && data.clientCount >= 0
+          && (!data.keys().contains('reason') || (data.reason is string && data.reason.size() <= 120))
+          && (!data.keys().contains('nid') || data.nid is number)
+          && (!data.keys().contains('stats') || data.stats == null || data.stats is map);
     }
 
     function isValidActivity(data, userId) {
@@ -205,7 +238,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // 6. Connectivity verification test doc (Ping endpoint)
+    // 6. Cloud tenant backups
+    match /users/{userId}/backups/{backupId} {
+      allow get, list: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidId(backupId) && isValidBackup(incoming(), userId);
+      allow delete: if isOwner(userId) && isValidId(backupId);
+    }
+
+    // 7. Connectivity verification test doc (Ping endpoint)
     match /test/{docId} {
       allow get: if isSignedIn();
     }

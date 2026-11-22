@@ -8,6 +8,7 @@ import { computeScore, computeRiskProfile, computeAlerts } from '../business/int
 import { esc, isClientAtRisk } from '../utils/index.js';
 import { t } from '../utils/i18n.js';
 import { DEPARTMENTS } from '../business/employeeService.js';
+import { computeFleetDeviceMetrics, filterRecentDashboardActivities } from '../business/programMetrics.js';
 
 // SVG Icons Dictionary
 const I = {
@@ -51,8 +52,8 @@ function spark(d, color, w = 88, h = 38) {
 }
 
 // Helper for horizontal progress bar rows
-const hb = (l, v, max, c, fmt, rng, extraAttr = '') => `
-  <div class="hb" ${extraAttr}>
+const hb = (l, v, max, c, fmt, rng, extraAttr = '', extraClass = '') => `
+  <div class="hb${extraClass ? ' ' + extraClass : ''}" ${extraAttr}>
     <span class="l" title="${esc(l)}">${esc(l)}${rng ? ` <bdi dir="ltr" style="font-family:Inter;font-size:11.5px;color:var(--muted);font-weight:600;margin-inline-start:4px">${esc(rng)}</bdi>` : ''}</span>
     <div class="t"><div class="f" style="width:${Math.min(100, Math.max(0, (((v || 0) / (max || 1)) * 100)))}%;background:${c}"></div></div>
     <span class="v num">${fmt !== undefined && fmt !== null ? fmt : (v !== undefined && v !== null ? v : 0)}</span>
@@ -115,10 +116,11 @@ function colChart(rows, mxVal = 140) {
     const x = step * i + (step - bw) / 2;
     const y = H - pb - h;
     const pct = Math.round((r.v / tot) * 100);
+    const progsNote = r.progs !== undefined ? ` · ${r.progs} ${t('برنامج')}` : '';
 
     g += `
       <g style="cursor:pointer" onclick="openLicensesExplorerModal('${r.l}')" class="plat-col-group">
-        <title>${esc(r.l)}: ${r.v} (${pct}%) — ${t('اضغط لعرض تراخيص')} ${esc(r.l)} ${t('فقط')}</title>
+        <title>${esc(r.l)}: ${r.v} ${t('جهاز')} (${pct}%${progsNote}) — ${t('اضغط لعرض تراخيص')} ${esc(r.l)} ${t('فقط')}</title>
         <rect x="${x}" y="${pt}" width="${bw}" height="${H - pb - pt}" rx="12" fill="${pal.bg}" opacity="0.45"/>
         <rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="10" fill="${pal.bar}" style="filter:drop-shadow(0 4px 10px ${pal.bar}40)"/>
         <text x="${x + bw / 2}" y="${y - 8}" text-anchor="middle" font-size="13" font-weight="800" fill="var(--ink)" font-family="Inter">${r.v}</text>
@@ -216,10 +218,11 @@ export function renderDashboard() {
   const selectedWilaya = S.dbWilaya || 'all';
   const todayObj = new Date();
 
-  // Filter clients by Wilaya if selected
+  // Filter clients by Wilaya if selected (ignore null/malformed entries safely)
+  const safeClients = (Array.isArray(clients) ? clients : []).filter(Boolean);
   const cl = selectedWilaya === 'all' 
-    ? clients 
-    : clients.filter(c => c.wilaya === selectedWilaya);
+    ? safeClients 
+    : safeClients.filter(c => c.wilaya === selectedWilaya);
 
   const totalClients = cl.length;
   const activeClients = cl.filter(c => c.status === 'نشط').length;
@@ -232,99 +235,10 @@ export function renderDashboard() {
   const now = Date.now();
   const clIdSet = new Set(cl.map(c => Number(c.id)));
 
-  // 1. Programs & Devices
-  let totalPrograms = 0;
-  let totalLicensedDevices = 0;
-  let activeProgramsCount = 0;
-  let expiringSoonCount = 0;
-  let expiredProgramsCount = 0;
-  const programVersions = {};
-  const platformCounts = { Desktop: 0, Mobile: 0, Web: 0 };
-  const expiringContracts30 = [];
-  const expiringContracts7 = [];
-  const allProgramsFlat = [];
-
-  cl.forEach(c => {
-    const progs = c.programs || [];
-    if (progs.length > 0) {
-      totalPrograms += progs.length;
-      progs.forEach(p => {
-        const inst = Number(p.installationsCount) || 1;
-        totalLicensedDevices += inst;
-        allProgramsFlat.push({ client: c, prog: p });
-
-        let vName = (p.version || '').trim().toUpperCase();
-        if (!vName) {
-          const match = (p.programName || '').match(/V\d+/i);
-          vName = match ? match[0].toUpperCase() : (p.programName || 'PROGILIC');
-        }
-        programVersions[vName] = (programVersions[vName] || 0) + 1;
-
-        const rawPlat = p.platform || inferPlatformFromName(p.programName);
-        const plat = rawPlat === 'Hybrid' ? 'Desktop' : rawPlat;
-        if (platformCounts[plat] !== undefined) {
-          platformCounts[plat] += 1;
-        } else {
-          platformCounts.Desktop += 1;
-        }
-
-        if (p.endDate) {
-          const endMs = parseLocalDateMs(p.endDate);
-          if (endMs !== null) {
-            const dl = Math.floor((endMs - todayMidnightMs) / DAY);
-            if (dl < 0) {
-              expiredProgramsCount++;
-            } else if (dl <= 30) {
-              expiringSoonCount++;
-              expiringContracts30.push({ client: c, prog: p, daysLeft: dl });
-              if (dl <= 7) expiringContracts7.push({ client: c, prog: p, daysLeft: dl });
-            } else {
-              activeProgramsCount++;
-            }
-          } else {
-            activeProgramsCount++;
-          }
-        } else {
-          activeProgramsCount++;
-        }
-      });
-    } else {
-      const summaryProgCount = Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0);
-      totalPrograms += summaryProgCount;
-      totalLicensedDevices += Number(c.installationsCount) || 0;
-
-      if (summaryProgCount > 0) {
-        const names = Array.isArray(c.programNames) && c.programNames.length > 0
-          ? c.programNames
-          : Array(summaryProgCount).fill('PROGILIC');
-        names.forEach(name => {
-          const plat = inferPlatformFromName(name);
-          platformCounts[plat] = (platformCounts[plat] || 0) + 1;
-          allProgramsFlat.push({ client: c, prog: { programName: name, platform: plat, startDate: c.startDate, endDate: c.endDate } });
-        });
-      }
-
-      if (c.endDate) {
-        const endMs = parseLocalDateMs(c.endDate);
-        if (endMs !== null) {
-          const dl = Math.floor((endMs - todayMidnightMs) / DAY);
-          if (dl < 0) {
-            expiredProgramsCount += summaryProgCount || 1;
-          } else if (dl <= 30) {
-            expiringSoonCount += summaryProgCount || 1;
-            expiringContracts30.push({ client: c, daysLeft: dl });
-            if (dl <= 7) expiringContracts7.push({ client: c, daysLeft: dl });
-          } else {
-            activeProgramsCount += summaryProgCount;
-          }
-        } else {
-          activeProgramsCount += summaryProgCount;
-        }
-      } else {
-        activeProgramsCount += summaryProgCount;
-      }
-    }
-  });
+  // 1. Programs & Devices Fleet Metrics (Device-Centric + Category & Platform Breakdown)
+  const fleet = computeFleetDeviceMetrics(cl, todayObj);
+  const totalPrograms = fleet.totalPrograms;
+  const totalLicensedDevices = fleet.totalLicensedDevices;
 
   // 2. Open Issues and Priorities
   const allIssues = cl.flatMap(c => (c.issues || []).map(i => ({ ...i, clientId: c.id, clientName: c.fullName, clientWilaya: c.wilaya })));
@@ -555,18 +469,9 @@ export function renderDashboard() {
     }).length;
   });
 
-  // KPI 2: Programs growth over last 30 days
-  const newPrograms30d = allProgramsFlat.filter(({ client, prog }) => {
-    const ms = parseLocalDateMs(prog.startDate || client.startDate, prog.id);
-    return ms !== null && ms >= monthWindowStartMs && ms <= now;
-  }).length;
-  const progsSparkline = checkpoints30d.map((cp, idx) => {
-    if (idx === 7) return totalPrograms;
-    return allProgramsFlat.filter(({ client, prog }) => {
-      const ms = parseLocalDateMs(prog.startDate || client.startDate, prog.id);
-      return ms === null || ms <= cp;
-    }).length;
-  });
+  // KPI 2: Licensed Devices growth over last 30 days
+  const newDevices30d = fleet.newDevices30d;
+  const devicesSparkline = fleet.devicesSparkline;
 
   // KPI 3: Open issues 7-day movement
   const issuesOpened7d = allIssues.filter(i => {
@@ -620,9 +525,11 @@ export function renderDashboard() {
     return Math.round(sum / cohort.length);
   });
 
-  // KPI 6: Contracts expiring within 30 days by cumulative horizon
-  const expiryHorizons = [4, 8, 12, 16, 20, 24, 28, 30];
-  const expiringSparkline = expiryHorizons.map(h => expiringContracts30.filter(item => item.daysLeft <= h).length);
+  // KPI 6: Follow-up & Communication coverage (30d)
+  const contacted30Clients = fleet.contacted30Clients;
+  const contactCoveragePct = fleet.contactCoveragePct;
+  const contacts30dCount = fleet.contacts30dCount;
+  const contactsSparkline = fleet.contactsSparkline;
 
   // SVG Line Chart Builder (Multi-period with Real-Time Data)
   function buildLineChartSVG() {
@@ -669,11 +576,11 @@ export function renderDashboard() {
     return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="direction:ltr">${g}</svg>`;
   }
 
-  // 7. Platform Comparison Column Chart Data
+  // 7. Platform Comparison Column Chart Data (Device-Centric!)
   const platformRows = [
-    { l: 'Desktop', v: platformCounts.Desktop },
-    { l: 'Mobile', v: platformCounts.Mobile },
-    { l: 'Web', v: platformCounts.Web }
+    { l: 'Desktop', v: fleet.platformDevices.Desktop, progs: fleet.platformPrograms.Desktop },
+    { l: 'Mobile', v: fleet.platformDevices.Mobile, progs: fleet.platformPrograms.Mobile },
+    { l: 'Web', v: fleet.platformDevices.Web, progs: fleet.platformPrograms.Web }
   ];
 
   // 8. Urgent Alerts list (filtered to active Wilaya if selected)
@@ -681,11 +588,12 @@ export function renderDashboard() {
     .filter(a => (a.level === 'urgent' || a.level === 'warning') && (selectedWilaya === 'all' || clIdSet.has(Number(a.cid))));
   const alertDisplayList = urgentAlerts.slice(0, 5);
 
-  // 9. Recent Activities list (sorted newest first, filtered by Wilaya if active)
-  const recentActivities = [...(S.globalActivities || [])]
-    .filter(act => act && (selectedWilaya === 'all' || !act.clientId || clIdSet.has(Number(act.clientId))))
-    .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
-    .slice(0, 5);
+  // 9. Recent Activities list (strictly sanitized, deduplicated, sorted newest first)
+  const recentActivities = filterRecentDashboardActivities(
+    S.globalActivities || [],
+    clients,
+    selectedWilaya === 'all' ? null : clIdSet
+  ).slice(0, 6);
 
   // 10. Department Activity (This Week) — 100% Real Live Synchronization
   const activitiesByDept = {
@@ -835,8 +743,8 @@ export function renderDashboard() {
   // Department descriptive subtexts
   const prospectiveCount = cl.filter(c => c.status === 'محتمل').length;
   activitiesByDept.pre_vente.subtext = `${prospectiveCount} ${t('عميل محتمل')} · ${activitiesByDept.pre_vente.staffCount} ${t('موظف')}`;
-  activitiesByDept.commercial.subtext = `${totalPrograms} ${t('ترخيص')} · ${expiringContracts30.length} ${t('للتجديد')}`;
-  const totalCalls = cl.reduce((acc, c) => acc + (c.contactHistory?.length || 0), 0);
+  activitiesByDept.commercial.subtext = `${totalLicensedDevices} ${t('جهاز مرخص')} · ${totalPrograms} ${t('برنامج')}`;
+  const totalCalls = fleet.totalCalls;
   activitiesByDept.suivi.subtext = `${totalCalls} ${t('مكالمة وزيارة')} · ${activitiesByDept.suivi.staffCount} ${t('موظف')}`;
   const totalSolvedIssues = allIssues.filter(i => i.status === 'محلول').length;
   activitiesByDept.technique.subtext = `${totalSolvedIssues} ${t('تذكرة محلولة')} · ${allReqs.length} ${t('ميزة')}`;
@@ -926,14 +834,14 @@ export function renderDashboard() {
           icon: 'package',
           tint: '#FFF3E8',
           fg: '#EA580C',
-          label: t('البرامج المرخّصة'),
-          value: totalPrograms,
-          unit: t('برنامج'),
-          sub: `${t('على')} ${totalLicensedDevices} ${t('جهازًا')}`,
+          label: t('الأجهزة المرخصة'),
+          value: totalLicensedDevices,
+          unit: t('جهازًا'),
+          sub: `${t('عبر')} ${totalPrograms} ${t('برنامج مرخص')}`,
           delta: 'up',
           dgood: true,
-          dtxt: `+${newPrograms30d} ${t('هذا الشهر')}`,
-          data: progsSparkline,
+          dtxt: `+${newDevices30d} ${t('هذا الشهر')}`,
+          data: devicesSparkline,
           color: '#2a78d6'
         })}
 
@@ -986,18 +894,18 @@ export function renderDashboard() {
         })}
 
         ${kpi({
-          icon: 'calclock',
+          icon: 'phone',
           tint: '#F5F3FF',
           fg: '#7C3AED',
-          label: t('عقود تنتهي خلال 30 يومًا'),
-          value: expiringContracts30.length,
-          unit: t('عقدًا'),
-          sub: `${expiringContracts7.length} ${t('منها خلال 7 أيام')}`,
-          delta: expiringContracts30.length === 0 && expiredProgramsCount === 0 ? 'check' : 'up',
-          dgood: expiringContracts30.length === 0 && expiredProgramsCount === 0,
-          dtxt: `${expiredProgramsCount} ${t('منتهي')} · ${expiringContracts7.length} ${t('خلال 7 أيام')}`,
-          data: expiringSparkline,
-          color: '#2a78d6'
+          label: t('تغطية المتابعة'),
+          value: contacted30Clients,
+          unit: t('عميلًا'),
+          sub: `${contactCoveragePct}% ${t('نسبة التغطية')} · ${totalCalls} ${t('تواصل')}`,
+          delta: contacts30dCount > 0 ? 'up' : 'check',
+          dgood: contactCoveragePct >= 50 || contacts30dCount > 0,
+          dtxt: `+${contacts30dCount} ${t('خلال 30 يومًا')}`,
+          data: contactsSparkline,
+          color: '#7C3AED'
         })}
 
         <!-- Row B -->
@@ -1054,39 +962,29 @@ export function renderDashboard() {
           </div>
         </div>
 
-        <!-- B3: Client Health Breakdown with Clarification Link -->
+        <!-- B3: Devices Sold by Program Category & Platform -->
         <div class="card c3">
           <div class="chd">
             <div>
-              <h3>${t('صحة العملاء')}</h3>
-              <p>${t('توزيع نقاط العميل (0–100)')}</p>
+              <h3>${t('الأجهزة المباعة حسب الفئة')}</h3>
+              <p>${totalLicensedDevices} ${t('جهازًا عبر')} ${totalPrograms} ${t('برنامجًا')}</p>
             </div>
-            <div class="act" onclick="openHealthScoreExplainerModal()" title="${t('اضغط لقراءة تفاصيل آلية احتساب النقاط')}">
-              ℹ️ ${t('شرح المعايير')}
+            <div class="act" onclick="openLicensesExplorerModal()" title="${t('استعراض كافة التراخيص حسب الفئة والمنصة')}">
+              ${t('التفاصيل')} ${ic('chevl', 14, 2.6)}
             </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px;--rh:44px">
-            ${hb(t('متميز'), scoreCategories['متميز'], totalClients || 100, '#10B981', null, '75+', 'title="عميل مستقر وناشط بدون مشاكل"')}
-            ${hb(t('جيد'), scoreCategories['جيد'], totalClients || 100, '#F59E0B', null, '50–74', 'title="نشاط طبيعي يتطلب المتابعة الدورية"')}
-            ${hb(t('يحتاج متابعة'), scoreCategories['يحتاج متابعة'], totalClients || 100, '#F97316', null, '25–49', 'title="فتور في التواصل أو وجود مشاكل معلقة"')}
-            ${hb(t('خطر عالٍ'), scoreCategories['خطر عالٍ'], totalClients || 100, '#EF4444', null, '<25', 'title="انقطاع تواصل >60 يوم أو عقد منتهي دون تجديد"')}
+          <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px;--rh:42px">
+            ${hb('Desktop · Commercial', fleet.categoryDevices.Commercial, Math.max(totalLicensedDevices, 1), '#2563EB', `${fleet.categoryDevices.Commercial} ${t('جهاز')}`, `(${fleet.categoryPrograms.Commercial})`, `onclick="openLicensesExplorerModal('Desktop','all','Commercial')" title="${t('عرض عملاء برنامج Commercial')}"`, 'cat-breakdown-row')}
+            ${hb('Desktop · Production', fleet.categoryDevices.Production, Math.max(totalLicensedDevices, 1), '#7C3AED', `${fleet.categoryDevices.Production} ${t('جهاز')}`, `(${fleet.categoryPrograms.Production})`, `onclick="openLicensesExplorerModal('Desktop','all','Production')" title="${t('عرض عملاء برنامج Production')}"`, 'cat-breakdown-row')}
+            ${hb('Desktop · Distribution', fleet.categoryDevices.Distribution, Math.max(totalLicensedDevices, 1), '#F97316', `${fleet.categoryDevices.Distribution} ${t('جهاز')}`, `(${fleet.categoryPrograms.Distribution})`, `onclick="openLicensesExplorerModal('Desktop','all','Distribution')" title="${t('عرض عملاء برنامج Distribution')}"`, 'cat-breakdown-row')}
+            ${hb('Mobile', fleet.categoryDevices.Mobile, Math.max(totalLicensedDevices, 1), '#10B981', `${fleet.categoryDevices.Mobile} ${t('جهاز')}`, `(${fleet.categoryPrograms.Mobile})`, `onclick="openLicensesExplorerModal('Mobile','all','all')" title="${t('عرض عملاء تطبيقات Mobile')}"`, 'cat-breakdown-row')}
+            ${hb('Web', fleet.categoryDevices.Web, Math.max(totalLicensedDevices, 1), '#0EA5E9', `${fleet.categoryDevices.Web} ${t('جهاز')}`, `(${fleet.categoryPrograms.Web})`, `onclick="openLicensesExplorerModal('Web','all','all')" title="${t('عرض عملاء منظومة Web')}"`, 'cat-breakdown-row')}
           </div>
           <div class="hr"></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <div class="sec" style="margin:0">${t('كيف تُحسب الدرجة؟ (من 100)')}</div>
-            <span style="font-size:11px;color:#2a78d6;cursor:pointer;font-weight:700" onclick="openHealthScoreExplainerModal()">${t('التفاصيل')} ↗</span>
-          </div>
-          <div style="display:flex;gap:2px;height:12px;cursor:pointer" onclick="openHealthScoreExplainerModal()">
-            <div style="flex:35;background:#2a78d6;border-radius:0 4px 4px 0" title="البرامج (35 نقطة)"></div>
-            <div style="flex:25;background:#eb6834" title="التواصل الدوري (25 نقطة)"></div>
-            <div style="flex:25;background:#1baf7a" title="الدعم الفني (25 نقطة)"></div>
-            <div style="flex:15;background:#eda100;border-radius:4px 0 0 4px" title="الميزات والمقترحات (15 نقطة)"></div>
-          </div>
-          <div class="legend" style="margin-top:10px;gap:12px;font-size:12px">
-            <span title="البرامج النشطة والتراخيص"><i style="background:#2a78d6"></i>${t('البرامج')} <bdi dir="ltr">35</bdi></span>
-            <span title="حداثة التواصل والزيارات"><i style="background:#eb6834"></i>${t('التواصل')} <bdi dir="ltr">25</bdi></span>
-            <span title="سرعة حل التذاكر"><i style="background:#1baf7a"></i>${t('التذاكر')} <bdi dir="ltr">25</bdi></span>
-            <span title="المقترحات ذات التأثير"><i style="background:#eda100"></i>${t('الميزات')} <bdi dir="ltr">15</bdi></span>
+          <div style="font-size:11.5px;color:var(--t2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+            <span>📱 Tableau de bord: <strong class="num">${fleet.mobileSubApps.dashboard}</strong></span>
+            <span>VDD: <strong class="num">${fleet.mobileSubApps.vdd}</strong></span>
+            <span>Commerçant: <strong class="num">${fleet.mobileSubApps.commercant}</strong></span>
           </div>
         </div>
 
@@ -1121,28 +1019,28 @@ export function renderDashboard() {
           </div>
         </div>
 
-        <!-- C2: Licenses by Version & Platform (High Precision) -->
+        <!-- C2: Licenses & Devices by Platform -->
         <div class="card c4">
           <div class="chd">
             <div>
               <h3>${t('مقارنة منصات التشغيل')}</h3>
-              <p>${activeProgramsCount} ${t('نشط')} · ${expiringSoonCount} ${t('ينتهي قريباً')} · ${expiredProgramsCount} ${t('منتهي')}</p>
+              <p>${totalLicensedDevices} ${t('جهاز مُرخّص')} · ${totalPrograms} ${t('برنامج')}</p>
             </div>
             <div class="act" onclick="openLicensesExplorerModal()" title="${t('استعراض كافة تفاصيل التراخيص والعملاء')}">
               ${t('التفاصيل')} ${ic('chevl', 14, 2.6)}
             </div>
           </div>
 
-          <!-- 3 Platform Quick Filters -->
+          <!-- 3 Platform Quick Filters (Device Counts) -->
           <div style="display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap">
             <button class="btn btn-xs" onclick="openLicensesExplorerModal('Desktop')" style="flex:1; min-width:80px; background:rgba(0,122,255,0.1); color:#007AFF; border:1px solid rgba(0,122,255,0.25); font-weight:700; border-radius:10px; padding:4px 8px; font-size:11.5px;" title="${t('عرض تفاصيل تراخيص')} Desktop">
-              💻 Desktop (${platformCounts.Desktop})
+              💻 Desktop (${fleet.platformDevices.Desktop} ${t('جهاز')})
             </button>
             <button class="btn btn-xs" onclick="openLicensesExplorerModal('Mobile')" style="flex:1; min-width:80px; background:rgba(52,199,89,0.1); color:#34C759; border:1px solid rgba(52,199,89,0.25); font-weight:700; border-radius:10px; padding:4px 8px; font-size:11.5px;" title="${t('عرض تفاصيل تراخيص')} Mobile">
-              📱 Mobile (${platformCounts.Mobile})
+              📱 Mobile (${fleet.platformDevices.Mobile} ${t('جهاز')})
             </button>
             <button class="btn btn-xs" onclick="openLicensesExplorerModal('Web')" style="flex:1; min-width:80px; background:rgba(255,149,0,0.1); color:#FF9500; border:1px solid rgba(255,149,0,0.25); font-weight:700; border-radius:10px; padding:4px 8px; font-size:11.5px;" title="${t('عرض تفاصيل تراخيص')} Web">
-              🌐 Web (${platformCounts.Web})
+              🌐 Web (${fleet.platformDevices.Web} ${t('جهاز')})
             </button>
           </div>
 
@@ -1151,7 +1049,7 @@ export function renderDashboard() {
           </div>
           <div class="hr" style="margin:12px 0 10px"></div>
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;color:var(--t2)">${t('اضغط على أي منصة لعرض تراخيصها فقط')}</span>
+            <span style="font-size:12px;color:var(--t2)">${t('توزيع عدد الأجهزة المباعة حسب المنصة')}</span>
             <span style="font-size:11px;color:#007AFF;cursor:pointer;font-weight:700" onclick="openLicensesExplorerModal()">${t('استعراض الكل')} ↗</span>
           </div>
         </div>
@@ -1213,13 +1111,13 @@ export function renderDashboard() {
           <div class="chd">
             <div>
               <h3>${t('تنبيهات عاجلة')}</h3>
-              <p>${t('تتطلب تدخلاً فورياً (مشاكل حرجة · انتهاء عقود · انقطاع تواصل)')}</p>
+              <p>${t('تتطلب تدخلاً فورياً (مشاكل حرجة · انقطاع تواصل · حسابات متراجعة)')}</p>
             </div>
             <span class="pill r" style="margin-inline-start:auto">${urgentAlerts.length} ${t('عاجلة')}</span>
           </div>
           ${alertDisplayList.length ? alertDisplayList.map(a => `
             <div class="item" onclick="selClient(${a.cid})" title="${t('اضغط للانتقال مباشرة لملف العميل المعني')}">
-              <div class="ico ${a.level === 'urgent' ? 'r' : 'w'}">${ic(a.type === 'NO_CONTACT' ? 'phone' : (a.type === 'EXPIRING' ? 'calclock' : 'warn'), 19)}</div>
+              <div class="ico ${a.level === 'urgent' ? 'r' : 'w'}">${ic(a.type === 'NO_CONTACT' ? 'phone' : 'warn', 19)}</div>
               <div class="tx">
                 <b>${esc(a.msg)}</b>
                 <span>${esc(a.sub || '')}</span>
@@ -1282,24 +1180,15 @@ export function renderDashboard() {
             </div>
           </div>
           ${recentActivities.length ? recentActivities.map(act => {
-            const actor = act.userName || act.actorName || (act.actorEmail ? act.actorEmail.split('@')[0] : 'النظام');
+            const actor = act.actor || 'النظام';
             const initials = actor.trim().slice(0, 2);
-            const isCall = act.type?.includes('CONTACT');
-            const isSolved = act.type?.includes('RESOLVED');
-            const isProg = act.type?.includes('PROGRAM');
-            const isClient = act.type?.includes('CLIENT');
-            
-            const badgeTag = isCall ? t('مكالمة') : (isSolved ? t('حل مشكلة') : (isProg ? t('ترخيص') : (isClient ? t('عميل جديد') : t('إجراء'))));
-            const badgeColor = isCall ? '#1E40AF' : (isSolved ? '#065F46' : (isProg ? '#9A3412' : '#92400E'));
-            const badgeBg = isCall ? '#EFF6FF' : (isSolved ? '#ECFDF5' : (isProg ? '#FFF3E8' : '#FFFBEB'));
-            const hasLinkedClient = act.clientId && clients.some(c => Number(c.id) === Number(act.clientId));
-            const clickAction = hasLinkedClient ? `selClient(${Number(act.clientId)})` : `setView('global-timeline')`;
+            const clickAction = act.hasLinkedClient ? `selClient(${Number(act.clientId)})` : `setView('global-timeline')`;
 
             return `
               <div class="item" onclick="${clickAction}">
-                <div class="av" style="background:${badgeBg};color:${badgeColor}">${esc(initials)}</div>
+                <div class="av" style="background:${act.badgeBg};color:${act.badgeColor}">${esc(initials)}</div>
                 <div class="tx">
-                  <b>${esc(actor)} <span class="tag" style="background:${badgeBg};color:${badgeColor}">${badgeTag}</span></b>
+                  <b>${esc(actor)} <span class="tag" style="background:${act.badgeBg};color:${act.badgeColor}">${t(act.badgeTag)}</span></b>
                   <span>${esc(act.title || act.description || '')}</span>
                 </div>
                 <div class="end" style="font-size:11.5px;color:var(--muted)">

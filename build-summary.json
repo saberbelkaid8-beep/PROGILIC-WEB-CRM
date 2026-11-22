@@ -1,14 +1,14 @@
 {
   "appName": "crm",
-  "timestamp": "2026-11-19T18:00:10.807Z",
+  "timestamp": "2026-11-22T13:48:35.758Z",
   "nodeVersion": "v22.23.2",
   "platform": "linux",
   "build": {
-    "durationMs": 6863,
-    "durationSeconds": 6.86,
+    "durationMs": 5547,
+    "durationSeconds": 5.55,
     "totalFiles": 28,
-    "totalSizeBytes": 8825413,
-    "totalSizeFormatted": "8.42 MB"
+    "totalSizeBytes": 8869944,
+    "totalSizeFormatted": "8.46 MB"
   },
   "dependencies": {
     "productionCount": 3,
@@ -67,14 +67,14 @@
       "sizeFormatted": "1.19 MB"
     },
     {
-      "file": "assets/index-BbsL5DA2.css",
-      "sizeBytes": 99557,
-      "sizeFormatted": "97.22 KB"
+      "file": "assets/index-Bai7I4rb.js",
+      "sizeBytes": 1273080,
+      "sizeFormatted": "1.21 MB"
     },
     {
-      "file": "assets/index-D8WghBpH.js",
-      "sizeBytes": 1216102,
-      "sizeFormatted": "1.16 MB"
+      "file": "assets/index-CfQ5oWsP.css",
+      "sizeBytes": 94344,
+      "sizeFormatted": "92.13 KB"
     },
     {
       "file": "assets/search-engine-408GSLV4.js",
@@ -83,23 +83,23 @@
     },
     {
       "file": "css/components.css",
-      "sizeBytes": 56069,
-      "sizeFormatted": "54.75 KB"
+      "sizeBytes": 49351,
+      "sizeFormatted": "48.19 KB"
     },
     {
       "file": "css/dashboard.css",
-      "sizeBytes": 38714,
-      "sizeFormatted": "37.81 KB"
+      "sizeBytes": 38092,
+      "sizeFormatted": "37.2 KB"
     },
     {
       "file": "css/main.css",
-      "sizeBytes": 3938,
-      "sizeFormatted": "3.85 KB"
+      "sizeBytes": 3862,
+      "sizeFormatted": "3.77 KB"
     },
     {
       "file": "css/responsive.css",
-      "sizeBytes": 836,
-      "sizeFormatted": "836 B"
+      "sizeBytes": 1018,
+      "sizeFormatted": "1018 B"
     },
     {
       "file": "current_view_1920.png",

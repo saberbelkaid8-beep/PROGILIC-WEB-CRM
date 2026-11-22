@@ -12,6 +12,7 @@ import {
   analyzeRootCause
 } from '../business/intelligence.js';
 import { ActivityType, getActivityVisuals } from '../business/timelineService.js';
+import { getClientCategoryBreakdown } from '../business/programMetrics.js';
 import { t } from '../utils/i18n.js';
 
 const VI = {
@@ -244,7 +245,6 @@ export function renderList() {
             <option value="fullName"${S.sortBy === 'fullName' ? ' selected' : ''}>${t('الاسم الكامل')}</option>
             <option value="score"${S.sortBy === 'score' ? ' selected' : ''}>${t('نقاط التقييم')}</option>
             <option value="lastContact"${S.sortBy === 'lastContact' ? ' selected' : ''}>${t('تاريخ التواصل')}</option>
-            <option value="endDate"${S.sortBy === 'endDate' ? ' selected' : ''}>${t('انتهاء العقد')}</option>
           </select>
           <button class="btn btn-outline btn-xs" onclick="toggleSortOrder()" style="width:32px;height:34px;padding:0;justify-content:center" title="${S.sortOrder === 'asc' ? t('تصاعدي') : t('تنازلي')}">
             ${S.sortOrder === 'asc' ? '▲' : '▼'}
@@ -279,7 +279,12 @@ export function renderList() {
             const hit = S.q ? searchMatch(c, S.q) : null;
             const phoneDisplay = hasPermission('clients.view_sensitive') ? (esc(c.phone) || '—') : (c.phone ? '0550•• ••••' : '—');
             const ps = getProgramStats(c);
+            const cb = getClientCategoryBreakdown(c);
             const atRisk = isClientAtRisk(c);
+            const catSummaryText = cb.groupedSummary
+              .slice(0, 3)
+              .map(g => `${g.labelAr} (${g.devices})`)
+              .join(' · ');
             return `
               <div class="cc" onclick="selClient(${c.id})" id="cc-card-${c.id}">
                 <div class="cc-top">
@@ -297,7 +302,7 @@ export function renderList() {
                   ${sBdg(c.status)}
                   <span style="opacity:.45">·</span>
                   ${ps.total > 0
-                    ? `<span class="bdg bdg-b">${vIc('package', 12)} <span class="num">${ps.total}</span> ${t('برامج')}${ps.totalInstalls > 1 ? ` · <span class="num">${ps.totalInstalls}</span> ${t('جهاز')}` : ''}</span>`
+                    ? `<span class="bdg bdg-b">${vIc('package', 12)} <span class="num">${ps.total}</span> ${t('برامج')} · <span class="num">${ps.totalInstalls}</span> ${t('جهاز')}</span>${catSummaryText ? `<span style="font-size:11px;color:var(--t2);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(catSummaryText)}">${esc(catSummaryText)}</span>` : ''}`
                     : `<span class="bdg bdg-gr">${t('لا برامج')}</span>`}
                 </div>
 
@@ -349,8 +354,10 @@ export function renderDetail() {
   const sc = computeScore(c);
   const scColor = scoreColor(sc.total);
   const ps = getProgramStats(c);
-  const pp = c.programs || [];
-  const leadName = pp.length > 0 ? pp[0].programName : (c.programNames?.[0] || t('برنامج مرخص'));
+  const cb = getClientCategoryBreakdown(c);
+  const headerProgText = cb.groupedSummary.length > 0
+    ? cb.groupedSummary.map(g => `${g.labelAr} (${g.devices})`).join(' · ')
+    : (c.programNames?.[0] || t('برنامج مرخص'));
   const urgentCount = c.issues.filter(i => i.priority === 'عاجل' && i.status !== 'محلول' && i.status !== 'مغلق').length;
 
   return `
@@ -373,7 +380,7 @@ export function renderDetail() {
           <span class="ch-mi">${vIc('pin', 14)} <span>${esc(c.wilaya) || '—'}${c.location ? '، ' + esc(c.location) : ''}</span></span>
           <span class="ch-mi" dir="ltr">${vIc('phone', 14)} <span>${hasPermission('clients.view_sensitive') ? (esc(c.phone) || '—') : (c.phone ? '0550•• ••••' : '—')}</span></span>
           ${ps.total > 0
-            ? `<span class="ch-mi">${vIc('package', 14)} <span>${esc(leadName)}${ps.total > 1 ? ` (+${ps.total - 1})` : ''} · <span class="num">${ps.totalInstalls}</span> ${t('جهاز')}</span></span>`
+            ? `<span class="ch-mi">${vIc('package', 14)} <span>${esc(headerProgText)} · <span class="num">${ps.totalInstalls}</span> ${t('جهاز')}</span></span>`
             : `<span class="ch-mi" style="opacity:.55">${vIc('package', 14)} <span>${t('لا برامج')}</span></span>`}
           <span class="ch-mi">${vIc('briefcase', 14)} <span>${t(c.businessType) || '—'}${c.businessField ? ' · ' + t(c.businessField) : ''}</span></span>
         </div>
@@ -382,7 +389,7 @@ export function renderDetail() {
       <div class="qstats" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
         <div class="qs ${oi > 0 ? 'qr' : 'qg'}"><div class="qs-v num">${oi}</div><div class="qs-l">${t('مشاكل مفتوحة')}</div></div>
         <div class="qs ${fo > 0 ? 'qw' : ''}"><div class="qs-v num">${fo}</div><div class="qs-l">${t('فرص ميزات')}</div></div>
-        <div class="qs ${ps.expired > 0 ? 'qr' : 'qg'}"><div class="qs-v num">${ps.total}</div><div class="qs-l">${t('البرامج')} (<span class="num">${ps.totalInstalls}</span> ${t('جهاز')})</div></div>
+        <div class="qs qg"><div class="qs-v num">${ps.total}</div><div class="qs-l">${t('البرامج')} (<span class="num">${ps.totalInstalls}</span> ${t('جهاز')})</div></div>
         <div class="qs qc"><div class="qs-v num">${(c.contactHistory || []).length}</div><div class="qs-l">${t('سجلات تواصل')}</div></div>
         <div class="qs"><div class="qs-v num" style="color:${scColor}">${sc.total}</div><div class="qs-l">${t('نقاط العميل')}</div></div>
       </div>
@@ -435,7 +442,10 @@ function renderOverview(c) {
 
   const an = generateAutoNote(c);
   const ps = getProgramStats(c);
-  const pp = c.programs || [];
+  const cb = getClientCategoryBreakdown(c);
+  const categoriesOverview = cb.groupedSummary.length > 0
+    ? cb.groupedSummary.map(g => `${esc(g.labelAr)} (<span class="num">${g.devices}</span> ${t('جهاز')})`).join(' · ')
+    : '—';
 
   return `
     <div class="auto-note">
@@ -460,8 +470,8 @@ function renderOverview(c) {
       <div class="iitem"><div class="ilbl">${t('الحالة')}</div><div class="ival">${sBdg(c.status)}</div></div>
       <div class="iitem"><div class="ilbl">${t('النشاط الرئيسي')}</div><div class="ival">${c.businessType ? `${t(c.businessType)}` : '<span class="muted">—</span>'}</div></div>
       <div class="iitem"><div class="ilbl">${t('تخصص النشاط')}</div><div class="ival ${c.businessField ? '' : 'muted'}">${t(c.businessField) || '—'}</div></div>
-      <div class="iitem"><div class="ilbl">${t('إجمالي البرامج')}</div><div class="ival num">${ps.total} ${ps.total > 0 ? `<span style="font-size:11.5px;color:var(--t3)">· ${ps.totalInstalls} ${t('جهاز')}</span>` : ''}</div></div>
-      <div class="iitem"><div class="ilbl">${t('البرنامج')}</div><div class="ival ${pp.length ? '' : 'muted'}">${pp.length ? `${esc(pp[0].programName)}${pp[0].version ? ` · ${esc(pp[0].version)}` : ''}` : '—'}</div></div>
+      <div class="iitem"><div class="ilbl">${t('إجمالي البرامج والأجهزة')}</div><div class="ival num">${ps.total} ${t('برامج')} ${ps.total > 0 ? `<span style="font-size:11.5px;color:var(--t3)">· ${ps.totalInstalls} ${t('جهاز')}</span>` : ''}</div></div>
+      <div class="iitem"><div class="ilbl">${t('توزيع الفئات والمنصات')}</div><div class="ival ${cb.groupedSummary.length ? '' : 'muted'}">${categoriesOverview}</div></div>
       <div class="iitem"><div class="ilbl">${t('تاريخ البداية')}</div><div class="ival num">${fmtD(c.startDate)}</div></div>
       <div class="iitem"><div class="ilbl">${t('نوع الترخيص')}</div><div class="ival" style="color:var(--brand);font-weight:700">${t('مدى الحياة (Licence à vie)')}</div></div>
       <div class="iitem"><div class="ilbl">${t('آخر تواصل')}</div><div class="ival"><span class="last-contact-clickable num" onclick="setTab('contacts')" title="${t('عرض التفاصيل')}">${fmtD(c.lastContact) || '—'}</span></div></div>
@@ -571,15 +581,17 @@ function renderContacts(c) {
 
 function renderPrograms(c) {
   const ps = getProgramStats(c);
+  const cb = getClientCategoryBreakdown(c);
   const progs = c.programs || [];
+  const canEdit = hasPermission('programs.edit');
   return `
     <div class="prog-summary">
       <div class="ps-item ps-active"><div class="ps-val num">${ps.total}</div><div class="ps-lbl">${t('إجمالي البرامج')}</div></div>
       <div class="ps-item"><div class="ps-val num">${ps.totalInstalls}</div><div class="ps-lbl">${t('إجمالي الأجهزة')}</div></div>
-      <div class="ps-item ${ps.expired > 0 ? 'ps-expired' : 'ps-active'}"><div class="ps-val num">${ps.active}</div><div class="ps-lbl">${t('نشط /')} <span class="num">${ps.expired}</span> ${t('منتهي')}</div></div>
+      <div class="ps-item ps-active"><div class="ps-val num">${cb.groupedSummary.length}</div><div class="ps-lbl">${t('الفئات المفعّلة (مدى الحياة)')}</div></div>
     </div>
     <div class="pane-hdr">
-      <span class="pane-title">${t('قائمة البرامج')}</span>
+      <span class="pane-title">${t('قائمة البرامج والتراخيص')}</span>
       ${hasPermission('programs.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${vIc('plus', 14)} <span>${t('برنامج جديد')}</span></button>` : ''}
     </div>
     ${progs.length === 0
@@ -588,18 +600,28 @@ function renderPrograms(c) {
           <div class="empty-text">${t('لا توجد برامج مرتبطة بهذا العميل')}</div>
           ${hasPermission('programs.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${t('إضافة أول برنامج')}</button>` : ''}
         </div>`
-      : progs.map(p => `
+      : progs.map(p => {
+        const instCount = Math.max(1, Number(p.installationsCount) || 1);
+        return `
         <div class="prog-card ${progStatusCls(p)}">
           <div class="prog-top">
             <div class="prog-name">${getPlatformSvg(p.platform)} <span>${esc(p.programName)}${p.version ? ` · ${esc(p.version)}` : ''}</span></div>
             ${progStatusLabel(p)}
           </div>
           <div class="prog-meta">
-            ${progTypeBdg(p.type)}
+            ${progTypeBdg(p.type || p.programName)}
             <span>·</span>
-            <span class="bdg bdg-gr">${esc(p.platform)}</span>
+            <span class="bdg bdg-gr">${esc(p.platform || 'Desktop')}</span>
           </div>
-          <div class="prog-installs">${vIc('monitor', 14)} <strong class="num">${p.installationsCount}</strong> ${t('جهاز مُرخَّص')}</div>
+          <div class="prog-installs prog-installs-row">
+            <span>${vIc('monitor', 14)} <strong class="num">${instCount}</strong> ${t('جهاز مُرخَّص')}</span>
+            ${canEdit ? `
+              <div class="prog-dev-ctrl" title="${t('تعديل عدد الأجهزة لهذا البرنامج')}">
+                <button type="button" class="prog-dev-btn" onclick="adjustProgramDevices(${c.id},${p.id},-1)" ${instCount <= 1 ? 'disabled' : ''} aria-label="${t('إنقاص جهاز')}">−1</button>
+                <button type="button" class="prog-dev-btn" onclick="adjustProgramDevices(${c.id},${p.id},1)" aria-label="${t('إضافة جهاز')}">+1 ${t('جهاز')}</button>
+              </div>
+            ` : ''}
+          </div>
           <div class="prog-dates">
             <div class="prog-date-item">
               <div class="prog-date-lbl">${t('تاريخ البداية')}</div>
@@ -611,10 +633,11 @@ function renderPrograms(c) {
             </div>
           </div>
           <div class="prog-acts">
-            ${hasPermission('programs.edit') ? `<button class="btn btn-ghost btn-xs" onclick="editProg(${c.id},${p.id})">${vIc('edit', 12)} <span>${t('تعديل')}</span></button>` : ''}
+            ${canEdit ? `<button class="btn btn-ghost btn-xs" onclick="editProg(${c.id},${p.id})">${vIc('edit', 12)} <span>${t('تعديل')}</span></button>` : ''}
             ${hasPermission('programs.delete') ? `<button class="btn btn-danger-soft btn-xs" onclick="delProgram(${c.id},${p.id})">${vIc('trash', 12)} <span>${t('حذف')}</span></button>` : ''}
           </div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
   `;
 }
 
@@ -705,7 +728,7 @@ function renderReport(c) {
           <div class="rep-row"><div class="rep-dot"></div><div><strong>النشاط:</strong> ${esc(c.businessType) || 'غير محدد'}${c.businessField ? ' — ' + esc(c.businessField) : ''}</div></div>
           <div class="rep-row"><div class="rep-dot"></div><div><strong>الموقع:</strong> ${esc(c.wilaya) || '—'}${c.location ? '، ' + esc(c.location) : ''}</div></div>
           <div class="rep-row"><div class="rep-dot"></div><div><strong>الحالة:</strong> ${esc(c.status)} — ${c.status === 'نشط' ? 'علاقة نشطة' : 'يحتاج متابعة'}</div></div>
-          <div class="rep-row"><div class="rep-dot"></div><div><strong>العقد:</strong> <span class="num">${fmtD(c.startDate) || '—'}</span> ← ${fmtD(c.endDate) || 'مفتوح'}</div></div>
+          <div class="rep-row"><div class="rep-dot"></div><div><strong>تاريخ الاشتراك:</strong> <span class="num">${fmtD(c.startDate) || '—'}</span> · ترخيص مدى الحياة</div></div>
           ${c.notes ? `<div class="rep-row"><div class="rep-dot"></div><div><strong>ملاحظات:</strong> ${esc(c.notes)}</div></div>` : ''}
         </div>
       </div>
@@ -714,16 +737,11 @@ function renderReport(c) {
         <div class="rep-sec-title">${vIc('package', 14)} <span>البرامج والتراخيص</span></div>
         ${ps.total === 0
           ? `<div class="rep-card" style="color:var(--t3);text-align:center">لا توجد برامج مرتبطة</div>`
-          : (c.programs || []).map(p => {
-              const isActive = !p.endDate || new Date(p.endDate + 'T00:00') >= today;
-              const cls = isActive ? 'green' : 'red';
-              const lbl = isActive ? 'نشط' : 'منتهي';
-              return `<div class="rep-card">
-                <div class="rep-row"><div class="rep-dot ${cls}"></div><div><strong>${esc(p.programName)}</strong> — <span style="color:${cls === 'green' ? 'var(--g)' : 'var(--r)'}">${lbl}</span></div></div>
+          : (c.programs || []).map(p => `<div class="rep-card">
+                <div class="rep-row"><div class="rep-dot green"></div><div><strong>${esc(p.programName)}</strong> — <span style="color:var(--g)">نشط (مدى الحياة)</span></div></div>
                 <div class="rep-row"><div class="rep-dot"></div><div>المنصة: ${esc(p.platform)} · النوع: ${esc(p.type)} · <span class="num">${p.installationsCount}</span> جهاز</div></div>
-                <div class="rep-row"><div class="rep-dot"></div><div>الفترة: <span class="num">${fmtD(p.startDate) || '—'}</span> ← ${p.endDate ? fmtD(p.endDate) : 'مفتوح'}</div></div>
-              </div>`;
-            }).join('')}
+                <div class="rep-row"><div class="rep-dot"></div><div>تاريخ التثبيت: <span class="num">${fmtD(p.startDate) || '—'}</span></div></div>
+              </div>`).join('')}
       </div>
 
       <div class="rep-sec">
@@ -777,9 +795,9 @@ function renderReport(c) {
         <div class="rep-sec-title">${vIc('bulb', 14)} <span>فرص النمو</span></div>
         <div class="rep-card">
           <div class="rep-row"><div class="rep-dot ${oppLevel === 'عالية' ? 'green' : oppLevel === 'متوسطة' ? 'yellow' : ''}"></div><div><strong>مستوى الفرصة:</strong> <span style="color:${oppColor};font-weight:700">${oppLevel}</span></div></div>
-          ${hiReqs.length > 0 ? `<div class="rep-row"><div class="rep-dot green"></div><div>${hiReqs.length} طلب ذو تأثير عالٍ — فرصة لتوسيع العقد</div></div>` : ''}
+          ${hiReqs.length > 0 ? `<div class="rep-row"><div class="rep-dot green"></div><div>${hiReqs.length} طلب ذو تأثير عالٍ — فرصة لتوسيع التراخيص</div></div>` : ''}
           ${featureOp.length > 0 ? `<div class="rep-row"><div class="rep-dot green"></div><div>${featureOp.length} مشكلة قابلة للتحويل لميزة — قيمة منتج مضافة</div></div>` : ''}
-          ${c.status === 'محتمل' ? `<div class="rep-row"><div class="rep-dot yellow"></div><div>عميل محتمل — لم يُغلق العقد بعد</div></div>` : ''}
+          ${c.status === 'محتمل' ? `<div class="rep-row"><div class="rep-dot yellow"></div><div>عميل محتمل — قيد المتابعة لإغلاق الصفقة</div></div>` : ''}
           ${ps.total >= 2 ? `<div class="rep-row"><div class="rep-dot green"></div><div>يستخدم ${ps.total} برامج — ارتباط قوي بالمنصة</div></div>` : ''}
         </div>
       </div>

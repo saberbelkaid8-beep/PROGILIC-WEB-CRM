@@ -1,6 +1,7 @@
 import { S, clients } from '../state/store.js';
 import { WILAYAS, ACTIVITY_TYPES } from '../constants/index.js';
 import { t } from './i18n.js';
+import { normalizeProgramCategory } from '../business/programMetrics.js';
 
 export function esc(str) {
   if (str === null || str === undefined) return '';
@@ -162,30 +163,22 @@ export function activityIcon(act) {
   return m[act] || '🏪';
 }
 
-const progStatsCache = new WeakMap();
-
 export function getProgramStats(c) {
   if (!c) return { total: 0, totalInstalls: 0, active: 0, expired: 0 };
-  if (progStatsCache.has(c)) {
-    return progStatsCache.get(c);
-  }
   const progs = Array.isArray(c.programs) ? c.programs : [];
-  let res;
   if (progs.length > 0) {
     const totalInstalls = progs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0);
-    res = { total: progs.length, totalInstalls, active: progs.length, expired: 0 };
-  } else if (!c._subcollectionsLoaded && c.programsCount !== undefined) {
-    res = {
+    return { total: progs.length, totalInstalls, active: progs.length, expired: 0 };
+  }
+  if (!c._subcollectionsLoaded && c.programsCount !== undefined) {
+    return {
       total: c.programsCount || 0,
       totalInstalls: c.installationsCount || 0,
       active: c.programsCount || 0,
       expired: 0
     };
-  } else {
-    res = { total: 0, totalInstalls: 0, active: 0, expired: 0 };
   }
-  progStatsCache.set(c, res);
-  return res;
+  return { total: 0, totalInstalls: 0, active: 0, expired: 0 };
 }
 
 export function progStatusCls(p) {
@@ -197,7 +190,19 @@ export function progStatusLabel(p) {
 }
 
 export function platformIcon(pl) { const m = { 'Desktop': '🖥', 'Mobile': '📱', 'Web': '🌐', 'Hybrid': '⚡' }; return m[pl] || '💻'; }
-export function progTypeBdg(tVal) { const m = { 'تجاري': 'bdg-g', 'إنتاجي': 'bdg-b', 'لوحة تحكم': 'bdg-p', 'خدمي': 'bdg-o', 'أخرى': 'bdg-gr' }; return `<span class="bdg ${m[tVal] || 'bdg-gr'}">${t(tVal)}</span>`; }
+export function progTypeBdg(tVal) {
+  const norm = normalizeProgramCategory({ type: tVal, programName: tVal });
+  const clsMap = {
+    'Commercial': 'bdg-g',
+    'Production': 'bdg-b',
+    'Distribution': 'bdg-o',
+    'Mobile': 'bdg-p',
+    'Web': 'bdg-y',
+    'Other': 'bdg-gr'
+  };
+  const label = norm.categoryKey === 'Other' ? t(tVal || 'أخرى') : norm.labelAr;
+  return `<span class="bdg ${clsMap[norm.categoryKey] || 'bdg-gr'}">${label}</span>`;
+}
 
 export function normalizePhone(p) { return (p || '').replace(/[\s\-\.]/g, '') }
 
@@ -253,24 +258,6 @@ export function isClientAtRisk(c) {
     (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')
   );
   if (hasUrgent) return true;
-
-  // Ending or expired contract (within 30 days or past)
-  if (c.endDate) {
-    try {
-      const dl = Math.floor((new Date(c.endDate + 'T00:00').getTime() - Date.now()) / 86400000);
-      if (dl <= 30) return true;
-    } catch (e) {}
-  }
-  const progExpiring = (c.programs || []).some(p => {
-    if (!p || !p.endDate) return false;
-    try {
-      const dl = Math.floor((new Date(p.endDate + 'T00:00').getTime() - Date.now()) / 86400000);
-      return dl <= 30;
-    } catch (e) {
-      return false;
-    }
-  });
-  if (progExpiring) return true;
 
   return false;
 }

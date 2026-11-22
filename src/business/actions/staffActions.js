@@ -1,12 +1,26 @@
-import { S, staffUsers, currentStaffUser, setStaffUsers, setCurrentStaffUser, isGerant, getActiveTenantId, currentUser } from '../../state/store.js';
+import { S, staffUsers, currentStaffUser, setStaffUsers, setCurrentStaffUser, isGerant, getActiveTenantId, currentUser, updateState } from '../../state/store.js';
 import { showToast } from '../../utils/toast.js';
 import { R } from '../../presentation/render-core.js';
 import { t } from '../../utils/i18n.js';
 import { ALL_PERMISSIONS, PERMISSION_GROUPS, buildDeptPermissions } from '../../constants/index.js';
-import { saveEmployeeForTenant, deleteEmployeeForTenant } from '../../firebase/service.js';
+import { saveEmployeeForTenant, deleteEmployeeForTenant, classifyFirestoreError } from '../../firebase/service.js';
+import { handleFirestoreQuotaExceeded } from '../storage.js';
 import { hashPassword, verifyPassword } from '../../utils/crypto.js';
-import { deleteEmployeeWithPassword, verifyAdminPassword, getEmployeeById } from '../employeeService.js';
+import { verifyAdminPassword } from '../employeeService.js';
 import { logActivity, ActivityType } from '../timelineService.js';
+
+function ensureOnlineForMutation() {
+  const isBrowserOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+  if (!S.isOnline || !isBrowserOnline) {
+    showToast(t('الاتصال بالإنترنت مقطوع. لا يمكن حفظ أي تعديل بدون تأكيد السحابة.'), 'error');
+    return false;
+  }
+  if (S.quotaExceeded || (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
+    showToast(t('تم تجاوز الحصة اليومية لـ Firestore. التعديلات موقوفة مؤقتاً لحماية قاعدة البيانات.'), 'error');
+    return false;
+  }
+  return true;
+}
 
 window.loginStaff = function(staffId, password) {
   const cleanPass = (password || '').trim();
@@ -23,6 +37,7 @@ window.loginStaff = function(staffId, password) {
   }
 
   let isValid = false;
+  let needsCredentialPersist = false;
   if (found.passwordHash && found.passwordSalt) {
     isValid = verifyPassword(cleanPass, found.passwordHash, found.passwordSalt);
     // Backward compatibility: If Gérant has default salt/hash and enters 'admin'
@@ -31,6 +46,7 @@ window.loginStaff = function(staffId, password) {
       const { hash, salt } = hashPassword('admin');
       found.passwordHash = hash;
       found.passwordSalt = salt;
+      needsCredentialPersist = true;
       setStaffUsers(staffList, getActiveTenantId());
     }
   } else if (found.password) {
@@ -42,6 +58,7 @@ window.loginStaff = function(staffId, password) {
       found.passwordSalt = salt;
       delete found.password;
       delete found.pwd;
+      needsCredentialPersist = true;
       setStaffUsers(staffList, getActiveTenantId());
     }
   } else if (found.role === 'GERANT') {
@@ -50,12 +67,31 @@ window.loginStaff = function(staffId, password) {
     const { hash, salt } = hashPassword(cleanPass);
     found.passwordHash = hash;
     found.passwordSalt = salt;
+    needsCredentialPersist = true;
     setStaffUsers(staffList, getActiveTenantId());
   }
 
   if (!isValid) {
     showToast(t("كلمة المرور غير صحيحة. يرجى إدخال كلمة المرور الصحيحة."), "error");
     return;
+  }
+
+  const tenantId = getActiveTenantId();
+  if (
+    needsCredentialPersist &&
+    tenantId &&
+    S.isOnline &&
+    (typeof navigator === 'undefined' || navigator.onLine !== false) &&
+    !S.quotaExceeded &&
+    !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)
+  ) {
+    saveEmployeeForTenant(tenantId, found).catch(err => {
+      if (classifyFirestoreError(err) === 'quota-exceeded') {
+        handleFirestoreQuotaExceeded('loginStaff', err);
+      } else {
+        console.warn("Failed persisting upgraded staff credentials:", err);
+      }
+    });
   }
 
   setCurrentStaffUser(found);
@@ -96,7 +132,13 @@ window.saveStaffMember = async function(form) {
     showToast(t("عذراً، فقط المسؤول العام (GERANT) يمكنه تعديل أو إضافة بيانات الموظفين والأقسام."), "error");
     return;
   }
+  if (!ensureOnlineForMutation()) return;
   const tenantId = getActiveTenantId();
+  if (!tenantId) {
+    showToast(t("تعذر تحديد الحساب السحابي النشط لحفظ بيانات الموظف."), "error");
+    return;
+  }
+
   const staffList = [...(S.staffUsers || [])];
   const id = form.id || 'staff-' + Date.now();
   const existingIndex = staffList.findIndex(s => s.id === id);
@@ -117,8 +159,9 @@ window.saveStaffMember = async function(form) {
     : buildDeptPermissions(dept);
 
   const staffObj = {
+    ...(existing || {}),
     id,
-    tenantId: tenantId || 'default',
+    tenantId,
     adminEmail: currentUser?.email || '',
     name: form.name || form.fullName || 'موظف جديد',
     fullName: form.fullName || form.name || 'موظف جديد',
@@ -136,24 +179,32 @@ window.saveStaffMember = async function(form) {
     updatedAt: new Date().toISOString()
   };
 
+  updateState({ isMutating: true });
+  try {
+    await saveEmployeeForTenant(tenantId, staffObj);
+  } catch (e) {
+    updateState({ isMutating: false });
+    if (classifyFirestoreError(e) === 'quota-exceeded') {
+      handleFirestoreQuotaExceeded('saveStaffMember', e);
+    } else {
+      showToast(t("فشل حفظ بيانات الموظف في السحابة: ") + (e.message || ''), "error");
+    }
+    return;
+  }
+  updateState({ isMutating: false });
+
   if (existingIndex >= 0) {
-    staffList[existingIndex] = { ...staffList[existingIndex], ...staffObj };
+    staffList[existingIndex] = staffObj;
   } else {
     staffList.push(staffObj);
   }
 
   setStaffUsers(staffList, tenantId);
-
-  // Sync to Firestore under tenant isolation
-  if (tenantId) {
-    try {
-      await saveEmployeeForTenant(tenantId, staffObj);
-    } catch (e) {
-      console.warn("Failed saving employee to Firestore:", e);
-    }
+  if (S.currentStaffUser && S.currentStaffUser.id === id) {
+    setCurrentStaffUser(staffObj, tenantId);
   }
 
-  // Log audit activity
+  // Log audit activity after server ack
   const isEdit = existingIndex >= 0;
   logActivity(
     null,
@@ -162,7 +213,7 @@ window.saveStaffMember = async function(form) {
     `تم ${isEdit ? 'تعديل بيانات وصلاحيات' : 'تسجيل حساب'} الموظف "${staffObj.name}" (${staffObj.department || staffObj.position}).`
   ).catch(console.warn);
 
-  showToast(t("تم حفظ بيانات الموظف بنجاح في قاعدة البيانات!"), "success");
+  showToast(t("تم حفظ بيانات الموظف بنجاح في السحابة!"), "success");
   S.modal = null;
   R();
 };
@@ -177,18 +228,9 @@ window.deleteStaffMember = async function(id, adminPassword = null) {
     return;
   }
 
-  // If admin password was already supplied, perform verification and delete
+  // If admin password was already supplied, perform verification, cloud deletion, and update
   if (adminPassword) {
-    const res = deleteEmployeeWithPassword(id, adminPassword);
-    if (!res.success) {
-      showToast(t(res.message), "error");
-      return;
-    }
-    logActivity(null, ActivityType.STAFF_DELETED, "حذف حساب موظف", `تم حذف حساب الموظف (${id}) بواسطة كلمة مرور المسؤول العام.`).catch(console.warn);
-    showToast(t(res.message), "success");
-    if (S.modal === 'adminPasswordConfirm') S.modal = null;
-    R();
-    return;
+    return await window.confirmDeleteEmployeeWithAdminPassword(id, adminPassword);
   }
 
   // Otherwise, open the Admin Password Verification Modal
@@ -199,13 +241,46 @@ window.deleteStaffMember = async function(id, adminPassword = null) {
 
 window.confirmDeleteEmployeeWithAdminPassword = async function(id, adminPassword) {
   const targetId = id || window.__deleteTargetEmpId;
-  const res = deleteEmployeeWithPassword(targetId, adminPassword);
-  if (!res.success) {
-    showToast(t(res.message), "error");
+  if (!targetId) {
+    showToast(t("معرف المستخدم غير محدد."), "error");
     return false;
   }
-  logActivity(null, ActivityType.STAFF_DELETED, "حذف حساب موظف", `تم حذف حساب الموظف بواسطة كلمة مرور المسؤول العام.`).catch(console.warn);
-  showToast(t(res.message), "success");
+  if (targetId === 'gerant' || targetId === 'gerant-1') {
+    showToast(t("لا يمكن حذف حساب المسؤول العام الرئيسي (Gérant)."), "error");
+    return false;
+  }
+
+  const ver = verifyAdminPassword(adminPassword);
+  if (!ver.success) {
+    showToast(t(ver.message), "error");
+    return false;
+  }
+
+  if (!ensureOnlineForMutation()) return false;
+  const tenantId = getActiveTenantId();
+  if (!tenantId) {
+    showToast(t("تعذر تحديد الحساب السحابي النشط لحذف الموظف."), "error");
+    return false;
+  }
+
+  updateState({ isMutating: true });
+  try {
+    await deleteEmployeeForTenant(tenantId, targetId);
+  } catch (e) {
+    updateState({ isMutating: false });
+    if (classifyFirestoreError(e) === 'quota-exceeded') {
+      handleFirestoreQuotaExceeded('deleteEmployee', e);
+    } else {
+      showToast(t("فشل حذف حساب الموظف من السحابة: ") + (e.message || ''), "error");
+    }
+    return false;
+  }
+  updateState({ isMutating: false });
+
+  const remaining = (S.staffUsers || []).filter(e => e.id !== targetId);
+  setStaffUsers(remaining, tenantId);
+  logActivity(null, ActivityType.STAFF_DELETED, "حذف حساب موظف", `تم حذف حساب الموظف (${targetId}) بواسطة كلمة مرور المسؤول العام.`).catch(console.warn);
+  showToast(t("تم التحقق من كلمة مرور المسؤول وحذف حساب المستخدم من السحابة بنجاح."), "success");
   window.__deleteTargetEmpId = null;
   S.modal = null;
   R();
@@ -217,30 +292,43 @@ window.toggleStaffPermission = async function(staffId, permKey) {
     showToast(t("عذراً، فقط المسؤول العام (GERANT) يمكنه تعديل الصلاحيات."), "error");
     return;
   }
+  if (!ensureOnlineForMutation()) return;
   const tenantId = getActiveTenantId();
+  if (!tenantId) {
+    showToast(t("تعذر تحديد الحساب السحابي النشط لتحديث الصلاحيات."), "error");
+    return;
+  }
+
   const staffList = [...(S.staffUsers || [])];
   const idx = staffList.findIndex(s => s.id === staffId);
   if (idx < 0) return;
   
   const perms = { ...(staffList[idx].permissions || {}) };
   perms[permKey] = !perms[permKey];
-  staffList[idx] = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
+  const updatedStaff = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
 
+  updateState({ isMutating: true });
+  try {
+    await saveEmployeeForTenant(tenantId, updatedStaff);
+  } catch (e) {
+    updateState({ isMutating: false });
+    if (classifyFirestoreError(e) === 'quota-exceeded') {
+      handleFirestoreQuotaExceeded('toggleStaffPermission', e);
+    } else {
+      showToast(t("فشل حفظ الصلاحية في السحابة: ") + (e.message || ''), "error");
+    }
+    return;
+  }
+  updateState({ isMutating: false });
+
+  staffList[idx] = updatedStaff;
   setStaffUsers(staffList, tenantId);
   if (S.currentStaffUser && S.currentStaffUser.id === staffId) {
-    setCurrentStaffUser(staffList[idx], tenantId);
+    setCurrentStaffUser(updatedStaff, tenantId);
   }
 
-  if (tenantId) {
-    try {
-      await saveEmployeeForTenant(tenantId, staffList[idx]);
-    } catch (e) {
-      console.warn('Failed saving employee permission to Firestore:', e);
-    }
-  }
-
-  logActivity(null, ActivityType.STAFF_EDITED, "تعديل صلاحية مستخدم", `تم تعديل الصلاحية (${permKey}) للموظف "${staffList[idx].name}".`).catch(console.warn);
-  showToast(t("تم تحديث الصلاحية بنجاح"), "success");
+  logActivity(null, ActivityType.STAFF_EDITED, "تعديل صلاحية مستخدم", `تم تعديل الصلاحية (${permKey}) للموظف "${updatedStaff.name}".`).catch(console.warn);
+  showToast(t("تم تحديث الصلاحية وحفظها في السحابة"), "success");
   R();
 };
 
@@ -249,7 +337,13 @@ window.grantAllStaffPermissions = async function(staffId, grant) {
     showToast(t("عذراً، فقط المسؤول العام (GERANT) يمكنه تعديل الصلاحيات."), "error");
     return;
   }
+  if (!ensureOnlineForMutation()) return;
   const tenantId = getActiveTenantId();
+  if (!tenantId) {
+    showToast(t("تعذر تحديد الحساب السحابي النشط لتحديث الصلاحيات."), "error");
+    return;
+  }
+
   const staffList = [...(S.staffUsers || [])];
   const idx = staffList.findIndex(s => s.id === staffId);
   if (idx < 0) return;
@@ -258,25 +352,33 @@ window.grantAllStaffPermissions = async function(staffId, grant) {
   ALL_PERMISSIONS.forEach(p => {
     perms[p] = !!grant;
   });
-  staffList[idx] = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
+  const updatedStaff = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
+
+  updateState({ isMutating: true });
+  try {
+    await saveEmployeeForTenant(tenantId, updatedStaff);
+  } catch (e) {
+    updateState({ isMutating: false });
+    if (classifyFirestoreError(e) === 'quota-exceeded') {
+      handleFirestoreQuotaExceeded('grantAllStaffPermissions', e);
+    } else {
+      showToast(t("فشل تحديث الصلاحيات في السحابة: ") + (e.message || ''), "error");
+    }
+    return;
+  }
+  updateState({ isMutating: false });
+
+  staffList[idx] = updatedStaff;
   setStaffUsers(staffList, tenantId);
   if (S.currentStaffUser && S.currentStaffUser.id === staffId) {
-    setCurrentStaffUser(staffList[idx], tenantId);
-  }
-
-  if (tenantId) {
-    try {
-      await saveEmployeeForTenant(tenantId, staffList[idx]);
-    } catch (e) {
-      console.warn('Failed saving employee permissions to Firestore:', e);
-    }
+    setCurrentStaffUser(updatedStaff, tenantId);
   }
 
   logActivity(
     null,
     ActivityType.STAFF_EDITED,
     "تعديل جميع صلاحيات موظف",
-    `تم ${grant ? 'منح' : 'إلغاء'} جميع الصلاحيات للموظف "${staffList[idx].name}".`
+    `تم ${grant ? 'منح' : 'إلغاء'} جميع الصلاحيات للموظف "${updatedStaff.name}".`
   ).catch(console.warn);
   showToast(grant ? t("تم منح جميع الصلاحيات بنجاح") : t("تم إلغاء جميع الصلاحيات"), "success");
   R();
@@ -289,8 +391,13 @@ window.grantStaffGroupPermissions = async function(staffId, groupId, grant) {
   }
   const group = PERMISSION_GROUPS.find(g => g.id === groupId);
   if (!group) return;
-
+  if (!ensureOnlineForMutation()) return;
   const tenantId = getActiveTenantId();
+  if (!tenantId) {
+    showToast(t("تعذر تحديد الحساب السحابي النشط لتحديث الصلاحيات."), "error");
+    return;
+  }
+
   const staffList = [...(S.staffUsers || [])];
   const idx = staffList.findIndex(s => s.id === staffId);
   if (idx < 0) return;
@@ -300,26 +407,34 @@ window.grantStaffGroupPermissions = async function(staffId, groupId, grant) {
     perms[p.key] = !!grant;
   });
 
-  staffList[idx] = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
+  const updatedStaff = { ...staffList[idx], permissions: perms, updatedAt: new Date().toISOString() };
+
+  updateState({ isMutating: true });
+  try {
+    await saveEmployeeForTenant(tenantId, updatedStaff);
+  } catch (e) {
+    updateState({ isMutating: false });
+    if (classifyFirestoreError(e) === 'quota-exceeded') {
+      handleFirestoreQuotaExceeded('grantStaffGroupPermissions', e);
+    } else {
+      showToast(t("فشل تحديث صلاحيات المجموعة في السحابة: ") + (e.message || ''), "error");
+    }
+    return;
+  }
+  updateState({ isMutating: false });
+
+  staffList[idx] = updatedStaff;
   setStaffUsers(staffList, tenantId);
 
   if (S.currentStaffUser && S.currentStaffUser.id === staffId) {
-    setCurrentStaffUser(staffList[idx], tenantId);
-  }
-
-  if (tenantId) {
-    try {
-      await saveEmployeeForTenant(tenantId, staffList[idx]);
-    } catch (e) {
-      console.warn('Failed saving employee group permissions to Firestore:', e);
-    }
+    setCurrentStaffUser(updatedStaff, tenantId);
   }
 
   logActivity(
     null,
     ActivityType.STAFF_EDITED,
     "تعديل صلاحيات مجموعة موظف",
-    `تم ${grant ? 'منح' : 'إلغاء'} صلاحيات مجموعة "${group.name || group.id}" للموظف "${staffList[idx].name}".`
+    `تم ${grant ? 'منح' : 'إلغاء'} صلاحيات مجموعة "${group.name || group.id}" للموظف "${updatedStaff.name}".`
   ).catch(console.warn);
   showToast(grant ? t("تم منح صلاحيات المجموعة بنجاح") : t("تم إلغاء صلاحيات المجموعة"), "success");
   if (typeof R === 'function') R();

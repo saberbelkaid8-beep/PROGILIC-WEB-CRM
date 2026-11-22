@@ -1,5 +1,5 @@
 import { S, clients, setClients, updateState, currentUser, setCurrentUser, hasPermission, isGerant } from '../../state/store.js';
-import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
+import { persist, loadClientSubcollectionsIfNeeded } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
 import { getBackups, deleteBackup } from '../idbStorage.js';

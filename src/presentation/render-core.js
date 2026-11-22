@@ -233,7 +233,7 @@ function performRender() { try {
   }
   
   const alerts = computeAlerts();
-  try { clients.forEach(c => autoDetectFeatureOpp(c.issues || [])); } catch(e) { console.error("Error in autoDetectFeatureOpp:", e); }
+  try { (clients || []).filter(Boolean).forEach(c => autoDetectFeatureOpp(c.issues || [])); } catch(e) { console.error("Error in autoDetectFeatureOpp:", e); }
 
   let modalHTML = '';
   if (S.modal) {
@@ -269,15 +269,33 @@ function performRender() { try {
     `;
   }
 
-  const offlineWarningBanner = (!S.isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) ? `
+  const isBrowserOffline = !S.isOnline || (typeof navigator !== 'undefined' && navigator.onLine === false) || S.connectionState === 'offline';
+  const isQuotaBlocked = Boolean(S.quotaExceeded || S.connectionState === 'quota-exceeded' || (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded));
+  const offlineWarningBanner = isBrowserOffline ? `
     <div style="background:rgba(255,69,58,0.92); backdrop-filter:blur(12px); color:#ffffff; padding:10px 16px; font-weight:700; font-size:12.5px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid rgba(255,255,255,0.2); position:sticky; top:0; z-index:9999;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-      <span>${S.lang === 'fr' ? 'PROGILIC CRM fonctionne exclusivement en ligne. Connexion Internet requise pour synchroniser vos opérations en temps réel.' : S.lang === 'en' ? 'PROGILIC CRM operates strictly online. Internet connection is required to sync operations in real time.' : 'تنبيه هام: نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين. يلزم توفر اتصال بالإنترنت لمزامنة كافة العمليات مباشرة وحفظها لحظياً.'}</span>
+      <span>${S.lang === 'fr' ? 'PROGILIC CRM fonctionne exclusivement en ligne. Connexion Internet requise pour enregistrer et synchroniser en temps réel (mode lecture seule).' : S.lang === 'en' ? 'PROGILIC CRM operates strictly online. Internet connection is required for real-time mutations (read-only cache view).' : 'تنبيه هام: نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين. تم إيقاف التعديلات مؤقتاً لعدم توفر الاتصال — البيانات المعروضة مؤقتة وقد تكون غير محدثة.'}</span>
+    </div>
+  ` : '';
+
+  const quotaWarningBanner = (!isBrowserOffline && isQuotaBlocked) ? `
+    <div style="background:rgba(217,119,6,0.94); backdrop-filter:blur(12px); color:#ffffff; padding:10px 16px; font-weight:700; font-size:12.5px; text-align:center; display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,0.25); position:sticky; top:0; z-index:9998;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span>${S.lang === 'fr' ? 'Quota Firestore atteint : synchronisation temps réel et écritures suspendues (affichage des dernières données confirmées).' : S.lang === 'en' ? 'Firestore quota exceeded: real-time listeners and writes paused (showing last confirmed state, may be stale).' : 'تنبيه حماية الحصة: تم تجاوز حد القراءات اليومي لـ Firestore — تم إيقاف المزامنة التلقائية والتعديلات مؤقتاً، مع الاحتفاظ بآخر بيانات مؤكدة (قد تكون قديمة).'}</span>
+      <button class="btn btn-xs" style="background:#ffffff;color:#92400e;border:none;font-weight:800;padding:4px 10px;border-radius:8px;cursor:pointer;" onclick="reconnectRealtimeSync()">${t('إعادة الاتصال والمزامنة')}</button>
+    </div>
+  ` : '';
+
+  const staleWarningBanner = (!isBrowserOffline && !isQuotaBlocked && (S.dataIsStale || S.clientsFromCache)) ? `
+    <div style="background:rgba(245,158,11,0.2); backdrop-filter:blur(10px); color:var(--wt, #fbbf24); padding:7px 14px; font-weight:600; font-size:12px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid rgba(245,158,11,0.3);">
+      <span>${t('عرض مؤقت من الذاكرة المحلية — في انتظار تأكيد الخادم للتحديث اللحظي.')}</span>
     </div>
   ` : '';
 
   const nextHTML = 
     offlineWarningBanner +
+    quotaWarningBanner +
+    staleWarningBanner +
     renderHdr(alerts.length, isDark) +
     (S.view === 'list' ? renderAlertBanner(alerts) : '') +
     pageContent +
@@ -365,7 +383,8 @@ const hIc = (name, size = 15, sw = 2) =>
 
 // Helper to render Header Panel
 function renderHdr(alertCount, isDark) {
-  const ac = clients.filter(c => c.status === 'نشط').length;
+  const safeClients = (clients || []).filter(Boolean);
+  const ac = safeClients.filter(c => c.status === 'نشط').length;
   const activeUserLabel = currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? esc(currentUser.email) : '');
 
   return `<header class="hdr">
@@ -394,7 +413,7 @@ function renderHdr(alertCount, isDark) {
       ` : ''}
     </nav>
 
-    <span class="hdr-count-meta num">${ac} ${t('نشط')} · ${clients.length}</span>
+    <span class="hdr-count-meta num">${ac} ${t('نشط')} · ${safeClients.length}</span>
 
     <div class="hdr-right">
       <!-- 3-Way Language Selector -->
@@ -461,37 +480,48 @@ function renderAlertBanner(alerts) {
 
 // Helper to render Storage & Sync Status Bar
 function renderStorageBar() {
-  const isOnline = S.isOnline;
-  const queueCount = (S.syncQueue || []).length;
+  const isBrowserOffline = !S.isOnline || (typeof navigator !== 'undefined' && navigator.onLine === false) || S.connectionState === 'offline';
+  const isQuotaBlocked = Boolean(S.quotaExceeded || S.connectionState === 'quota-exceeded' || (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded));
+  const isMutating = Boolean(S.isMutating || _isSyncing);
+  const isStaleOrCached = Boolean(S.dataIsStale || S.clientsFromCache || !S.hasConfirmedServerSync || _saveError);
   const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
   
   let statusHTML = '';
-  if (!isOnline) {
+  if (isBrowserOffline) {
     statusHTML = `
       <span style="color:var(--rt); font-weight:700; display:inline-flex; align-items:center; gap:7px;">
         ${hIc('warn', 15)}
-        <span>${t('غير متصل - مطلوب اتصال بالإنترنت (نظام سحابي أونلاين فقط)')}</span>
+        <span>${t('غير متصل - مطلوب اتصال بالإنترنت (نظام سحابي أونلاين فقط · التعديلات معطلة)')}</span>
       </span>
     `;
-  } else if (queueCount > 0) {
+  } else if (isQuotaBlocked) {
+    statusHTML = `
+      <span style="color:var(--wt); font-weight:700; display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        ${hIc('warn', 15)}
+        <span>${t('تم تجاوز حصة Firestore — المزامنة التلقائية موقوفة (عرض آخر بيانات مؤكدة)')}</span>
+        <button class="btn btn-xs btn-primary" onclick="reconnectRealtimeSync()">${t('إعادة الاتصال والمزامنة')}</button>
+      </span>
+    `;
+  } else if (isMutating) {
     statusHTML = `
       <span style="color:var(--bt); font-weight:600; display:inline-flex; align-items:center; gap:7px;">
         ${hIc('cloud', 15)}
-        <span>${t('جاري المزامنة السحابية الفورية')} (<span class="num">${queueCount}</span> ${t('عمليات معلقة')})</span>
+        <span>${t('جاري الحفظ وتأكيد العملية على خادم Firestore...')}</span>
       </span>
     `;
-  } else if (_saveError) {
+  } else if (isStaleOrCached) {
     statusHTML = `
-      <span style="color:var(--wt); font-weight:600; display:inline-flex; align-items:center; gap:7px;">
+      <span style="color:var(--wt); font-weight:600; display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;">
         ${hIc('warn', 15)}
-        <span>${t('جاري إعادة الاتصال بالسحابة...')}</span>
+        <span>${t('بيانات مؤقتة — في انتظار تأكيد الخادم للمزامنة الحية')}</span>
+        ${_saveError || S.connectionState === 'error' ? `<button class="btn btn-xs btn-outline" onclick="reconnectRealtimeSync()">${t('إعادة الاتصال')}</button>` : ''}
       </span>
     `;
   } else {
     statusHTML = `
       <span style="color:var(--gt); font-weight:600; display:inline-flex; align-items:center; gap:7px;">
         ${hIc('cloud', 15)}
-        <span>${t('متصل بالسحابة أونلاين')} (${t('مزامنة حية لحظية لكافة المستخدمين')})${_lastSyncedTime ? ` · <span class="num">${_lastSyncedTime.toLocaleTimeString(locale)}</span>` : ''}</span>
+        <span>${t('متصل بالسحابة أونلاين')} (${t('مزامنة حية مؤكدة من الخادم لكافة المستخدمين')})${_lastSyncedTime ? ` · <span class="num">${_lastSyncedTime.toLocaleTimeString(locale)}</span>` : ''}</span>
       </span>
     `;
   }

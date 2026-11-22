@@ -107,6 +107,10 @@
             "lng": { "type": "string" }
           }
         },
+        "version": {
+          "type": "number",
+          "description": "Optimistic concurrency control version"
+        },
         "score": {
           "type": "number",
           "description": "Calculated health score of client"
@@ -115,9 +119,25 @@
           "type": "number",
           "description": "Denormalized count of unresolved issues"
         },
+        "urgentIssuesCount": {
+          "type": "number",
+          "description": "Denormalized count of urgent and high priority open issues"
+        },
+        "solvedIssuesCount": {
+          "type": "number",
+          "description": "Denormalized count of resolved/closed issues"
+        },
+        "issuesByPriority": {
+          "type": "object",
+          "description": "Denormalized open issue breakdown by priority"
+        },
         "requirementsCount": {
           "type": "number",
           "description": "Denormalized count of feature requests"
+        },
+        "reqsByStatus": {
+          "type": "object",
+          "description": "Denormalized requirements breakdown by status"
         },
         "programsCount": {
           "type": "number",
@@ -126,6 +146,22 @@
         "installationsCount": {
           "type": "number",
           "description": "Denormalized count of licensed installations/devices"
+        },
+        "contactsCount": {
+          "type": "number",
+          "description": "Denormalized count of contact logs"
+        },
+        "programNames": {
+          "type": "array",
+          "description": "Denormalized list of licensed program names"
+        },
+        "programs": {
+          "type": "array",
+          "description": "Summary snapshot of client licensed programs"
+        },
+        "programsPurgedAt": {
+          "type": "string",
+          "description": "Timestamp when programs were purged"
         },
         "updatedAt": {
           "type": "string",
@@ -140,9 +176,11 @@
       "type": "object",
       "properties": {
         "id": { "type": "number" },
+        "versionNum": { "type": "number" },
         "programName": { "type": "string", "maxLength": 100 },
         "platform": { "type": "string", "enum": ["Desktop", "Mobile", "Web", "Hybrid"] },
-        "type": { "type": "string", "enum": ["تجاري", "إنتاجي", "لوحة تحكم", "خدمي", "أخرى"] },
+        "type": { "type": "string" },
+        "version": { "type": "string" },
         "installationsCount": { "type": "number" },
         "startDate": { "type": "string" },
         "endDate": { "type": "string" }
@@ -155,15 +193,17 @@
       "type": "object",
       "properties": {
         "id": { "type": "number" },
+        "version": { "type": "number" },
         "title": { "type": "string", "maxLength": 200 },
         "type": { "type": "string", "enum": ["خطأ تقني", "أداء", "استفسار", "طلب ميزة", "خطأ مستخدم", "أخرى"] },
-        "priority": { "type": "string", "enum": ["عاجل", "عالية", "متوسطة", "منخفضة"] },
-        "status": { "type": "string", "enum": ["مفتوح", "قيد المعالجة", "محلول", "مغلق"] },
+        "priority": { "type": "string", "enum": ["عاجل", "عاجلة", "عالية", "متوسطة", "منخفضة"] },
+        "status": { "type": "string", "enum": ["مفتوح", "جديد", "قيد المعالجة", "محلول", "مغلق"] },
         "repeatCount": { "type": "number" },
         "featureOpp": { "type": "boolean" },
         "source": { "type": "string", "enum": ["نظام", "عميل", "سوء استخدام", "شبكة", "غير محدد"] },
         "confidence": { "type": "number" },
         "date": { "type": "string" },
+        "resolvedDate": { "type": "string" },
         "notes": { "type": "string", "maxLength": 1000 },
         "solution": { "type": "string", "maxLength": 1000 }
       },
@@ -175,6 +215,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "number" },
+        "version": { "type": "number" },
         "title": { "type": "string", "maxLength": 200 },
         "type": { "type": "string" },
         "priority": { "type": "string", "enum": ["عاجل", "عالية", "متوسطة", "منخفضة"] },
@@ -191,6 +232,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "number" },
+        "version": { "type": "number" },
         "date": { "type": "string" },
         "note": { "type": "string", "maxLength": 2000 }
       },
@@ -202,7 +244,9 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "tenantId": { "type": "string" },
         "fullName": { "type": "string", "maxLength": 100 },
+        "name": { "type": "string", "maxLength": 100 },
         "username": { "type": "string", "maxLength": 50 },
         "department": { "type": "string", "enum": ["pre_vente", "commercial", "suivi", "technique"] },
         "position": { "type": "string", "maxLength": 100 },
@@ -210,10 +254,33 @@
         "phone": { "type": "string", "maxLength": 30 },
         "email": { "type": "string", "maxLength": 100 },
         "tasks": { "type": "string", "maxLength": 2000 },
-        "status": { "type": "string", "enum": ["نشط", "معطل"] },
-        "permissions": { "type": "object" }
+        "role": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["نشط", "معطل", "active", "inactive"] },
+        "permissions": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "lastLogin": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "passwordSalt": { "type": "string" }
       },
-      "required": ["id", "fullName", "username", "department", "position", "status"]
+      "required": ["id", "tenantId", "fullName", "username", "department", "position", "status"]
+    },
+    "Backup": {
+      "title": "Cloud Tenant Backup",
+      "description": "Snapshot backup stored in Firestore for safe cloud restore workflows",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "reason": { "type": "string" },
+        "clientCount": { "type": "number" },
+        "nid": { "type": "number" },
+        "stats": { "type": "object" },
+        "clients": { "type": "array" }
+      },
+      "required": ["id", "uid", "timestamp", "clientCount", "clients"]
     },
     "TestConnection": {
       "title": "Test Connection Document",
@@ -252,6 +319,10 @@
     "users/{userId}/employees/{employeeId}": {
       "schema": "Employee",
       "description": "Staff members, departments, and access control settings managed by the Gérant"
+    },
+    "users/{userId}/backups/{backupId}": {
+      "schema": "Backup",
+      "description": "Cloud tenant backups for safe recovery and restore"
     },
     "test/{docId}": {
       "schema": "TestConnection",

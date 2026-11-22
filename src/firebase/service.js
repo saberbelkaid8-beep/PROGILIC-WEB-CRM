@@ -1,17 +1,17 @@
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  collection, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  limit, 
-  startAfter, 
-  runTransaction, 
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  runTransaction,
   writeBatch,
   deleteField,
   onSnapshot
@@ -37,9 +37,62 @@ export function isQuotaExceededError(error) {
     msg.includes('free daily read units');
 }
 
-export function handleFirestoreError(error, operationType, path) {
+export function classifyFirestoreError(error) {
+  if (!error) return 'unknown';
+  if (isQuotaExceededError(error)) return 'quota-exceeded';
+  const code = String(error?.code || '').toLowerCase();
+  const msg = String(error?.message || error || '').toLowerCase();
+  if (code === 'version_conflict' || code === 'version-conflict' || msg.includes('version_conflict')) {
+    return 'version-conflict';
+  }
+  if (code === 'permission-denied' || code.endsWith('/permission-denied') || msg.includes('missing or insufficient permissions') || msg.includes('permission')) {
+    return 'permission-denied';
+  }
+  if (code === 'unauthenticated' || code.endsWith('/unauthenticated')) {
+    return 'unauthenticated';
+  }
+  if (
+    code === 'network-offline' ||
+    code === 'unavailable' ||
+    code.endsWith('/unavailable') ||
+    code === 'failed-precondition' ||
+    msg.includes('the client is offline') ||
+    msg.includes('offline') ||
+    msg.includes('network') ||
+    msg.includes('firestore_timeout')
+  ) {
+    return 'network-offline';
+  }
+  return 'unknown';
+}
+
+export function assertOnlineForWrite() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    const err = new Error('الاتصال بالإنترنت غير متاح. النظام يعمل حصرياً أونلاين ولا يقبل التعديلات دون تأكيد السحابة.');
+    err.code = 'network-offline';
+    err.classification = 'network-offline';
+    throw err;
+  }
+  if (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded) {
+    const err = new Error('Quota limit exceeded. تم إيقاف الكتابة لحماية الحصة حتى استعادة الخدمة.');
+    err.code = 'resource-exhausted';
+    err.classification = 'quota-exceeded';
+    throw err;
+  }
+  if (auth && !auth.currentUser) {
+    const err = new Error('المستخدم غير مسجل الدخول في Firebase Auth.');
+    err.code = 'unauthenticated';
+    err.classification = 'unauthenticated';
+    throw err;
+  }
+}
+
+export function handleFirestoreError(error, operationType, path, options = {}) {
+  const classification = classifyFirestoreError(error);
   const errInfo = {
     error: error instanceof Error ? error.message : String(error),
+    classification,
+    code: error?.code || classification,
     authInfo: {
       userId: auth?.currentUser?.uid,
       email: auth?.currentUser?.email,
@@ -50,17 +103,20 @@ export function handleFirestoreError(error, operationType, path) {
     path
   };
   console.warn('Firestore Notice: ', JSON.stringify(errInfo));
-  if (isQuotaExceededError(error)) {
+  if (classification === 'quota-exceeded') {
     if (typeof globalThis !== 'undefined') {
       globalThis.__progilicFirestoreQuotaExceeded = true;
     }
+    if (!options.rethrow) return null;
+  }
+  if (!options.rethrow && (!auth?.currentUser || classification === 'permission-denied')) {
     return null;
   }
-  // If user signed out, don't crash with an unhandled exception
-  if (!auth?.currentUser || error?.code === 'permission-denied' || (error?.message && error.message.includes('permissions'))) {
-    return null;
-  }
-  throw new Error(JSON.stringify(errInfo));
+  const wrapped = error instanceof Error ? error : new Error(JSON.stringify(errInfo));
+  if (!wrapped.code) wrapped.code = error?.code || classification;
+  wrapped.classification = classification;
+  wrapped.errInfo = errInfo;
+  throw wrapped;
 }
 
 function sanitizeUserId(userId) {
@@ -74,6 +130,38 @@ function sanitizeUserId(userId) {
 }
 
 // 1. User Profile & Global Pre-aggregated Stats
+export async function getUserDataStrict(userId) {
+  if (auth && !auth.currentUser) {
+    return { status: 'unauthenticated', exists: false, fromCache: false, data: null, error: null };
+  }
+  userId = sanitizeUserId(userId);
+  if (!userId) {
+    return { status: 'unauthenticated', exists: false, fromCache: false, data: null, error: null };
+  }
+  const path = `users/${userId}`;
+  try {
+    const docRef = doc(db, path);
+    const snap = await getDoc(docRef);
+    const fromCache = Boolean(snap?.metadata?.fromCache);
+    if (!snap.exists()) {
+      return { status: 'missing', exists: false, fromCache, data: null, error: null };
+    }
+    return { status: 'ok', exists: true, fromCache, data: snap.data(), error: null };
+  } catch (error) {
+    const classification = classifyFirestoreError(error);
+    if (classification === 'quota-exceeded' && typeof globalThis !== 'undefined') {
+      globalThis.__progilicFirestoreQuotaExceeded = true;
+    }
+    return {
+      status: classification,
+      exists: false,
+      fromCache: false,
+      data: null,
+      error
+    };
+  }
+}
+
 export async function getUserData(userId) {
   if (auth && !auth.currentUser) return null;
   userId = sanitizeUserId(userId);
@@ -88,17 +176,16 @@ export async function getUserData(userId) {
 }
 
 export async function saveUserData(userId, data) {
-  if (auth && !auth.currentUser) {
-    console.log("[Firestore] User is not signed in to Firebase Auth. Skipping remote user doc write.");
-    return;
-  }
+  assertOnlineForWrite();
   userId = sanitizeUserId(userId);
+  if (!userId) throw new Error('Missing user ID for saveUserData');
   const path = `users/${userId}`;
   try {
     const docRef = doc(db, path);
     await setDoc(docRef, data, { merge: true });
+    return true;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleFirestoreError(error, OperationType.WRITE, path, { rethrow: true });
   }
 }
 
@@ -119,14 +206,15 @@ export async function getClientsPage(userId, limitVal = 100, lastDoc = null) {
     const snap = await getDocs(q);
     return {
       docs: snap.docs,
+      fromCache: Boolean(snap?.metadata?.fromCache),
       clients: snap.docs.map(d => ({ ...d.data(), firestoreId: d.id }))
     };
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
+    handleFirestoreError(error, OperationType.LIST, path, { rethrow: true });
   }
 }
 
-// Fetches all subcollections (programs, issues, requirements, contacts) of a client to reconstruct the legacy interface
+// Fetches all subcollections (programs, issues, requirements, contacts) of a client
 export async function getClientSubcollections(userId, clientId) {
   userId = sanitizeUserId(userId);
   const basePath = `users/${userId}/clients/${clientId}`;
@@ -145,12 +233,57 @@ export async function getClientSubcollections(userId, clientId) {
       contactHistory: contactsSnap.docs.map(d => d.data())
     };
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, basePath);
+    handleFirestoreError(error, OperationType.GET, basePath, { rethrow: true });
   }
+}
+
+// Subscribe selectively to a single open client's 4 subcollections for real-time detail updates
+export function subscribeClientSubcollections(userId, clientId, onUpdate, onError) {
+  userId = sanitizeUserId(userId);
+  if (!userId || !clientId) return () => {};
+  const basePath = `users/${userId}/clients/${String(clientId)}`;
+  const subNames = [
+    { coll: 'programs', field: 'programs' },
+    { coll: 'issues', field: 'issues' },
+    { coll: 'requirements', field: 'requirements' },
+    { coll: 'contacts', field: 'contactHistory' }
+  ];
+  const unsubs = [];
+
+  for (const { coll, field } of subNames) {
+    try {
+      const collRef = collection(db, `${basePath}/${coll}`);
+      const unsub = onSnapshot(collRef, (snapshot) => {
+        const items = snapshot.docs.map(d => d.data());
+        if (typeof onUpdate === 'function') {
+          onUpdate({
+            clientId: String(clientId),
+            collectionName: coll,
+            fieldName: field,
+            items,
+            fromCache: Boolean(snapshot.metadata?.fromCache),
+            empty: snapshot.empty
+          });
+        }
+      }, (error) => {
+        if (typeof onError === 'function') onError(error, coll);
+      });
+      unsubs.push(unsub);
+    } catch (err) {
+      if (typeof onError === 'function') onError(err, coll);
+    }
+  }
+
+  return () => {
+    unsubs.forEach(u => {
+      try { u(); } catch (_) {}
+    });
+  };
 }
 
 // Transaction: Create client, persist initial programs to subcollection, and initialize stats
 export async function addClientTransaction(userId, clientData, globalStats) {
+  assertOnlineForWrite();
   userId = sanitizeUserId(userId);
   const userPath = `users/${userId}`;
   const clientId = String(clientData.id);
@@ -177,29 +310,50 @@ export async function addClientTransaction(userId, clientData, globalStats) {
   const programNames = normalizedPrograms.map(p => p.programName).filter(Boolean);
   const activeProg = normalizedPrograms.filter(p => p.endDate).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
   const resolvedEndDate = clientData.endDate || (activeProg.length > 0 ? activeProg[0].endDate : '');
+  const nowIso = new Date().toISOString();
+
+  const issues = Array.isArray(clientData.issues) ? clientData.issues : [];
+  const openIssues = issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد'));
+  const issuesByPriority = clientData.issuesByPriority || {
+    عاجل: openIssues.filter(i => i.priority === 'عاجل' || i.priority === 'عاجلة').length,
+    عالية: openIssues.filter(i => i.priority === 'عالية').length,
+    متوسطة: openIssues.filter(i => i.priority === 'متوسطة').length,
+    منخفضة: openIssues.filter(i => i.priority === 'منخفضة' || !i.priority).length
+  };
+  const reqs = Array.isArray(clientData.requirements) ? clientData.requirements : [];
+  const reqsByStatus = clientData.reqsByStatus || {
+    مقترح: reqs.filter(r => r.status === 'مقترح' || !r.status).length,
+    'قيد الدراسة': reqs.filter(r => r.status === 'قيد الدراسة').length,
+    مخطط: reqs.filter(r => r.status === 'مخطط').length,
+    منفذ: reqs.filter(r => r.status === 'منفذ').length
+  };
 
   try {
     await runTransaction(db, async (tx) => {
       const userRef = doc(db, userPath);
       const clientRef = doc(db, clientPath);
       const userSnap = typeof tx.get === 'function' ? await tx.get(userRef) : null;
-      const serverStats = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data()?.stats || {}) : null;
+      const userDocData = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data() || {}) : null;
+      const serverStats = userDocData?.stats || null;
 
-      // Write parent client document with accurate program metadata
+      // Write parent client document with accurate summary metadata
       tx.set(clientRef, {
         ...clientData,
         programs: normalizedPrograms,
         programNames,
         endDate: resolvedEndDate,
         version: 1, // OCC: Initial version
-        openIssuesCount: Array.isArray(clientData.issues)
-          ? clientData.issues.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة')).length
-          : 0,
-        requirementsCount: Array.isArray(clientData.requirements) ? clientData.requirements.length : 0,
+        openIssuesCount: openIssues.length,
+        urgentIssuesCount: (issuesByPriority.عاجل || 0) + (issuesByPriority.عالية || 0),
+        solvedIssuesCount: issues.filter(i => i && (i.status === 'محلول' || i.status === 'مغلق')).length,
+        issuesByPriority,
+        requirementsCount: reqs.length,
+        reqsByStatus,
+        contactsCount: Array.isArray(clientData.contactHistory) ? clientData.contactHistory.length : (clientData.contactsCount || 0),
         programsCount,
         installationsCount,
-        score: clientData.score || 100,
-        updatedAt: new Date().toISOString()
+        score: clientData.score !== undefined ? clientData.score : 100,
+        updatedAt: nowIso
       });
 
       // Write each initial program to the programs subcollection atomically
@@ -208,14 +362,16 @@ export async function addClientTransaction(userId, clientData, globalStats) {
         tx.set(progRef, progDoc, { merge: true });
       }
 
-      // Update pre-aggregated user stats safely without double-counting pre-incremented stats
-      const nextStats = { ...(globalStats || {}) };
+      // Compute atomic stats from authoritative serverStats when present
+      const baseStats = serverStats ? { ...serverStats } : { ...(globalStats || {}) };
       const callerAlreadyCounted = Boolean(
+        !serverStats &&
         globalStats &&
         typeof globalStats.totalClients === 'number' &&
-        globalStats.totalClients > (Number(serverStats?.totalClients) || 0)
+        globalStats.totalClients > 0
       );
 
+      const nextStats = { ...baseStats };
       if (!callerAlreadyCounted) {
         nextStats.totalClients = (nextStats.totalClients || 0) + 1;
         if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
@@ -225,26 +381,31 @@ export async function addClientTransaction(userId, clientData, globalStats) {
           nextStats.totalPrograms = (nextStats.totalPrograms || 0) + programsCount;
           nextStats.totalLicensedDevices = (nextStats.totalLicensedDevices || 0) + installationsCount;
         }
+        if (openIssues.length > 0) {
+          nextStats.totalOpenIssues = (nextStats.totalOpenIssues || 0) + openIssues.length;
+        }
       }
 
       const userPayload = {
         stats: nextStats,
-        nid: clientData.id,
-        updatedAt: new Date().toISOString()
+        nid: Math.max(Number(userDocData?.nid || 100), Number(clientData.id) || 100),
+        updatedAt: nowIso
       };
-      if (!userSnap || !userSnap.exists || !userSnap.exists()) {
+      if (!userDocData) {
         userPayload.v = 3;
       }
       tx.set(userRef, userPayload, { merge: true });
     });
+    return { version: 1, updatedAt: nowIso };
   } catch (error) {
-    handleFirestoreError(error, OperationType.TRANSACTION, clientPath);
+    handleFirestoreError(error, OperationType.TRANSACTION, clientPath, { rethrow: true });
   }
 }
 
 // Backfill recovered programs into client's programs subcollection and sync denormalized counters
 export async function backfillClientProgramsTransaction(userId, clientId, programsToWrite = [], counterUpdates = {}, globalStats = null, options = {}) {
   if (auth && !auth.currentUser) return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
   userId = sanitizeUserId(userId);
   if (!userId || !clientId) return false;
 
@@ -279,7 +440,9 @@ export async function backfillClientProgramsTransaction(userId, clientId, progra
     if (isPermErr && typeof options?.onPermissionDenied === 'function') {
       options.onPermissionDenied(error);
     }
-    handleFirestoreError(error, OperationType.WRITE, clientPath);
+    try {
+      handleFirestoreError(error, OperationType.WRITE, clientPath);
+    } catch (_) {}
     return false;
   }
 }
@@ -287,6 +450,7 @@ export async function backfillClientProgramsTransaction(userId, clientId, progra
 // Batch backfill recovered programs for multiple clients at once (max 400 ops per Firestore writeBatch)
 export async function backfillClientProgramsBatch(userId, items = [], options = {}) {
   if (auth && !auth.currentUser) return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
   userId = sanitizeUserId(userId);
   if (!userId || !Array.isArray(items) || items.length === 0) return true;
 
@@ -337,16 +501,21 @@ export async function backfillClientProgramsBatch(userId, items = [], options = 
     if (isPermErr && typeof options?.onPermissionDenied === 'function') {
       options.onPermissionDenied(error);
     }
-    handleFirestoreError(error, OperationType.WRITE, lastPath);
+    try {
+      handleFirestoreError(error, OperationType.WRITE, lastPath);
+    } catch (_) {}
     return false;
   }
 }
 
-// Transaction: Update client and adjust stats if status changed
+// Transaction: Update client and adjust stats atomically if status changed, enforcing OCC baseVersion
 export async function updateClientTransaction(userId, clientId, clientData, oldStatus, globalStats, baseVersion = 0) {
+  assertOnlineForWrite();
   userId = sanitizeUserId(userId);
   const userPath = `users/${userId}`;
   const clientPath = `users/${userId}/clients/${clientId}`;
+  const nowIso = new Date().toISOString();
+  let nextVersion = (Number(baseVersion) || 0) + 1;
 
   try {
     await runTransaction(db, async (tx) => {
@@ -354,53 +523,63 @@ export async function updateClientTransaction(userId, clientId, clientData, oldS
       const clientRef = doc(db, clientPath);
 
       const docSnap = await tx.get(clientRef);
+      let serverOldStatus = oldStatus;
+      let currentVersion = 0;
       if (docSnap.exists()) {
-        const currentVersion = docSnap.data().version || 0;
-        if (currentVersion > baseVersion && baseVersion > 0) {
+        const serverData = docSnap.data() || {};
+        currentVersion = Number(serverData.version || 0);
+        serverOldStatus = serverData.status || oldStatus;
+        const expectedBase = Number(baseVersion ?? 0);
+        if (currentVersion > expectedBase) {
           const conflictError = new Error('VERSION_CONFLICT');
           conflictError.code = 'VERSION_CONFLICT';
-          conflictError.serverData = docSnap.data();
+          conflictError.serverData = serverData;
           throw conflictError;
         }
       }
 
+      nextVersion = Math.max(Number(baseVersion) || 0, currentVersion) + 1;
       tx.update(clientRef, {
         ...clientData,
-        version: Math.max(baseVersion || 0, docSnap.exists() ? (docSnap.data().version || 0) : 0) + 1,
-        updatedAt: new Date().toISOString()
+        version: nextVersion,
+        updatedAt: nowIso
       });
 
-      if (oldStatus !== clientData.status) {
-        const nextStats = { ...globalStats };
-        // Decrement old status
-        if (oldStatus === 'نشط') nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
-        else if (oldStatus === 'محتمل') nextStats.prospectiveClients = Math.max(0, (nextStats.prospectiveClients || 0) - 1);
-        else if (oldStatus === 'متوقف') nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
+      if (clientData.status && serverOldStatus !== clientData.status) {
+        const userSnap = typeof tx.get === 'function' ? await tx.get(userRef) : null;
+        const serverStats = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data()?.stats || null) : null;
+        const nextStats = { ...(serverStats || globalStats || {}) };
 
-        // Increment new status
+        if (serverOldStatus === 'نشط') nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
+        else if (serverOldStatus === 'محتمل') nextStats.prospectiveClients = Math.max(0, (nextStats.prospectiveClients || 0) - 1);
+        else if (serverOldStatus === 'متوقف') nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
+
         if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
         else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
         else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
 
-        tx.update(userRef, {
+        tx.set(userRef, {
           stats: nextStats,
-          updatedAt: new Date().toISOString()
-        });
+          updatedAt: nowIso
+        }, { merge: true });
       }
     });
+    return { version: nextVersion, updatedAt: nowIso };
   } catch (error) {
-    if (error.code === 'VERSION_CONFLICT') {
+    if (error?.code === 'VERSION_CONFLICT') {
       throw error;
     }
-    handleFirestoreError(error, OperationType.TRANSACTION, clientPath);
+    handleFirestoreError(error, OperationType.TRANSACTION, clientPath, { rethrow: true });
   }
 }
 
-// Transaction: Delete client and adjust stats
+// Transaction: Delete client and adjust stats atomically
 export async function deleteClientTransaction(userId, clientId, clientData, globalStats) {
+  assertOnlineForWrite();
   userId = sanitizeUserId(userId);
   const userPath = `users/${userId}`;
   const clientPath = `users/${userId}/clients/${clientId}`;
+  const nowIso = new Date().toISOString();
 
   try {
     // Delete subcollections in a separate batch first
@@ -419,75 +598,76 @@ export async function deleteClientTransaction(userId, clientId, clientData, glob
     contacts.docs.forEach(d => batch.delete(d.ref));
     await batch.commit();
 
-    // Now run transactional delete for client and stats decrement
+    // Run transactional delete for client and atomic stats decrement
     await runTransaction(db, async (tx) => {
       const userRef = doc(db, userPath);
       const clientRef = doc(db, clientPath);
+      const clientSnap = typeof tx.get === 'function' ? await tx.get(clientRef) : null;
+      const userSnap = typeof tx.get === 'function' ? await tx.get(userRef) : null;
+      const serverClient = clientSnap && clientSnap.exists && clientSnap.exists() ? (clientSnap.data() || clientData) : clientData;
+      const serverStats = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data()?.stats || null) : null;
 
       tx.delete(clientRef);
 
-      const nextStats = { ...globalStats };
-      nextStats.totalClients = Math.max(0, (nextStats.totalClients || 0) - 1);
-      if (clientData.status === 'نشط') nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
-      else if (clientData.status === 'محتمل') nextStats.prospectiveClients = Math.max(0, (nextStats.prospectiveClients || 0) - 1);
-      else if (clientData.status === 'متوقف') nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
+      if (serverStats || globalStats) {
+        const nextStats = { ...(serverStats || globalStats || {}) };
+        nextStats.totalClients = Math.max(0, (nextStats.totalClients || 0) - 1);
+        if (serverClient.status === 'نشط') nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
+        else if (serverClient.status === 'محتمل') nextStats.prospectiveClients = Math.max(0, (nextStats.prospectiveClients || 0) - 1);
+        else if (serverClient.status === 'متوقف') nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
 
-      // Reduce total programs and installations counts
-      nextStats.totalPrograms = Math.max(0, (nextStats.totalPrograms || 0) - (clientData.programsCount || 0));
-      nextStats.totalLicensedDevices = Math.max(0, (nextStats.totalLicensedDevices || 0) - (clientData.installationsCount || 0));
-      nextStats.totalOpenIssues = Math.max(0, (nextStats.totalOpenIssues || 0) - (clientData.openIssuesCount || 0));
+        nextStats.totalPrograms = Math.max(0, (nextStats.totalPrograms || 0) - (serverClient.programsCount || 0));
+        nextStats.totalLicensedDevices = Math.max(0, (nextStats.totalLicensedDevices || 0) - (serverClient.installationsCount || 0));
+        nextStats.totalOpenIssues = Math.max(0, (nextStats.totalOpenIssues || 0) - (serverClient.openIssuesCount || 0));
 
-      tx.update(userRef, {
-        stats: nextStats,
-        updatedAt: new Date().toISOString()
-      });
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.TRANSACTION, clientPath);
-  }
-}
-
-// Generic helper to save an item inside a client subcollection and run transaction to update denormalized counters
-export async function saveClientSubItemTransaction(userId, clientId, collectionName, itemId, itemData, counterUpdates, globalStatsUpdates) {
-  userId = sanitizeUserId(userId);
-  const clientPath = `users/${userId}/clients/${clientId}`;
-  const itemPath = `${clientPath}/${collectionName}/${itemId}`;
-  const userPath = `users/${userId}`;
-
-  try {
-    await runTransaction(db, async (tx) => {
-      const clientRef = doc(db, clientPath);
-      const itemRef = doc(db, itemPath);
-      const userRef = doc(db, userPath);
-
-      // Write subcollection document
-      tx.set(itemRef, itemData, { merge: true });
-
-      // Update denormalized properties on client document
-      tx.update(clientRef, {
-        ...counterUpdates,
-        updatedAt: new Date().toISOString()
-      });
-
-      // Update global pre-aggregated counters
-      if (globalStatsUpdates) {
-        tx.update(userRef, {
-          stats: globalStatsUpdates,
-          updatedAt: new Date().toISOString()
-        });
+        tx.set(userRef, {
+          stats: nextStats,
+          updatedAt: nowIso
+        }, { merge: true });
       }
     });
+    return { deleted: true, updatedAt: nowIso };
   } catch (error) {
-    handleFirestoreError(error, OperationType.TRANSACTION, itemPath);
+    handleFirestoreError(error, OperationType.TRANSACTION, clientPath, { rethrow: true });
   }
 }
 
-// Generic helper to delete an item inside a client subcollection and run transaction to update denormalized counters
-export async function deleteClientSubItemTransaction(userId, clientId, collectionName, itemId, counterUpdates, globalStatsUpdates) {
+function applySubItemStatsDeltas(serverStats, serverClient, counterUpdates, fallbackGlobalStats) {
+  if (!serverStats) {
+    return fallbackGlobalStats || null;
+  }
+  const nextStats = { ...serverStats };
+  const prevProgs = Number(serverClient?.programsCount || 0);
+  const prevDevices = Number(serverClient?.installationsCount || 0);
+  const prevOpenIssues = Number(serverClient?.openIssuesCount || 0);
+
+  if (typeof counterUpdates?.programsCount === 'number') {
+    nextStats.totalPrograms = Math.max(0, (nextStats.totalPrograms || 0) + (counterUpdates.programsCount - prevProgs));
+  }
+  if (typeof counterUpdates?.installationsCount === 'number') {
+    nextStats.totalLicensedDevices = Math.max(0, (nextStats.totalLicensedDevices || 0) + (counterUpdates.installationsCount - prevDevices));
+  }
+  if (typeof counterUpdates?.openIssuesCount === 'number') {
+    nextStats.totalOpenIssues = Math.max(0, (nextStats.totalOpenIssues || 0) + (counterUpdates.openIssuesCount - prevOpenIssues));
+  }
+  if (fallbackGlobalStats && typeof fallbackGlobalStats.averageScore === 'number') {
+    nextStats.averageScore = fallbackGlobalStats.averageScore;
+  }
+  return nextStats;
+}
+
+// Save an item inside a client subcollection and run atomic transaction to update summary counters with OCC
+export async function saveClientSubItemTransaction(userId, clientId, collectionName, itemId, itemData, counterUpdates, globalStatsUpdates, concurrency = {}) {
+  assertOnlineForWrite();
   userId = sanitizeUserId(userId);
   const clientPath = `users/${userId}/clients/${clientId}`;
   const itemPath = `${clientPath}/${collectionName}/${itemId}`;
   const userPath = `users/${userId}`;
+  const nowIso = new Date().toISOString();
+  const isProgram = collectionName === 'programs';
+  const versionField = isProgram ? 'versionNum' : 'version';
+  let nextParentVersion = (Number(concurrency?.baseVersion) || 0) + 1;
+  let nextItemVersion = (Number(concurrency?.expectedItemVersion) || 0) + 1;
 
   try {
     await runTransaction(db, async (tx) => {
@@ -495,25 +675,199 @@ export async function deleteClientSubItemTransaction(userId, clientId, collectio
       const itemRef = doc(db, itemPath);
       const userRef = doc(db, userPath);
 
-      // Delete subcollection document
+      const clientSnap = typeof tx.get === 'function' ? await tx.get(clientRef) : null;
+      const itemSnap = typeof tx.get === 'function' ? await tx.get(itemRef) : null;
+      const userSnap = (globalStatsUpdates && typeof tx.get === 'function') ? await tx.get(userRef) : null;
+      const serverClient = clientSnap && clientSnap.exists && clientSnap.exists() ? (clientSnap.data() || {}) : {};
+      const serverItem = itemSnap && itemSnap.exists && itemSnap.exists() ? (itemSnap.data() || {}) : null;
+      const serverStats = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data()?.stats || null) : null;
+
+      // Subitem-level OCC validation
+      const expectedItemVer = concurrency?.expectedItemVersion;
+      if (expectedItemVer !== undefined && expectedItemVer !== null) {
+        if (!serverItem) {
+          const conflictError = new Error('VERSION_CONFLICT');
+          conflictError.code = 'VERSION_CONFLICT';
+          conflictError.conflictScope = 'subitem';
+          conflictError.deletedRemotely = true;
+          conflictError.collectionName = collectionName;
+          conflictError.itemId = String(itemId);
+          conflictError.serverData = serverClient;
+          conflictError.serverItem = null;
+          throw conflictError;
+        }
+        const currentItemVer = Number(serverItem[versionField] || 0);
+        if (currentItemVer > Number(expectedItemVer)) {
+          const conflictError = new Error('VERSION_CONFLICT');
+          conflictError.code = 'VERSION_CONFLICT';
+          conflictError.conflictScope = 'subitem';
+          conflictError.collectionName = collectionName;
+          conflictError.itemId = String(itemId);
+          conflictError.serverData = serverClient;
+          conflictError.serverItem = serverItem;
+          throw conflictError;
+        }
+      } else if (concurrency?.isCreate && serverItem) {
+        const conflictError = new Error('VERSION_CONFLICT');
+        conflictError.code = 'VERSION_CONFLICT';
+        conflictError.conflictScope = 'subitem';
+        conflictError.collectionName = collectionName;
+        conflictError.itemId = String(itemId);
+        conflictError.serverData = serverClient;
+        conflictError.serverItem = serverItem;
+        throw conflictError;
+      }
+
+      // Parent-level OCC validation when caller supplied baseVersion
+      const serverParentVer = Number(serverClient.version || 0);
+      if (
+        concurrency?.baseVersion !== undefined &&
+        concurrency?.baseVersion !== null &&
+        clientSnap &&
+        clientSnap.exists &&
+        clientSnap.exists() &&
+        serverParentVer > Number(concurrency.baseVersion)
+      ) {
+        const conflictError = new Error('VERSION_CONFLICT');
+        conflictError.code = 'VERSION_CONFLICT';
+        conflictError.conflictScope = 'subitem';
+        conflictError.collectionName = collectionName;
+        conflictError.itemId = String(itemId);
+        conflictError.serverData = serverClient;
+        conflictError.serverItem = serverItem;
+        throw conflictError;
+      }
+
+      const currentServerItemVer = Number(serverItem?.[versionField] || 0);
+      nextItemVersion = Math.max(Number(expectedItemVer || 0), currentServerItemVer) + 1;
+      nextParentVersion = Math.max(Number(concurrency?.baseVersion || 0), serverParentVer) + 1;
+
+      tx.set(itemRef, {
+        ...itemData,
+        [versionField]: nextItemVersion
+      }, { merge: true });
+
+      tx.update(clientRef, {
+        ...counterUpdates,
+        version: nextParentVersion,
+        updatedAt: nowIso
+      });
+
+      if (globalStatsUpdates) {
+        const nextStats = applySubItemStatsDeltas(serverStats, serverClient, counterUpdates, globalStatsUpdates);
+        if (nextStats) {
+          tx.set(userRef, {
+            stats: nextStats,
+            updatedAt: nowIso
+          }, { merge: true });
+        }
+      }
+    });
+    return { version: nextParentVersion, itemVersion: nextItemVersion, updatedAt: nowIso };
+  } catch (error) {
+    if (error?.code === 'VERSION_CONFLICT') {
+      throw error;
+    }
+    handleFirestoreError(error, OperationType.TRANSACTION, itemPath, { rethrow: true });
+  }
+}
+
+// Delete an item inside a client subcollection and run atomic transaction to update summary counters with OCC
+export async function deleteClientSubItemTransaction(userId, clientId, collectionName, itemId, counterUpdates, globalStatsUpdates, concurrency = {}) {
+  assertOnlineForWrite();
+  userId = sanitizeUserId(userId);
+  const clientPath = `users/${userId}/clients/${clientId}`;
+  const itemPath = `${clientPath}/${collectionName}/${itemId}`;
+  const userPath = `users/${userId}`;
+  const nowIso = new Date().toISOString();
+  const isProgram = collectionName === 'programs';
+  const versionField = isProgram ? 'versionNum' : 'version';
+  let nextParentVersion = (Number(concurrency?.baseVersion) || 0) + 1;
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const clientRef = doc(db, clientPath);
+      const itemRef = doc(db, itemPath);
+      const userRef = doc(db, userPath);
+
+      const clientSnap = typeof tx.get === 'function' ? await tx.get(clientRef) : null;
+      const itemSnap = typeof tx.get === 'function' ? await tx.get(itemRef) : null;
+      const userSnap = (globalStatsUpdates && typeof tx.get === 'function') ? await tx.get(userRef) : null;
+      const serverClient = clientSnap && clientSnap.exists && clientSnap.exists() ? (clientSnap.data() || {}) : {};
+      const serverItem = itemSnap && itemSnap.exists && itemSnap.exists() ? (itemSnap.data() || {}) : null;
+      const serverStats = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data()?.stats || null) : null;
+
+      const expectedItemVer = concurrency?.expectedItemVersion;
+      if (expectedItemVer !== undefined && expectedItemVer !== null) {
+        if (!serverItem) {
+          const conflictError = new Error('VERSION_CONFLICT');
+          conflictError.code = 'VERSION_CONFLICT';
+          conflictError.conflictScope = 'subitem';
+          conflictError.deletedRemotely = true;
+          conflictError.collectionName = collectionName;
+          conflictError.itemId = String(itemId);
+          conflictError.serverData = serverClient;
+          conflictError.serverItem = null;
+          throw conflictError;
+        }
+        const currentItemVer = Number(serverItem[versionField] || 0);
+        if (currentItemVer > Number(expectedItemVer)) {
+          const conflictError = new Error('VERSION_CONFLICT');
+          conflictError.code = 'VERSION_CONFLICT';
+          conflictError.conflictScope = 'subitem';
+          conflictError.collectionName = collectionName;
+          conflictError.itemId = String(itemId);
+          conflictError.serverData = serverClient;
+          conflictError.serverItem = serverItem;
+          throw conflictError;
+        }
+      }
+
+      const serverParentVer = Number(serverClient.version || 0);
+      if (
+        concurrency?.baseVersion !== undefined &&
+        concurrency?.baseVersion !== null &&
+        clientSnap &&
+        clientSnap.exists &&
+        clientSnap.exists() &&
+        serverParentVer > Number(concurrency.baseVersion)
+      ) {
+        const conflictError = new Error('VERSION_CONFLICT');
+        conflictError.code = 'VERSION_CONFLICT';
+        conflictError.conflictScope = 'subitem';
+        conflictError.collectionName = collectionName;
+        conflictError.itemId = String(itemId);
+        conflictError.serverData = serverClient;
+        conflictError.serverItem = serverItem;
+        throw conflictError;
+      }
+
+      nextParentVersion = Math.max(Number(concurrency?.baseVersion || 0), serverParentVer) + 1;
+
       tx.delete(itemRef);
 
-      // Update denormalized properties on client document
       tx.update(clientRef, {
         ...counterUpdates,
-        updatedAt: new Date().toISOString()
+        version: nextParentVersion,
+        updatedAt: nowIso
       });
 
-      // Update global pre-aggregated counters
       if (globalStatsUpdates) {
-        tx.update(userRef, {
-          stats: globalStatsUpdates,
-          updatedAt: new Date().toISOString()
-        });
+        const nextStats = applySubItemStatsDeltas(serverStats, serverClient, counterUpdates, globalStatsUpdates);
+        if (nextStats) {
+          tx.set(userRef, {
+            stats: nextStats,
+            updatedAt: nowIso
+          }, { merge: true });
+        }
       }
     });
+    return { version: nextParentVersion, updatedAt: nowIso };
   } catch (error) {
-    handleFirestoreError(error, OperationType.TRANSACTION, itemPath);
+    if (error?.code === 'VERSION_CONFLICT') {
+      throw error;
+    }
+    handleFirestoreError(error, OperationType.TRANSACTION, itemPath, { rethrow: true });
   }
 }
 
@@ -563,33 +917,36 @@ export async function getEmployeesForTenant(tenantId) {
   try {
     const collRef = collection(db, path);
     const snap = await getDocs(collRef);
-    const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
-    return list;
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
+    handleFirestoreError(error, OperationType.LIST, path, { rethrow: true });
   }
 }
 
 export async function saveEmployeeForTenant(tenantId, employee) {
-  if (!tenantId || !employee || !employee.id) return null;
+  assertOnlineForWrite();
+  if (!tenantId || !employee || !employee.id) {
+    throw new Error('بيانات الموظف غير مكتملة للحفظ السحابي.');
+  }
   const safeId = String(employee.id);
   const path = `users/${tenantId}/employees/${safeId}`;
   try {
     const payload = sanitizeEmployeeForFirestore(employee, tenantId);
-    if (!payload) return null;
+    if (!payload) throw new Error('تعذر تهيئة بيانات الموظف.');
 
     const docRef = doc(db, path);
     await setDoc(docRef, payload);
     return payload;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-    return null;
+    handleFirestoreError(error, OperationType.WRITE, path, { rethrow: true });
   }
 }
 
 export async function deleteEmployeeForTenant(tenantId, employeeId) {
-  if (!tenantId || !employeeId) return false;
+  assertOnlineForWrite();
+  if (!tenantId || !employeeId) {
+    throw new Error('معرف الموظف مطلوب للحذف السحابي.');
+  }
   const safeId = String(employeeId);
   const path = `users/${tenantId}/employees/${safeId}`;
   try {
@@ -597,8 +954,7 @@ export async function deleteEmployeeForTenant(tenantId, employeeId) {
     await deleteDoc(docRef);
     return true;
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-    return false;
+    handleFirestoreError(error, OperationType.DELETE, path, { rethrow: true });
   }
 }
 
@@ -610,7 +966,11 @@ export function subscribeEmployeesForTenant(tenantId, onUpdate, onError) {
     return onSnapshot(collRef, (snapshot) => {
       const list = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
       if (typeof onUpdate === 'function') {
-        onUpdate(list);
+        onUpdate(list, {
+          fromCache: Boolean(snapshot.metadata?.fromCache),
+          empty: snapshot.empty,
+          docChanges: typeof snapshot.docChanges === 'function' ? snapshot.docChanges() : []
+        });
       }
     }, (error) => {
       console.warn("Employees realtime sync notice:", error);
@@ -623,6 +983,7 @@ export function subscribeEmployeesForTenant(tenantId, onUpdate, onError) {
 }
 
 export async function saveTenantActivity(tenantId, activity) {
+  assertOnlineForWrite();
   const safeTenantId = sanitizeUserId(tenantId);
   if (!safeTenantId || !activity?.id) return null;
   const path = `users/${safeTenantId}/activities/${String(activity.id)}`;
@@ -647,27 +1008,110 @@ export async function saveTenantActivity(tenantId, activity) {
     await setDoc(doc(db, path), payload);
     return payload.id;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-    return null;
+    handleFirestoreError(error, OperationType.WRITE, path, { rethrow: true });
   }
 }
 
-export async function getTenantActivities(tenantId, clientId = null) {
+export async function getTenantActivities(tenantId, clientId = null, limitCount = 250) {
   const safeTenantId = sanitizeUserId(tenantId);
   if (!safeTenantId) return null;
   const path = `users/${safeTenantId}/activities`;
   try {
     const activitiesRef = collection(db, path);
     const activitiesQuery = clientId === null
-      ? activitiesRef
-      : query(activitiesRef, where('clientId', '==', Number(clientId)));
+      ? query(activitiesRef, orderBy('timestamp', 'desc'), limit(limitCount))
+      : query(activitiesRef, where('clientId', '==', Number(clientId)), limit(limitCount));
     const snapshot = await getDocs(activitiesQuery);
     return snapshot.docs.map(activityDoc => ({
       ...activityDoc.data(),
       id: activityDoc.data().id || activityDoc.id
     }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return null;
+    handleFirestoreError(error, OperationType.LIST, path, { rethrow: true });
+  }
+}
+
+export function subscribeTenantActivities(tenantId, limitCount = 200, onUpdate, onError) {
+  const safeTenantId = sanitizeUserId(tenantId);
+  if (!safeTenantId) return () => {};
+  const path = `users/${safeTenantId}/activities`;
+  try {
+    const collRef = collection(db, path);
+    const q = query(collRef, orderBy('timestamp', 'desc'), limit(limitCount));
+    return onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(d => ({
+        ...d.data(),
+        id: d.data().id || d.id
+      }));
+      if (typeof onUpdate === 'function') {
+        onUpdate(items, {
+          fromCache: Boolean(snapshot.metadata?.fromCache),
+          empty: snapshot.empty,
+          docChanges: typeof snapshot.docChanges === 'function' ? snapshot.docChanges() : []
+        });
+      }
+    }, (error) => {
+      if (typeof onError === 'function') onError(error);
+    });
+  } catch (err) {
+    if (typeof onError === 'function') onError(err);
+    return () => {};
+  }
+}
+
+// 5. Cloud Tenant Backups CRUD
+export async function saveTenantBackup(userId, backup) {
+  assertOnlineForWrite();
+  const safeUid = sanitizeUserId(userId);
+  if (!safeUid || !backup?.id) {
+    throw new Error('معرف المستخدم والنسخة مطلوبان للحفظ السحابي.');
+  }
+  const safeId = String(backup.id).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+  const path = `users/${safeUid}/backups/${safeId}`;
+  const payload = {
+    id: safeId,
+    uid: safeUid,
+    timestamp: String(backup.timestamp || new Date().toISOString()),
+    reason: String(backup.reason || 'نسخة احتياطية سحابية').slice(0, 120),
+    clientCount: Number(backup.clientCount ?? (Array.isArray(backup.clients) ? backup.clients.length : 0)) || 0,
+    nid: Number(backup.nid) || 100,
+    stats: backup.stats || null,
+    clients: Array.isArray(backup.clients) ? backup.clients : []
+  };
+  try {
+    await setDoc(doc(db, path), payload);
+    return payload;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path, { rethrow: true });
+  }
+}
+
+export async function getTenantBackups(userId, limitCount = 35) {
+  const safeUid = sanitizeUserId(userId);
+  if (!safeUid) return [];
+  const path = `users/${safeUid}/backups`;
+  try {
+    const collRef = collection(db, path);
+    const q = query(collRef, orderBy('timestamp', 'desc'), limit(limitCount));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ ...d.data(), id: d.data().id || d.id }));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path, { rethrow: true });
+  }
+}
+
+export async function deleteTenantBackup(userId, backupId) {
+  assertOnlineForWrite();
+  const safeUid = sanitizeUserId(userId);
+  if (!safeUid || !backupId) {
+    throw new Error('معرف النسخة مطلوب للحذف السحابي.');
+  }
+  const safeId = String(backupId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+  const path = `users/${safeUid}/backups/${safeId}`;
+  try {
+    await deleteDoc(doc(db, path));
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path, { rethrow: true });
   }
 }

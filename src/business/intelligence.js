@@ -92,8 +92,8 @@ export function analyzeRootCause(iss){
 
 export function detectCrossClientIssues(){
   const byType={};
-  clients.forEach(c=>{
-    (c.issues||[]).forEach(iss=>{
+  (Array.isArray(clients)?clients:[]).filter(c=>c&&typeof c==='object').forEach(c=>{
+    (c.issues||[]).filter(Boolean).forEach(iss=>{
       const k=iss.type;
       if(!byType[k])byType[k]={type:k,count:0,clientNames:[],items:[]};
       if(!byType[k].clientNames.includes(c.fullName))byType[k].clientNames.push(c.fullName);
@@ -116,16 +116,8 @@ export function computeRiskProfile(c){
   const openUrgent=(c.issues||[]).filter(i=>i && i.priority==='عاجل'&&(i.status==='مفتوح'||i.status==='قيد المعالجة'));
   if(openUrgent.length>0){risks.push(`${openUrgent.length} مشكلة عاجلة لم تُحل بعد`);level='high';}
   const sc=computeScore(c) || { total: 0 };
-  if(sc.total<25){risks.push('نقاط العميل أقل من 25 — خطر إلغاء العقد');if(level!=='high')level='high';}
+  if(sc.total<25){risks.push('نقاط العميل أقل من 25 — خطر توقف الحساب');if(level!=='high')level='high';}
   else if(sc.total<50){risks.push('نقاط العميل دون المتوسط');if(level==='low')level='medium';}
-  if(c.endDate){
-    try {
-      const dl=Math.floor((new Date(c.endDate+'T00:00').getTime()-Date.now())/86400000);
-      if(dl>=0&&dl<=7){risks.push(`العقد ينتهي خلال ${dl} يوم — عاجل`);level='high';}
-      else if(dl>=0&&dl<=30){risks.push(`العقد ينتهي خلال ${dl} يوم`);if(level==='low')level='medium';}
-      else if(dl<0&&c.status==='نشط'){risks.push('العقد انتهى ولم يتم تجديده');level='high';}
-    } catch {}
-  }
   if(c.lastContact){
     try {
       const ds=Math.floor((Date.now()-new Date(c.lastContact+'T00:00').getTime())/86400000);
@@ -142,15 +134,16 @@ export function computeRiskProfile(c){
 }
 
 export function computeGlobalStats(){
-  const totalProgsGlobal=clients.reduce((s,c)=>s+(c.programs||[]).length,0);
-  const totalInstGlobal=clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0);
-  const allIssues=clients.flatMap(c=>(c.issues||[]).map(i=>({...i,clientName:c.fullName,clientId:c.id})));
-  const allReqs=clients.flatMap(c=>(c.requirements||[]).map(r=>({...r,clientName:c.fullName,clientId:c.id})));
+  const safeClients=(Array.isArray(clients)?clients:[]).filter(c=>c&&typeof c==='object');
+  const totalProgsGlobal=safeClients.reduce((s,c)=>s+(c.programs||[]).length,0);
+  const totalInstGlobal=safeClients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p?.installationsCount)||1),0),0);
+  const allIssues=safeClients.flatMap(c=>(c.issues||[]).filter(Boolean).map(i=>({...i,clientName:c.fullName,clientId:c.id})));
+  const allReqs=safeClients.flatMap(c=>(c.requirements||[]).filter(Boolean).map(r=>({...r,clientName:c.fullName,clientId:c.id})));
   const openIssues=allIssues.filter(i=>i.status==='مفتوح'||i.status==='قيد المعالجة');
   const featureOpps=allIssues.filter(i=>i.featureOpp);
-  const highRiskClients=clients.filter(c=>computeRiskProfile(c).level==='high');
+  const highRiskClients=safeClients.filter(c=>computeRiskProfile(c).level==='high');
   const crossIssues=detectCrossClientIssues();
-  const avgScore=clients.length?Math.round(clients.reduce((s,c)=>s+computeScore(c).total,0)/clients.length):0;
+  const avgScore=safeClients.length?Math.round(safeClients.reduce((s,c)=>s+computeScore(c).total,0)/safeClients.length):0;
   const impactW={عالي:3,متوسط:2,منخفض:1};const prioW={عاجل:4,عالية:3,متوسطة:2,منخفضة:1};
   const topReqs=[...allReqs].filter(r=>r.status!=='مرفوض').sort((a,b)=>
     ((impactW[b.impact]||1)+(prioW[b.priority]||1))-((impactW[a.impact]||1)+(prioW[a.priority]||1))).slice(0,5);
@@ -159,7 +152,7 @@ export function computeGlobalStats(){
 
 export function computeAlerts(){
   const alerts=[];const now=Date.now();const DAY=86400000;
-  clients.forEach(c=>{
+  (Array.isArray(clients)?clients:[]).filter(c=>c&&typeof c==='object').forEach(c=>{
     if(c.status==='نشط'&&c.lastContact){
       const ds=Math.floor((now-new Date(c.lastContact+'T00:00').getTime())/DAY);
       if(ds>=60)alerts.push({type:'NO_CONTACT',cid:c.id,
@@ -169,7 +162,7 @@ export function computeAlerts(){
         msg:`لم يتم التواصل مع ${c.fullName} منذ ${ds} يوم`,
         sub:c.company,level:'info',icon:'📞'});
     }
-    (c.issues||[]).filter(i=>i.priority==='عاجل'&&(i.status==='مفتوح'||i.status==='قيد المعالجة')).forEach(iss=>{
+    (c.issues||[]).filter(i=>i&&i.priority==='عاجل'&&(i.status==='مفتوح'||i.status==='قيد المعالجة')).forEach(iss=>{
       alerts.push({type:'URGENT_ISSUE',cid:c.id,
         msg:`مشكلة عاجلة: ${iss.title}`,
         sub:c.fullName+' — '+c.wilaya,level:'urgent',icon:'🚨'});
