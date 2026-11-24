@@ -6,7 +6,8 @@ import {
   adjustClientProgramDevices,
   getClientCategoryBreakdown,
   computeFleetDeviceMetrics,
-  filterRecentDashboardActivities
+  filterRecentDashboardActivities,
+  computeExecutiveSummary
 } from '../../src/business/programMetrics.js';
 
 test('normalizeProgramCategory classifies Desktop, Mobile sub-apps, and Web accurately', () => {
@@ -157,4 +158,60 @@ test('filterRecentDashboardActivities filters admin/backup noise, deleted client
   assert.equal(clean.length, 1);
   assert.equal(clean[0].id, 'live_p1');
   assert.equal(clean[0].badgeTag, 'ترخيص');
+});
+
+test('computeExecutiveSummary computes lifecycle ratios, ticket resolution rate, top sectors, and unified radar queue', () => {
+  const sampleClients = [
+    {
+      id: 1, fullName: 'شركة الأمل', status: 'نشط', wilaya: 'الجزائر', businessType: 'تجارة جملة',
+      _subcollectionsLoaded: true,
+      programs: [{ id: 11, installationsCount: 4 }],
+      issues: [
+        { id: 101, title: 'عطل شبكة', priority: 'عاجل', status: 'مفتوح', featureOpp: true },
+        { id: 102, title: 'تحديث قديم', priority: 'منخفضة', status: 'محلول' }
+      ],
+      requirements: [{ id: 201, title: 'تقارير', impact: 'عالي', status: 'قيد الدراسة' }]
+    },
+    {
+      id: 2, fullName: 'مؤسسة الشرق', status: 'محتمل', wilaya: 'وهران', businessType: 'تجارة جملة',
+      _subcollectionsLoaded: true,
+      programs: [{ id: 12, installationsCount: 2 }],
+      issues: [{ id: 103, title: 'تم حله', priority: 'متوسطة', status: 'محلول' }],
+      requirements: []
+    },
+    {
+      id: 3, fullName: 'متجر الجنوب', status: 'متوقف', wilaya: 'بسكرة', businessType: 'صحة وصيدلة',
+      _subcollectionsLoaded: true,
+      programs: [],
+      issues: [],
+      requirements: []
+    }
+  ];
+  const fleet = computeFleetDeviceMetrics(sampleClients, new Date('2026-11-22T12:00:00Z'));
+  const summary = computeExecutiveSummary({
+    clientsList: sampleClients,
+    fleet,
+    alerts: [{ cid: 1, level: 'urgent', type: 'URGENT_ISSUE', msg: 'مشكلة عاجلة: عطل شبكة', sub: 'شركة الأمل' }],
+    riskItems: [{ client: sampleClients[2], score: 15, level: 'high', reasons: 'العميل في حالة توقف' }],
+    crossIssues: [{ type: 'أداء', count: 2, clientNames: ['شركة الأمل', 'مؤسسة الشرق'] }],
+    allIssues: sampleClients.flatMap(c => c.issues),
+    allReqs: sampleClients.flatMap(c => c.requirements),
+    totalOpenIssuesCount: 1
+  });
+
+  assert.equal(summary.lifecycle.total, 3);
+  assert.equal(summary.lifecycle.active, 1);
+  assert.equal(summary.lifecycle.prospective, 1);
+  assert.equal(summary.lifecycle.stopped, 1);
+  assert.equal(summary.supportHealth.solvedCount, 2);
+  assert.equal(summary.supportHealth.resolutionRatePct, 67);
+  assert.equal(summary.supportHealth.featureOppsCount, 1);
+  assert.equal(summary.supportHealth.crossIssuesCount, 1);
+  assert.equal(summary.fleetDevicesPerClient, 2);
+  assert.equal(summary.topSectors[0].name, 'تجارة جملة');
+  assert.equal(summary.topSectors[0].count, 2);
+  assert.equal(summary.topSectors[0].devices, 6);
+  assert.equal(summary.radar.all.length, 2);
+  assert.equal(summary.radar.alertsOnly.length, 1);
+  assert.equal(summary.radar.riskOnly.length, 1);
 });

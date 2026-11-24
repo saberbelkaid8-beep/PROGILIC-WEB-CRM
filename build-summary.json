@@ -1,14 +1,14 @@
 {
   "appName": "crm",
-  "timestamp": "2026-11-22T13:48:35.758Z",
+  "timestamp": "2026-11-23T09:06:35.794Z",
   "nodeVersion": "v22.23.2",
   "platform": "linux",
   "build": {
-    "durationMs": 5547,
-    "durationSeconds": 5.55,
+    "durationMs": 5366,
+    "durationSeconds": 5.37,
     "totalFiles": 28,
-    "totalSizeBytes": 8869944,
-    "totalSizeFormatted": "8.46 MB"
+    "totalSizeBytes": 9016574,
+    "totalSizeFormatted": "8.6 MB"
   },
   "dependencies": {
     "productionCount": 3,
@@ -52,29 +52,29 @@
       "sizeFormatted": "132.01 KB"
     },
     {
-      "file": "assets/firebase-auth-D-X5CUZU.js",
+      "file": "assets/firebase-auth-CW015f3W.js",
       "sizeBytes": 228338,
       "sizeFormatted": "222.99 KB"
     },
     {
-      "file": "assets/firebase-core-C8Czc-0k.js",
-      "sizeBytes": 79148,
-      "sizeFormatted": "77.29 KB"
+      "file": "assets/firebase-core-C_mmUHv_.js",
+      "sizeBytes": 76710,
+      "sizeFormatted": "74.91 KB"
     },
     {
-      "file": "assets/firebase-firestore-CKSIJZ2A.js",
-      "sizeBytes": 1244825,
-      "sizeFormatted": "1.19 MB"
+      "file": "assets/firebase-firestore-BdE1-sxR.js",
+      "sizeBytes": 1174316,
+      "sizeFormatted": "1.12 MB"
     },
     {
-      "file": "assets/index-Bai7I4rb.js",
-      "sizeBytes": 1273080,
-      "sizeFormatted": "1.21 MB"
+      "file": "assets/index-D5APLE9N.js",
+      "sizeBytes": 1484302,
+      "sizeFormatted": "1.42 MB"
     },
     {
-      "file": "assets/index-CfQ5oWsP.css",
-      "sizeBytes": 94344,
-      "sizeFormatted": "92.13 KB"
+      "file": "assets/index-DoqkxjdN.css",
+      "sizeBytes": 102699,
+      "sizeFormatted": "100.29 KB"
     },
     {
       "file": "assets/search-engine-408GSLV4.js",

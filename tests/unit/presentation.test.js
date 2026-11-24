@@ -83,7 +83,8 @@ describe('Presentation Layer - Views', () => {
     }];
     setClients(clients);
     const html = renderDashboard();
-    expect(html).toContain('AI Sentinel Advisor');
+    expect(html).toContain('لوحة القيادة');
+    expect(html).toContain('Ahmed Test');
   });
 
   it('should render dashboard gracefully when clients contain malformed or null records', () => {

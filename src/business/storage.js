@@ -3,7 +3,7 @@ import { showToast } from '../utils/toast.js';
 import { showConfirm } from '../utils/confirm.js';
 import { t } from '../utils/i18n.js';
 import { computeScore } from './intelligence.js';
-import { ActivityType, logActivity } from './timelineService.js';
+import { ActivityType, logActivity, resetTimelineSyncGuards } from './timelineService.js';
 import { R } from '../presentation/render-core.js';
 import { 
   S, 
@@ -41,6 +41,7 @@ import {
   deleteClientTransaction,
   saveClientSubItemTransaction,
   deleteClientSubItemTransaction,
+  syncProgramVersionTransaction,
   classifyFirestoreError
 } from '../firebase/service.js';
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
@@ -48,8 +49,16 @@ import { onSnapshot, doc, collection, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/config.js';
 import { mergeClientLists, computeStats, mergeWithSessionAndUser } from './mergeDatabase.js';
 import { reconcileClientPrograms, extractDeletedProgramsFromActivities, parseProgramFromActivity, isProgramDeletedAfter, getClientProgramsPurgeCutoff } from './programRecovery.js';
+import {
+  getPendingSyncStorageKey,
+  isQueueableSyncError,
+  extractMutationClientId,
+  getPendingClientIds,
+  coalescePendingMutation,
+  overlayPendingMutationsOnClients,
+  advanceQueuedMutationVersions
+} from './syncQueueUtils.js';
 
-// Strictly Online Mode: All local storage, IndexedDB, and disk-based caching is disabled.
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
 
 const SCHEMA_VERSION = 3;
@@ -240,6 +249,38 @@ let _hydrationInFlightUid = null;
 let activeUnsubscribers = [];
 let detailUnsubscribe = null;
 let activeDetailClientId = null;
+const inFlightMutationClientIds = new Set();
+let _isFlushingQueue = false;
+
+function readPersistedSyncQueue(uid) {
+  if (!uid || typeof window === 'undefined' || !window.localStorage) return [];
+  try {
+    const raw = window.localStorage.getItem(getPendingSyncStorageKey(uid));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function writePersistedSyncQueue(uid, queue) {
+  if (!uid || typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const key = getPendingSyncStorageKey(uid);
+    if (!Array.isArray(queue) || queue.length === 0) {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, JSON.stringify(queue));
+    }
+  } catch (_) {}
+}
+
+function getEffectiveSyncQueue(uid) {
+  const memQueue = Array.isArray(S.syncQueue) ? S.syncQueue : [];
+  if (memQueue.length > 0) return memQueue;
+  return readPersistedSyncQueue(uid);
+}
 
 function detachMainRealtimeListeners() {
   if (activeUnsubscribers.length > 0) {
@@ -804,7 +845,7 @@ export function startClientDetailSync(userId, clientId) {
   detailUnsubscribe = subscribeClientSubcollections(
     uid,
     cidStr,
-    ({ collectionName, fieldName, items, fromCache }) => {
+    ({ collectionName, fieldName, items, fromCache, hasPendingWrites }) => {
       if (_quotaBlocked || globalThis?.__progilicFirestoreQuotaExceeded) return;
       receivedCollections.add(collectionName);
       bufferedSubData[fieldName] = Array.isArray(items) ? items : [];
@@ -814,6 +855,14 @@ export function startClientDetailSync(userId, clientId) {
       if (idx === -1) return;
 
       const target = latestList[idx];
+      const currentQueue = getEffectiveSyncQueue(uid);
+      const hasPendingMutationForClient = getPendingClientIds(currentQueue, inFlightMutationClientIds).has(cidStr);
+
+      // Never wipe local pending/in-flight edits with stale snapshot emissions
+      if (hasPendingMutationForClient && (fromCache || hasPendingWrites || inFlightMutationClientIds.has(cidStr))) {
+        return;
+      }
+
       let resolvedValue = bufferedSubData[fieldName];
       if (fieldName === 'programs' && resolvedValue.length === 0 && Array.isArray(target.programs) && target.programs.length > 0) {
         const clientActs = Array.isArray(S.globalActivities)
@@ -831,7 +880,7 @@ export function startClientDetailSync(userId, clientId) {
         }
       }
 
-      const nextClient = {
+      let nextClient = {
         ...target,
         [fieldName]: resolvedValue,
         _subcollectionsLoaded: receivedCollections.size >= 4 ? true : Boolean(target._subcollectionsLoaded)
@@ -878,10 +927,15 @@ export function startClientDetailSync(userId, clientId) {
         nextClient.score = computeScore(nextClient).total;
       }
 
+      if (hasPendingMutationForClient) {
+        const overlaid = overlayPendingMutationsOnClients([nextClient], currentQueue, [target]);
+        if (overlaid[0]) nextClient = overlaid[0];
+      }
+
       latestList[idx] = nextClient;
       batch(() => {
         setClients(latestList);
-        if (!fromCache) {
+        if (!fromCache && !hasPendingWrites) {
           setLastSyncedTime(new Date());
         }
       });
@@ -980,7 +1034,7 @@ export function startRealtimeSync(userId) {
 
   // 1. Listen to user profile document (for stats and next ID sequence)
   const userDocRef = doc(db, 'users', userId);
-  const unsubUser = onSnapshot(userDocRef, (snapshot) => {
+  const unsubUser = onSnapshot(userDocRef, { includeMetadataChanges: true }, (snapshot) => {
     const fromCache = Boolean(snapshot.metadata?.fromCache);
     if (snapshot.exists()) {
       const data = snapshot.data();
@@ -1004,6 +1058,13 @@ export function startRealtimeSync(userId) {
         setSyncing(false);
         setSaveError(false);
       });
+    } else if (!fromCache && navigator?.onLine !== false) {
+      updateState({
+        hasConfirmedServerSync: true,
+        dataIsStale: false,
+        connectionState: 'live',
+        lastListenerError: null
+      });
     }
   }, (error) => {
     if (isQuotaError(error)) {
@@ -1021,13 +1082,16 @@ export function startRealtimeSync(userId) {
 
   // 2. Listen to clients collection incrementally using docChanges()
   const clientsCollRef = collection(db, 'users', userId, 'clients');
-  const unsubClients = onSnapshot(clientsCollRef, (snapshot) => {
+  const unsubClients = onSnapshot(clientsCollRef, { includeMetadataChanges: true }, (snapshot) => {
     const fromCache = Boolean(snapshot.metadata?.fromCache);
+    const hasPendingWrites = Boolean(snapshot.metadata?.hasPendingWrites);
     const prevClients = Array.isArray(clients) ? clients : [];
     const existingById = new Map(prevClients.map(x => [String(x?.id), x]));
+    const activeQueue = getEffectiveSyncQueue(userId);
+    const protectedIds = getPendingClientIds(activeQueue, inFlightMutationClientIds);
 
-    // Integrity check: if cache claims 0 docs while confirmed server state already exists, do not wipe memory
-    if (snapshot.empty && fromCache && prevClients.length > 0) {
+    // Integrity check: if cache claims 0 docs while confirmed server state or pending local adds already exist, do not wipe memory
+    if (snapshot.empty && fromCache && (prevClients.length > 0 || activeQueue.length > 0)) {
       updateState({
         clientsFromCache: true,
         dataIsStale: true,
@@ -1041,15 +1105,18 @@ export function startRealtimeSync(userId) {
 
     if (canUseDocChanges) {
       const changes = snapshot.docChanges();
-      if (changes.length === 0 && !fromCache && prevClients.length > 0) {
+      if (changes.length === 0 && !fromCache && prevClients.length > 0 && activeQueue.length === 0) {
         updateState({
           clientsFromCache: false,
           hasConfirmedServerSync: true,
           dataIsStale: false,
+          hasPendingLocalWrites: hasPendingWrites,
           connectionState: 'live',
           lastListenerError: null
         });
-        setLastSyncedTime(new Date());
+        if (!hasPendingWrites) {
+          setLastSyncedTime(new Date());
+        }
         setSaveError(false);
         return;
       }
@@ -1057,10 +1124,16 @@ export function startRealtimeSync(userId) {
       for (const change of changes) {
         const docId = String(change.doc.data()?.id ?? change.doc.id);
         if (change.type === 'removed') {
-          clientMapById.delete(docId);
+          if (!protectedIds.has(docId)) {
+            clientMapById.delete(docId);
+          }
         } else {
           const prevItem = existingById.get(docId) || clientMapById.get(docId);
-          clientMapById.set(docId, normalizeClientSummary(change.doc, prevItem, true));
+          if (protectedIds.has(docId) && prevItem && (inFlightMutationClientIds.has(docId) || hasPendingWrites || fromCache)) {
+            clientMapById.set(docId, prevItem);
+          } else {
+            clientMapById.set(docId, normalizeClientSummary(change.doc, prevItem, true));
+          }
         }
       }
       nextClients = Array.from(clientMapById.values());
@@ -1069,12 +1142,21 @@ export function startRealtimeSync(userId) {
       for (const d of snapshot.docs) {
         const docId = String(d.data()?.id ?? d.id);
         const prevItem = existingById.get(docId);
-        clientMapById.set(docId, normalizeClientSummary(d, prevItem, true));
+        if (protectedIds.has(docId) && prevItem && (inFlightMutationClientIds.has(docId) || hasPendingWrites || fromCache)) {
+          clientMapById.set(docId, prevItem);
+        } else {
+          clientMapById.set(docId, normalizeClientSummary(d, prevItem, true));
+        }
       }
       nextClients = Array.from(clientMapById.values());
     }
 
     hasClientsSnapshot = true;
+
+    // Never allow incoming snapshot to delete or replace queued offline/pending user edits
+    if (activeQueue.length > 0) {
+      nextClients = overlayPendingMutationsOnClients(nextClients, activeQueue, prevClients);
+    }
 
     // Maintain consistent order matching current state
     nextClients.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
@@ -1093,10 +1175,12 @@ export function startRealtimeSync(userId) {
         clientsFromCache: fromCache,
         hasConfirmedServerSync: !fromCache || S.hasConfirmedServerSync,
         dataIsStale: fromCache,
+        hasPendingLocalWrites: activeQueue.length > 0 || hasPendingWrites,
+        pendingSyncCount: activeQueue.length,
         connectionState: nextConnState,
         lastListenerError: null
       });
-      if (!fromCache) {
+      if (!fromCache && !hasPendingWrites) {
         setLastSyncedTime(new Date());
       }
       setSaveError(false);
@@ -1204,13 +1288,16 @@ export function startRealtimeSync(userId) {
 export function stopRealtimeSync() {
   reconciledClientsWithActivities = new Set();
   _backfillBlockedByPermission = false;
+  resetTimelineSyncGuards();
   _quotaBlocked = false;
   _quotaToastShown = false;
+  _hydrationInFlightPromise = null;
+  _hydrationInFlightUid = null;
+  _isFlushingQueue = false;
+  inFlightMutationClientIds.clear();
   if (typeof globalThis !== 'undefined') {
     globalThis.__progilicFirestoreQuotaExceeded = false;
   }
-  _hydrationInFlightPromise = null;
-  _hydrationInFlightUid = null;
   detachMainRealtimeListeners();
   stopClientDetailSync();
 }
@@ -1233,12 +1320,19 @@ export async function reconnectRealtimeSync() {
     globalThis.__progilicFirestoreQuotaExceeded = false;
   }
   updateState({
+    isOnline: true,
     quotaExceeded: false,
     dataIsStale: false,
     lastListenerError: null,
     connectionState: 'connecting'
   });
   setSaveError(false);
+
+  // Flush any pending local edits BEFORE reloading from Firestore so edits are NEVER wiped!
+  const pendingQueue = getEffectiveSyncQueue(activeAuthUser.uid);
+  if (pendingQueue.length > 0) {
+    await flushSyncQueue(activeAuthUser.uid);
+  }
 
   await loadDataFromFirestore(activeAuthUser);
   return !_quotaBlocked;
@@ -1282,11 +1376,16 @@ async function doLoadDataFromFirestore(user) {
   }
 
   try {
+    // Hydrate any persisted offline mutations for this tenant immediately so they are never lost
+    const persistedQueue = getEffectiveSyncQueue(user.uid);
     batch(() => {
       setLoading(true);
       setSyncing(true);
       setSaveError(false);
       updateState({
+        syncQueue: persistedQueue,
+        pendingSyncCount: persistedQueue.length,
+        hasPendingLocalWrites: persistedQueue.length > 0,
         connectionState: navigator?.onLine === false ? 'offline' : 'connecting',
         lastListenerError: null
       });
@@ -1348,6 +1447,9 @@ async function doLoadDataFromFirestore(user) {
         connectionState: res.status === 'network-offline' ? 'offline' : 'error',
         lastListenerError: res.error?.message || res.status
       });
+      if (persistedQueue.length > 0 && Array.isArray(clients)) {
+        setClients(overlayPendingMutationsOnClients(clients, persistedQueue, clients));
+      }
       // Do NOT attach migration or overwrite { v: 3 } on failed read!
       if (res.status !== 'permission-denied' && res.status !== 'unauthenticated' && navigator?.onLine !== false) {
         startRealtimeSync(user.uid);
@@ -1396,7 +1498,7 @@ async function doLoadDataFromFirestore(user) {
 
       batch(() => {
         if (legacyClients) {
-          const merged = mergeClientLists(legacyClients);
+          const merged = overlayPendingMutationsOnClients(mergeClientLists(legacyClients), persistedQueue, clients);
           const { stats: computedStats, nid: computedNid } = computeStats(merged);
           setClients(merged);
           updateState({
@@ -1423,6 +1525,11 @@ async function doLoadDataFromFirestore(user) {
           console.warn("[Storage] Cloud migration notice:", err);
         });
       }
+    }
+
+    // Flush persisted offline writes automatically when online, then attach listeners
+    if (persistedQueue.length > 0 && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+      await flushSyncQueue(user.uid);
     }
 
     // Start real-time listeners (clients, user profile, employees, bounded activities)
@@ -1994,27 +2101,134 @@ export async function clearAllData(){
 }
 
 // ==========================================
-// STRICT ONLINE-ONLY TRANSACTIONAL SYNC ENGINE
-// (Zero offline queue, zero deferred sync, zero polling retry loops)
+// REAL-TIME AUTO SYNC & DURABLE PENDING QUEUE ENGINE
 // ==========================================
 
 export async function loadCache() {
+  const uid = (auth && auth.currentUser && auth.currentUser.uid) || getActiveTenantId() || currentUser?.uid;
+  const persisted = uid ? readPersistedSyncQueue(uid) : [];
   updateState({
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    syncQueue: persisted,
+    pendingSyncCount: persisted.length,
+    hasPendingLocalWrites: persisted.length > 0,
     connectionState: (typeof navigator !== 'undefined' && navigator.onLine === false) ? 'offline' : S.connectionState
   });
 }
 
-export async function commitOnlineMutation(type, payload) {
-  const browserOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
-  if (!browserOnline || !S.isOnline) {
-    const offlineErr = new Error(t('الاتصال بالإنترنت مقطوع. لا يمكن حفظ أي تعديل إلا بعد تأكيده من السحابة.'));
-    offlineErr.code = 'network-offline';
-    setSaveError(true);
-    updateState({ isOnline: false, connectionState: 'offline' });
-    throw offlineErr;
+async function executeServerMutation(uid, type, payload) {
+  switch (type) {
+    case 'ADD_CLIENT':
+      return await addClientTransaction(uid, payload.clientData, payload.stats);
+    case 'UPDATE_CLIENT':
+      return await updateClientTransaction(
+        uid,
+        payload.clientId,
+        payload.clientData,
+        payload.oldStatus,
+        payload.stats,
+        payload.baseVersion ?? 0
+      );
+    case 'DELETE_CLIENT':
+      return await deleteClientTransaction(uid, payload.clientId, payload.clientData, payload.stats);
+    case 'SAVE_SUB_ITEM':
+      return await saveClientSubItemTransaction(
+        uid,
+        payload.clientId,
+        payload.collectionName,
+        payload.itemId,
+        payload.itemData,
+        payload.counterUpdates,
+        payload.stats,
+        payload.concurrency || {}
+      );
+    case 'DELETE_SUB_ITEM':
+      return await deleteClientSubItemTransaction(
+        uid,
+        payload.clientId,
+        payload.collectionName,
+        payload.itemId,
+        payload.counterUpdates,
+        payload.stats,
+        payload.concurrency || {}
+      );
+    case 'SYNC_PROGRAM_VERSION':
+      return await syncProgramVersionTransaction(uid, payload.clientId, {
+        updatedPrograms: payload.updatedPrograms,
+        counterUpdates: payload.counterUpdates,
+        versionHistoryEntry: payload.versionHistoryEntry,
+        concurrency: payload.concurrency || { baseVersion: payload.baseVersion }
+      });
+    default:
+      throw new Error(`Unsupported mutation type: ${type}`);
+  }
+}
+
+function applyServerAckToLocalClients(type, payload, result) {
+  if (!result || typeof result !== 'object') return;
+  const cid = extractMutationClientId({ type, payload });
+  if (cid === null) return;
+  const cidStr = String(cid);
+  const currentList = Array.isArray(clients) ? clients : [];
+  const idx = currentList.findIndex(c => String(c?.id) === cidStr);
+  if (idx === -1) return;
+
+  const target = { ...currentList[idx], _dirtyLocal: false };
+  if (result.version !== undefined) target.version = result.version;
+  if (result.updatedAt !== undefined) target.updatedAt = result.updatedAt;
+
+  if (type === 'SAVE_SUB_ITEM' && result.itemVersion !== undefined && payload?.collectionName) {
+    const fieldName = payload.collectionName === 'contacts' ? 'contactHistory' : payload.collectionName;
+    const versionField = payload.collectionName === 'programs' ? 'versionNum' : 'version';
+    if (Array.isArray(target[fieldName])) {
+      target[fieldName] = target[fieldName].map(it =>
+        String(it?.id) === String(payload.itemId)
+          ? { ...it, [versionField]: result.itemVersion }
+          : it
+      );
+    }
   }
 
+  if (type === 'SYNC_PROGRAM_VERSION') {
+    if (Array.isArray(result.updatedPrograms) && result.updatedPrograms.length > 0 && Array.isArray(target.programs)) {
+      const updatedById = new Map(result.updatedPrograms.map(p => [String(p.id), p]));
+      target.programs = target.programs.map(p => updatedById.get(String(p?.id)) || p);
+      target.programNames = target.programs.map(p => p?.programName).filter(Boolean);
+      target.programsCount = target.programs.length;
+      target.installationsCount = target.programs.reduce((s, p) => s + (Number(p?.installationsCount) || 1), 0);
+    }
+    if (Array.isArray(result.versionHistory)) {
+      target.versionHistory = result.versionHistory;
+    }
+  }
+
+  const nextList = [...currentList];
+  nextList[idx] = target;
+  setClients(nextList);
+}
+
+function enqueueMutationLocally(uid, type, payload) {
+  const existingQueue = getEffectiveSyncQueue(uid);
+  const nextQueue = coalescePendingMutation(existingQueue, { type, payload });
+  writePersistedSyncQueue(uid, nextQueue);
+  setSaveError(false);
+  updateState({
+    syncQueue: nextQueue,
+    pendingSyncCount: nextQueue.length,
+    hasPendingLocalWrites: nextQueue.length > 0,
+    dataIsStale: true,
+    connectionState: (typeof navigator !== 'undefined' && navigator.onLine === false) || !S.isOnline
+      ? 'offline'
+      : 'cached-stale'
+  });
+  return {
+    acknowledged: false,
+    queued: true,
+    queueLength: nextQueue.length
+  };
+}
+
+export async function commitOnlineMutation(type, payload, options = {}) {
   if (_quotaBlocked || S.quotaExceeded || globalThis?.__progilicFirestoreQuotaExceeded) {
     const quotaErr = new Error(t('تم تجاوز الحد اليومي لحصة Firestore. الكتابة معلقة مؤقتاً لحماية قاعدة البيانات.'));
     quotaErr.code = 'resource-exhausted';
@@ -2028,67 +2242,47 @@ export async function commitOnlineMutation(type, payload) {
     throw authErr;
   }
 
-  updateState({ isMutating: true, syncQueue: [] });
+  const browserOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+  if (!browserOnline || !S.isOnline) {
+    updateState({ isOnline: false, connectionState: 'offline' });
+    if (options.disableOfflineQueue) {
+      const offlineErr = new Error(t('الاتصال بالإنترنت مقطوع. لا يمكن تنفيذ هذه العملية الآن.'));
+      offlineErr.code = 'network-offline';
+      setSaveError(true);
+      throw offlineErr;
+    }
+    return enqueueMutationLocally(uid, type, payload);
+  }
+
+  const cid = extractMutationClientId({ type, payload });
+  if (cid !== null) {
+    inFlightMutationClientIds.add(String(cid));
+  }
+
+  updateState({ isMutating: true });
   setSyncing(true);
   setSaveError(false);
 
   try {
-    let result = null;
-    switch (type) {
-      case 'ADD_CLIENT':
-        result = await addClientTransaction(uid, payload.clientData, payload.stats);
-        break;
-      case 'UPDATE_CLIENT':
-        result = await updateClientTransaction(
-          uid,
-          payload.clientId,
-          payload.clientData,
-          payload.oldStatus,
-          payload.stats,
-          payload.baseVersion ?? 0
-        );
-        break;
-      case 'DELETE_CLIENT':
-        result = await deleteClientTransaction(uid, payload.clientId, payload.clientData, payload.stats);
-        break;
-      case 'SAVE_SUB_ITEM':
-        result = await saveClientSubItemTransaction(
-          uid,
-          payload.clientId,
-          payload.collectionName,
-          payload.itemId,
-          payload.itemData,
-          payload.counterUpdates,
-          payload.stats
-        );
-        break;
-      case 'DELETE_SUB_ITEM':
-        result = await deleteClientSubItemTransaction(
-          uid,
-          payload.clientId,
-          payload.collectionName,
-          payload.itemId,
-          payload.counterUpdates,
-          payload.stats
-        );
-        break;
-      default:
-        throw new Error(`Unsupported mutation type: ${type}`);
-    }
+    const result = await executeServerMutation(uid, type, payload);
+    applyServerAckToLocalClients(type, payload, result);
 
+    const remainingQueue = getEffectiveSyncQueue(uid);
     setLastSyncedTime(new Date());
     setSaveError(false);
     updateState({
       hasConfirmedServerSync: true,
       dataIsStale: false,
       connectionState: 'live',
-      lastListenerError: null
+      lastListenerError: null,
+      pendingSyncCount: remainingQueue.length,
+      hasPendingLocalWrites: remainingQueue.length > 0
     });
 
     createSnapshotBackup(uid, "تلقائي بعد المزامنة", clients, S.stats, S.nid)
       .catch(err => console.warn("[Backup] Snapshot after sync notice:", err));
 
-    return result || { acknowledged: true };
+    return { ...(result || {}), acknowledged: true, queued: false };
   } catch (err) {
     if (err?.code === 'VERSION_CONFLICT' || (err?.message && err.message.includes('VERSION_CONFLICT'))) {
       setSaveError(true);
@@ -2097,6 +2291,11 @@ export async function commitOnlineMutation(type, payload) {
           id: `${Date.now()}-conflict`,
           type,
           payload,
+          conflictScope: err.conflictScope || (payload?.collectionName ? 'subitem' : 'client'),
+          collectionName: err.collectionName || payload?.collectionName || null,
+          itemId: err.itemId || payload?.itemId || null,
+          serverItem: err.serverItem || null,
+          deletedRemotely: Boolean(err.deletedRemotely),
           timestamp: new Date().toISOString()
         },
         conflictServerData: err.serverData || null,
@@ -2112,28 +2311,126 @@ export async function commitOnlineMutation(type, payload) {
       throw err;
     }
 
-    setSaveError(true);
     const kind = classifyFirestoreError(err);
+    if (!options.disableOfflineQueue && !options.fromQueueFlush && isQueueableSyncError(err, { code: kind })) {
+      return enqueueMutationLocally(uid, type, payload);
+    }
+
+    setSaveError(true);
     if (kind === 'network-offline') {
       updateState({ connectionState: 'offline' });
     }
     throw err;
   } finally {
+    if (cid !== null) {
+      inFlightMutationClientIds.delete(String(cid));
+    }
     setSyncing(false);
     updateState({ isMutating: false });
   }
 }
 
-export async function flushSyncQueue() {
-  // No offline queue in strict online-only architecture
-  if (Array.isArray(S.syncQueue) && S.syncQueue.length > 0) {
-    updateState({ syncQueue: [] });
+export async function flushSyncQueue(userIdOverride = null) {
+  const uid = userIdOverride || (auth && auth.currentUser && auth.currentUser.uid) || getActiveTenantId() || currentUser?.uid;
+  if (!uid) return true;
+  if (_isFlushingQueue) return false;
+  if (_quotaBlocked || S.quotaExceeded || globalThis?.__progilicFirestoreQuotaExceeded) return false;
+  const browserOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+  if (!browserOnline || !S.isOnline) return false;
+
+  let workingQueue = [...getEffectiveSyncQueue(uid)];
+  if (workingQueue.length === 0) {
+    updateState({ syncQueue: [], pendingSyncCount: 0, hasPendingLocalWrites: false });
+    return true;
   }
-  return true;
+
+  _isFlushingQueue = true;
+  setSyncing(true);
+  updateState({ isMutating: true });
+
+  try {
+    while (workingQueue.length > 0) {
+      const head = workingQueue[0];
+      const cid = extractMutationClientId(head);
+      if (cid !== null) inFlightMutationClientIds.add(String(cid));
+
+      try {
+        const ack = await executeServerMutation(uid, head.type, head.payload);
+        applyServerAckToLocalClients(head.type, head.payload, ack);
+        workingQueue = workingQueue.slice(1);
+        if (cid !== null && workingQueue.length > 0) {
+          workingQueue = advanceQueuedMutationVersions(workingQueue, cid, ack);
+        }
+        writePersistedSyncQueue(uid, workingQueue);
+        updateState({
+          syncQueue: workingQueue,
+          pendingSyncCount: workingQueue.length,
+          hasPendingLocalWrites: workingQueue.length > 0,
+          hasConfirmedServerSync: true,
+          dataIsStale: workingQueue.length > 0,
+          connectionState: workingQueue.length > 0 ? 'connecting' : 'live',
+          lastListenerError: null
+        });
+        setLastSyncedTime(new Date());
+        setSaveError(false);
+      } catch (err) {
+        if (err?.code === 'VERSION_CONFLICT' || (err?.message && err.message.includes('VERSION_CONFLICT'))) {
+          workingQueue = workingQueue.slice(1);
+          writePersistedSyncQueue(uid, workingQueue);
+          setSaveError(true);
+          updateState({
+            syncQueue: workingQueue,
+            pendingSyncCount: workingQueue.length,
+            hasPendingLocalWrites: workingQueue.length > 0,
+            conflictItem: {
+              id: head.id || `${Date.now()}-conflict`,
+              type: head.type,
+              payload: head.payload,
+              conflictScope: err.conflictScope || (head.payload?.collectionName ? 'subitem' : 'client'),
+              collectionName: err.collectionName || head.payload?.collectionName || null,
+              itemId: err.itemId || head.payload?.itemId || null,
+              serverItem: err.serverItem || null,
+              deletedRemotely: Boolean(err.deletedRemotely),
+              timestamp: new Date().toISOString()
+            },
+            conflictServerData: err.serverData || null,
+            modal: 'conflict'
+          });
+          if (typeof window !== 'undefined' && typeof window.R === 'function') window.R();
+          else R();
+          return false;
+        }
+
+        if (isQuotaError(err)) {
+          handleFirestoreQuotaExceeded('FlushSyncQueue', err);
+          return false;
+        }
+
+        const kind = classifyFirestoreError(err);
+        if (isQueueableSyncError(err, { code: kind })) {
+          updateState({ connectionState: 'offline', dataIsStale: true });
+          return false;
+        }
+
+        // Fatal permission/validation error: keep user aware, do not silently discard
+        setSaveError(true);
+        showToast(t('تعذر مزامنة أحد التعديلات المعلقة: ') + (err?.message || kind), 'error');
+        return false;
+      } finally {
+        if (cid !== null) inFlightMutationClientIds.delete(String(cid));
+      }
+    }
+
+    return true;
+  } finally {
+    _isFlushingQueue = false;
+    setSyncing(false);
+    updateState({ isMutating: false });
+  }
 }
 
-export function enqueueSyncAction(type, payload) {
-  return commitOnlineMutation(type, payload);
+export function enqueueSyncAction(type, payload, options = {}) {
+  return commitOnlineMutation(type, payload, options);
 }
 
 export async function resolveConflict(decision) {
@@ -2141,42 +2438,105 @@ export async function resolveConflict(decision) {
   const serverData = S.conflictServerData;
   if (!item || !serverData) return false;
 
+  const targetCid = extractMutationClientId(item);
+  const itemType = item.type || 'UPDATE_CLIENT';
+  const uid = (auth && auth.currentUser && auth.currentUser.uid) || getActiveTenantId() || currentUser?.uid;
+
   if (decision === 'server') {
-    const nextClients = clients.map(c =>
-      String(c.id) === String(item.payload.clientId)
-        ? { ...c, ...serverData }
-        : c
-    );
+    const nextClients = clients.map(c => {
+      if (String(c.id) !== String(targetCid)) return c;
+      const merged = { ...c, ...serverData, _dirtyLocal: false };
+      if (item.collectionName && item.itemId !== null && item.itemId !== undefined) {
+        const fieldName = item.collectionName === 'contacts' ? 'contactHistory' : item.collectionName;
+        if (Array.isArray(merged[fieldName])) {
+          if (item.deletedRemotely) {
+            merged[fieldName] = merged[fieldName].filter(x => String(x?.id) !== String(item.itemId));
+          } else if (item.serverItem) {
+            const exists = merged[fieldName].some(x => String(x?.id) === String(item.itemId));
+            merged[fieldName] = exists
+              ? merged[fieldName].map(x => String(x?.id) === String(item.itemId) ? item.serverItem : x)
+              : [...merged[fieldName], item.serverItem];
+          }
+        }
+      }
+      return merged;
+    });
     setClients(nextClients);
-    updateState({ syncQueue: [], modal: null, conflictItem: null, conflictServerData: null });
+    updateState({ modal: null, conflictItem: null, conflictServerData: null });
     setSaveError(false);
     R();
     showToast(t('تم اعتماد النسخة السحابية الأحدث بنجاح.'), 'success');
+    if (uid && Array.isArray(S.syncQueue) && S.syncQueue.length > 0) {
+      flushSyncQueue(uid).catch(console.warn);
+    }
     return true;
   }
 
   if (decision === 'local' || decision === 'merge') {
-    const mergedData = decision === 'merge'
-      ? { ...serverData, ...item.payload.clientData }
-      : { ...item.payload.clientData };
-
-    const nextPayload = {
-      ...item.payload,
-      clientData: mergedData,
-      baseVersion: Number(serverData.version || 0)
-    };
+    let nextPayload;
+    if (itemType === 'UPDATE_CLIENT') {
+      const localClientData = item.payload?.clientData || {};
+      const mergedData = decision === 'merge'
+        ? { ...serverData, ...localClientData }
+        : { ...localClientData };
+      nextPayload = {
+        ...item.payload,
+        clientData: mergedData,
+        baseVersion: Number(serverData.version || 0)
+      };
+    } else if (itemType === 'SAVE_SUB_ITEM' || itemType === 'DELETE_SUB_ITEM') {
+      const isProgram = item.payload?.collectionName === 'programs';
+      const versionField = isProgram ? 'versionNum' : 'version';
+      nextPayload = {
+        ...item.payload,
+        concurrency: {
+          ...(item.payload?.concurrency || {}),
+          baseVersion: Number(serverData.version || 0),
+          expectedItemVersion: item.serverItem ? Number(item.serverItem[versionField] || 0) : null,
+          isCreate: !item.serverItem
+        }
+      };
+    } else if (itemType === 'SYNC_PROGRAM_VERSION') {
+      nextPayload = {
+        ...item.payload,
+        baseVersion: Number(serverData.version || 0),
+        concurrency: {
+          ...(item.payload?.concurrency || {}),
+          baseVersion: Number(serverData.version || 0)
+        }
+      };
+    } else {
+      nextPayload = {
+        ...item.payload,
+        baseVersion: Number(serverData.version || 0)
+      };
+    }
 
     try {
-      const ack = await commitOnlineMutation(item.type || 'UPDATE_CLIENT', nextPayload);
-      const nextClients = clients.map(c =>
-        String(c.id) === String(item.payload.clientId)
-          ? { ...c, ...mergedData, version: ack?.version ?? (Number(serverData.version || 0) + 1) }
-          : c
-      );
+      const ack = await commitOnlineMutation(itemType, nextPayload);
+      const nextClients = clients.map(c => {
+        if (String(c.id) !== String(targetCid)) return c;
+        if (itemType === 'UPDATE_CLIENT') {
+          return {
+            ...c,
+            ...(nextPayload.clientData || {}),
+            version: ack?.version ?? (Number(serverData.version || 0) + 1),
+            _dirtyLocal: false
+          };
+        }
+        return {
+          ...c,
+          version: ack?.version ?? (Number(serverData.version || 0) + 1),
+          _dirtyLocal: false
+        };
+      });
       setClients(nextClients);
-      updateState({ syncQueue: [], modal: null, conflictItem: null, conflictServerData: null });
+      updateState({ modal: null, conflictItem: null, conflictServerData: null });
       R();
       showToast(t(decision === 'merge' ? 'تم دمج التعديلات وحفظها في السحابة.' : 'تم فرض حفظ تعديلاتك في السحابة.'), 'success');
+      if (uid && Array.isArray(S.syncQueue) && S.syncQueue.length > 0) {
+        flushSyncQueue(uid).catch(console.warn);
+      }
       return true;
     } catch (err) {
       if (err?.code !== 'VERSION_CONFLICT') {

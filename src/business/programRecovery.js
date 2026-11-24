@@ -1,4 +1,4 @@
-const KNOWN_VERSIONS = ['V27', 'V26', 'V24', 'V23', 'V21', 'v18', 'v16', 'v15', 'R+', 'arabe'];
+const KNOWN_VERSIONS = ['V27', 'V26', 'V25', 'V24', 'V23', 'V22', 'V21', 'v18', 'v16', 'v15', 'R+', 'arabe'];
 
 function stableNumericId(seed) {
   let hash = 2166136261;
@@ -44,7 +44,6 @@ function inferTypeFromName(programName = '', platform = 'Desktop') {
 }
 
 function inferVersionFromName(programName = '', platform = 'Desktop') {
-  if (platform === 'Mobile') return '';
   const text = String(programName || '');
   for (const v of KNOWN_VERSIONS) {
     const escaped = v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -63,9 +62,9 @@ export function normalizeProgramRecord(p, fallbackStartDate = '') {
   const platform = ['Desktop', 'Mobile', 'Web', 'Hybrid'].includes(p.platform)
     ? p.platform
     : inferPlatformFromName(programName);
-  const version = platform === 'Mobile'
-    ? ''
-    : String(p.version !== undefined && p.version !== null ? p.version : inferVersionFromName(programName, platform)).trim();
+  const version = String(
+    p.version !== undefined && p.version !== null ? p.version : inferVersionFromName(programName, platform)
+  ).trim();
   const type = String(p.type || '').trim() || inferTypeFromName(programName, platform);
   const rawId = p.id;
   const numericId = Number(rawId);
@@ -127,10 +126,9 @@ export function parseProgramFromActivity(act, clientObj = null) {
   }
 
   let version = meta.version !== undefined ? String(meta.version || '').trim() : '';
-  if (!version && platform !== 'Mobile') {
+  if (!version) {
     version = inferVersionFromName(programName, platform);
   }
-  if (platform === 'Mobile') version = '';
 
   let installationsCount = Number(meta.installationsCount);
   if (!Number.isFinite(installationsCount) || installationsCount < 1) {

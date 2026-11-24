@@ -53,7 +53,9 @@ vi.mock('firebase/firestore', async (importOriginal) => {
     ...actual,
     doc: vi.fn((_db, ...segments) => ({ path: segments.join('/') })),
     collection: vi.fn((_db, ...segments) => ({ path: segments.join('/') })),
-    onSnapshot: vi.fn((targetRef, onNext, onError) => {
+    onSnapshot: vi.fn((targetRef, optsOrNext, onNextOrError, maybeError) => {
+      const onNext = typeof optsOrNext === 'function' ? optsOrNext : onNextOrError;
+      const onError = typeof optsOrNext === 'function' ? onNextOrError : maybeError;
       return fsHarness.register(targetRef?.path || 'unknown', onNext, onError);
     }),
     writeBatch: vi.fn(() => ({ set: vi.fn(), delete: vi.fn(), commit: vi.fn().mockResolvedValue(true) }))
@@ -229,7 +231,8 @@ describe('CRM Strict Online-Only Real-Time Architecture', () => {
     const html = renderDashboard();
 
     expect(svcMocks.getClientSubcollections).not.toHaveBeenCalled();
-    expect(html).toContain('2 ترخيص');
+    expect(html).toContain('2 برنامج مرخص');
+    expect(html).toContain('جهازًا');
     expect(html).toContain('6 مكالمة وزيارة');
     expect(html).toContain('5 تذكرة محلولة · 3 ميزة');
     expect(html).toContain('التذاكر المفتوحة حسب الأولوية');
@@ -438,5 +441,33 @@ describe('CRM Strict Online-Only Real-Time Architecture', () => {
     });
     expect(S.connectionState).toBe('live');
     expect(S.dataIsStale).toBe(false);
+  });
+
+  it('clears clientsFromCache and dataIsStale when server confirms via metadata-only snapshot (docChanges = [])', () => {
+    startRealtimeSync('tenant-A');
+    const clientsSub = fsHarness.byPath('users/tenant-A/clients')[0];
+    const cachedClient = { id: 88, fullName: 'عميل مخبأ محلياً', status: 'نشط', version: 1 };
+
+    // Snapshot 1: initial cache emission
+    clientsSub.onNext({
+      empty: false,
+      metadata: { fromCache: true, hasPendingWrites: false },
+      docs: [makeClientDoc(cachedClient)],
+      docChanges: () => [{ type: 'added', doc: makeClientDoc(cachedClient) }]
+    });
+    expect(S.clientsFromCache).toBe(true);
+    expect(S.dataIsStale).toBe(true);
+
+    // Snapshot 2: metadata-only server ACK (0 doc changes, fromCache: false)
+    clientsSub.onNext({
+      empty: false,
+      metadata: { fromCache: false, hasPendingWrites: false },
+      docs: [makeClientDoc(cachedClient)],
+      docChanges: () => []
+    });
+    expect(S.clientsFromCache).toBe(false);
+    expect(S.dataIsStale).toBe(false);
+    expect(S.hasConfirmedServerSync).toBe(true);
+    expect(S.connectionState).toBe('live');
   });
 });

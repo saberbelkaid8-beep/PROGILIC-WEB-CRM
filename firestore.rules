@@ -58,7 +58,7 @@ service cloud.firestore {
             'businessType', 'businessField', 'startDate', 'endDate', 'lastContact', 'notes',
             'gps', 'score', 'openIssuesCount', 'urgentIssuesCount', 'solvedIssuesCount', 'issuesByPriority',
             'requirementsCount', 'reqsByStatus', 'programsCount', 'installationsCount', 'contactsCount',
-            'programNames', 'programs', 'programsPurgedAt', 'updatedAt', '_subcollectionsLoaded'
+            'programNames', 'programs', 'programsPurgedAt', 'versionHistory', 'updatedAt', '_subcollectionsLoaded'
           ])
           && data.id is number
           && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
@@ -90,6 +90,7 @@ service cloud.firestore {
           && (!data.keys().contains('programNames') || data.programNames is list)
           && (!data.keys().contains('programs') || data.programs is list)
           && (!data.keys().contains('programsPurgedAt') || data.programsPurgedAt is string)
+          && (!data.keys().contains('versionHistory') || (data.versionHistory is list && data.versionHistory.size() <= 100))
           && (!data.keys().contains('updatedAt') || (data.updatedAt is string || data.updatedAt is timestamp));
     }
 
@@ -101,7 +102,7 @@ service cloud.firestore {
           && data.platform is string && data.platform in ["Desktop", "Mobile", "Web", "Hybrid"]
           && data.type is string && data.type.size() <= 100
           && (!data.keys().contains('versionNum') || data.versionNum is number)
-          && (!data.keys().contains('version') || data.version is string && data.version in ["", "V21", "V23", "V24", "V26", "V27", "v18", "V18", "v16", "V16", "v15", "V15", "R+", "r+", "arabe", "Arabe"])
+          && (!data.keys().contains('version') || data.version is string && data.version in ["", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "v18", "V18", "v16", "V16", "v15", "V15", "R+", "r+", "arabe", "Arabe"])
           && (!data.keys().contains('installationsCount') || data.installationsCount is number)
           && (!data.keys().contains('startDate') || data.startDate is string && data.startDate.size() <= 20)
           && (!data.keys().contains('endDate') || data.endDate is string && data.endDate.size() <= 20);
@@ -245,7 +246,12 @@ service cloud.firestore {
       allow delete: if isOwner(userId) && isValidId(backupId);
     }
 
-    // 7. Connectivity verification test doc (Ping endpoint)
+    // 7. Tasks Subcollection
+    match /users/{userId}/tasks/{taskId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // 8. Connectivity verification test doc (Ping endpoint)
     match /test/{docId} {
       allow get: if isSignedIn();
     }

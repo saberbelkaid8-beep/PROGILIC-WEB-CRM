@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { commitOnlineMutation, flushSyncQueue, resolveConflict } from '../../src/business/storage.js';
-import { S, updateState, setCurrentUser, resetTenantSessionState } from '../../src/state/store.js';
+import { commitOnlineMutation, flushSyncQueue, resolveConflict, loadCache } from '../../src/business/storage.js';
+import { S, clients, updateState, setCurrentUser, resetTenantSessionState } from '../../src/state/store.js';
 import * as firebaseService from '../../src/firebase/service.js';
 
 vi.mock('../../src/firebase/service.js', async (importOriginal) => {
@@ -11,41 +11,84 @@ vi.mock('../../src/firebase/service.js', async (importOriginal) => {
     updateClientTransaction: vi.fn(),
     deleteClientTransaction: vi.fn(),
     saveClientSubItemTransaction: vi.fn(),
-    deleteClientSubItemTransaction: vi.fn()
+    deleteClientSubItemTransaction: vi.fn(),
+    syncProgramVersionTransaction: vi.fn()
   };
 });
 
-describe('Strict Online-Only Sync & OCC Conflict Lifecycle', () => {
+describe('Real-Time Auto-Sync, Durable Offline Queue & OCC Conflict Lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.clear();
+    }
     resetTenantSessionState();
     setCurrentUser({ uid: 'test-uid', email: 'admin@progilic.dz', role: 'gerant' });
     updateState({
       syncQueue: [],
+      pendingSyncCount: 0,
+      hasPendingLocalWrites: false,
       isOnline: true,
       quotaExceeded: false,
       clients: [{ id: 1, fullName: 'Original', version: 1 }]
     });
   });
 
-  it('should reject mutations immediately when offline without queuing', async () => {
+  it('queues offline mutations durably in localStorage and flushes automatically in FIFO order when back online', async () => {
     S.isOnline = false;
+
+    const queuedAck = await commitOnlineMutation('UPDATE_CLIENT', {
+      clientId: '1',
+      clientData: { id: 1, fullName: 'Offline Edit' },
+      oldStatus: 'نشط',
+      stats: S.stats,
+      baseVersion: 1
+    });
+
+    expect(queuedAck.queued).toBe(true);
+    expect(queuedAck.acknowledged).toBe(false);
+    expect(S.syncQueue.length).toBe(1);
+    expect(S.pendingSyncCount).toBe(1);
+    expect(S.hasPendingLocalWrites).toBe(true);
+    expect(firebaseService.updateClientTransaction).not.toHaveBeenCalled();
+
+    // Verify persistence across reload via loadCache()
+    updateState({ syncQueue: [], pendingSyncCount: 0, hasPendingLocalWrites: false });
+    await loadCache();
+    expect(S.syncQueue.length).toBe(1);
+
+    // Reconnect and flush FIFO
+    S.isOnline = true;
+    firebaseService.updateClientTransaction.mockResolvedValueOnce({ version: 2, updatedAt: '2026-11-20T10:15:00Z' });
+    const flushed = await flushSyncQueue('test-uid');
+
+    expect(flushed).toBe(true);
+    expect(firebaseService.updateClientTransaction).toHaveBeenCalledTimes(1);
+    expect(S.syncQueue.length).toBe(0);
+    expect(S.pendingSyncCount).toBe(0);
+    expect(S.hasPendingLocalWrites).toBe(false);
+    expect(S.connectionState).toBe('live');
+    expect(S.hasConfirmedServerSync).toBe(true);
+  });
+
+  it('rejects permission-denied and quota mutations immediately without queuing locally', async () => {
+    S.isOnline = true;
+    const permErr = new Error('Missing or insufficient permissions.');
+    permErr.code = 'permission-denied';
+    firebaseService.updateClientTransaction.mockRejectedValueOnce(permErr);
 
     await expect(
       commitOnlineMutation('UPDATE_CLIENT', {
         clientId: '1',
-        clientData: { id: 1, fullName: 'Offline Edit' },
+        clientData: { id: 1, fullName: 'Unauthorized' },
         oldStatus: 'نشط',
         stats: S.stats,
         baseVersion: 1
       })
-    ).rejects.toMatchObject({ code: 'network-offline' });
+    ).rejects.toMatchObject({ code: 'permission-denied' });
 
     expect(S.syncQueue.length).toBe(0);
-    expect(firebaseService.updateClientTransaction).not.toHaveBeenCalled();
-  });
 
-  it('should reject mutations when quota circuit breaker is tripped', async () => {
     S.quotaExceeded = true;
     globalThis.__progilicFirestoreQuotaExceeded = true;
 
@@ -59,7 +102,7 @@ describe('Strict Online-Only Sync & OCC Conflict Lifecycle', () => {
     expect(firebaseService.addClientTransaction).not.toHaveBeenCalled();
   });
 
-  it('should flush/clear any legacy syncQueue and commit online mutations only upon server acknowledgement', async () => {
+  it('commits online mutations immediately and returns acknowledged: true upon server ACK', async () => {
     S.isOnline = true;
     firebaseService.addClientTransaction.mockResolvedValueOnce({ version: 1, updatedAt: '2026-11-20T10:00:00Z' });
 
@@ -68,16 +111,15 @@ describe('Strict Online-Only Sync & OCC Conflict Lifecycle', () => {
       stats: S.stats
     });
 
+    expect(ack.acknowledged).toBe(true);
+    expect(ack.queued).toBe(false);
     expect(ack.version).toBe(1);
     expect(firebaseService.addClientTransaction).toHaveBeenCalledTimes(1);
     expect(S.hasConfirmedServerSync).toBe(true);
     expect(S.connectionState).toBe('live');
-
-    await flushSyncQueue();
-    expect(S.syncQueue.length).toBe(0);
   });
 
-  it('should open conflict modal on VERSION_CONFLICT without queuing offline', async () => {
+  it('opens conflict modal on VERSION_CONFLICT without queuing into offline retry queue', async () => {
     S.isOnline = true;
     const conflictError = new Error('VERSION_CONFLICT');
     conflictError.code = 'VERSION_CONFLICT';
@@ -101,7 +143,7 @@ describe('Strict Online-Only Sync & OCC Conflict Lifecycle', () => {
     expect(S.syncQueue.length).toBe(0);
   });
 
-  it('should handle resolveConflict(server) by accepting authoritative cloud record', async () => {
+  it('handles resolveConflict(server) and resolveConflict(merge) via online server transaction', async () => {
     S.conflictItem = {
       id: '123',
       type: 'UPDATE_CLIENT',
@@ -111,16 +153,12 @@ describe('Strict Online-Only Sync & OCC Conflict Lifecycle', () => {
     S.modal = 'conflict';
 
     const ok = await resolveConflict('server');
-
     expect(ok).toBe(true);
-    expect(S.clients.find(c => c.id == 1).fullName).toBe('Server Edit');
-    expect(S.syncQueue.length).toBe(0);
+    expect(clients.find(c => c.id == 1).fullName).toBe('Server Edit');
     expect(S.modal).toBeNull();
-  });
 
-  it('should handle resolveConflict(local) and resolveConflict(merge) via online server transaction', async () => {
     S.conflictItem = {
-      id: '123',
+      id: '124',
       type: 'UPDATE_CLIENT',
       payload: { clientId: '1', clientData: { id: 1, fullName: 'Local Edit', notes: 'Local Note' }, oldStatus: 'نشط', stats: {} }
     };
@@ -140,7 +178,40 @@ describe('Strict Online-Only Sync & OCC Conflict Lifecycle', () => {
       {},
       2
     );
-    expect(S.clients.find(c => c.id == 1).version).toBe(3);
+    expect(clients.find(c => c.id == 1).version).toBe(3);
     expect(S.modal).toBeNull();
+  });
+
+  it('commits SYNC_PROGRAM_VERSION through syncProgramVersionTransaction and supports conflict resolution', async () => {
+    S.isOnline = true;
+    const conflictErr = new Error('VERSION_CONFLICT');
+    conflictErr.code = 'VERSION_CONFLICT';
+    conflictErr.serverData = { id: 1, fullName: 'Original', version: 4 };
+
+    firebaseService.syncProgramVersionTransaction.mockRejectedValueOnce(conflictErr);
+
+    await expect(
+      commitOnlineMutation('SYNC_PROGRAM_VERSION', {
+        clientId: '1',
+        updatedPrograms: [{ id: 10, programName: 'Mobile - تطبيق VDD V22', version: 'V22', installationsCount: 4 }],
+        counterUpdates: { programsCount: 1, installationsCount: 4 },
+        versionHistoryEntry: { id: 'vh-1', newVersion: 'V22', previousVersion: 'V21' },
+        baseVersion: 1
+      })
+    ).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
+
+    expect(S.modal).toBe('conflict');
+
+    firebaseService.syncProgramVersionTransaction.mockResolvedValueOnce({
+      version: 5,
+      updatedAt: '2026-11-24T12:00:00Z',
+      updatedPrograms: [{ id: 10, programName: 'Mobile - تطبيق VDD V22', version: 'V22', installationsCount: 4 }],
+      versionHistory: [{ id: 'vh-1', newVersion: 'V22', previousVersion: 'V21' }]
+    });
+
+    const resolved = await resolveConflict('local');
+    expect(resolved).toBe(true);
+    expect(firebaseService.syncProgramVersionTransaction).toHaveBeenCalledTimes(2);
+    expect(clients.find(c => c.id == 1).version).toBe(5);
   });
 });

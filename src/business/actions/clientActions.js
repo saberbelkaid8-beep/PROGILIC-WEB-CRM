@@ -1,6 +1,6 @@
 import { closeModal } from "./uiActions.js";
-import { S, clients, setClients, updateState, currentUser, setCurrentUser } from '../../state/store.js';
-import { persist, loadClientSubcollectionsIfNeeded, enqueueSyncAction } from '../storage.js';
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, currentStaffUser, hasPermission, getActiveTenantId } from '../../state/store.js';
+import { persist, loadClientSubcollectionsIfNeeded, startClientDetailSync, commitOnlineMutation } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
 import { getBackups, deleteBackup } from '../idbStorage.js';
@@ -12,32 +12,30 @@ import { autoDetectFeatureOpp, computeScore } from '../intelligence.js';
 import { showToast } from '../../utils/toast.js';
 import { showConfirm, showPrompt } from '../../utils/confirm.js';
 import { t } from '../../utils/i18n.js';
-import { hasPermission } from '../../state/store.js';
 import { mergeOrAddClientProgram, adjustClientProgramDevices } from '../programMetrics.js';
-import { 
-  addClientTransaction, 
-  updateClientTransaction, 
-  deleteClientTransaction, 
-  saveClientSubItemTransaction, 
-  deleteClientSubItemTransaction 
-} from '../../firebase/service.js';
-
-
+import { buildVersionSyncPlan } from '../versionSync.js';
 
 export async function selClient(id) {
-  S.view = 'loading_details';
-  R();
-  await loadClientSubcollectionsIfNeeded(id);
+  const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
   S.selId = id;
   S.view = 'detail';
   S.tab = 'overview';
   S.clientActivities = [];
+  if (uid && S.isOnline !== false) {
+    startClientDetailSync(uid, id);
+  } else {
+    S.view = 'loading_details';
+    R();
+    await loadClientSubcollectionsIfNeeded(id);
+    S.selId = id;
+    S.view = 'detail';
+  }
   R();
 }
 
 export function editProg(cid, pid) { S.modal = 'editProgram'; S.form = { eid: pid }; R(); }
 
-// 3. Program Operations (Transactional)
+// 3. Program Operations (Real-Time Auto-Sync Transactional)
 
 export async function delProgram(cid, pid) {
   if (!hasPermission('programs.delete')) {
@@ -55,44 +53,69 @@ export async function delProgram(cid, pid) {
   const progToDelete = (c.programs || []).find(p => p.id === pid);
   if (!progToDelete) return;
 
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const prevStats = { ...(S.stats || {}) };
+
   const nextProgs = (c.programs || []).filter(p => p.id !== pid);
   const activeProg = nextProgs.filter(p => p.endDate).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
   const nextEndDate = activeProg.length > 0 ? activeProg[0].endDate : '';
   const nextInstalls = nextProgs.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
+  const nextNames = nextProgs.map(p => p.programName);
 
   const stats = { ...(S.stats || {}) };
   stats.totalPrograms = Math.max(0, (stats.totalPrograms || 0) - 1);
   stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) - (Number(progToDelete.installationsCount) || 1));
 
-  // Optimistic Local Update
-  c.programs = nextProgs;
-  c.endDate = nextEndDate;
-  c.programNames = nextProgs.map(p => p.programName);
+  const updatedClient = {
+    ...c,
+    programs: nextProgs,
+    programsCount: nextProgs.length,
+    installationsCount: nextInstalls,
+    endDate: nextEndDate,
+    programNames: nextNames,
+    _dirtyLocal: true
+  };
   S.stats = stats;
-  setClients([...clients]);
+  setClients(clients.map(x => (x && x.id === cid ? updatedClient : x)));
+  R();
 
-  // Enqueue Sync Action
-  enqueueSyncAction('DELETE_SUB_ITEM', {
-    clientId: String(cid),
-    collectionName: 'programs',
-    itemId: String(pid),
-    counterUpdates: { 
-      programs: nextProgs,
-      programsCount: nextProgs.length, 
-      installationsCount: nextInstalls, 
-      endDate: nextEndDate,
-      programNames: nextProgs.map(p => p.programName)
-    },
-    stats
-  });
+  let ack = null;
+  try {
+    ack = await commitOnlineMutation('DELETE_SUB_ITEM', {
+      clientId: String(cid),
+      collectionName: 'programs',
+      itemId: String(pid),
+      counterUpdates: {
+        programs: nextProgs,
+        programsCount: nextProgs.length,
+        installationsCount: nextInstalls,
+        endDate: nextEndDate,
+        programNames: nextNames
+      },
+      stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: Number(progToDelete.versionNum || 1),
+        isCreate: false
+      }
+    });
+  } catch (err) {
+    if (err?.code !== 'VERSION_CONFLICT') {
+      setClients(prevClients);
+      S.stats = prevStats;
+      R();
+      showToast(t('فشل حذف البرنامج: ') + (err?.message || ''), 'error');
+    }
+    return;
+  }
 
-  // Log timeline activity
+  const isQueued = Boolean(ack?.queued);
   logActivity(
     cid,
     ActivityType.PROGRAM_DELETED,
     "حذف برنامج ترخيص",
     `تم إزالة ترخيص البرنامج "${progToDelete.programName}" من حساب العميل.`,
-    'local',
+    isQueued ? 'local' : 'online-crm',
     {
       clientName: c.fullName,
       programId: progToDelete.id,
@@ -100,6 +123,11 @@ export async function delProgram(cid, pid) {
     }
   ).catch(err => console.error(err));
 
+  if (isQueued) {
+    showToast(t('تم حفظ التعديل محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم حذف البرنامج وحفظ التعديل في السحابة.'), 'success');
+  }
   R();
 }
 
@@ -111,42 +139,70 @@ export async function adjustProgramDevices(cid, pid, delta) {
   const c = clients.find(x => String(x.id) === String(cid));
   if (!c || !Array.isArray(c.programs)) return;
 
+  const targetOld = c.programs.find(p => String(p.id) === String(pid));
   const res = adjustClientProgramDevices(c.programs, pid, delta);
   if (!res.targetProgram || res.diffDevices === 0) return;
+
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const prevStats = { ...(S.stats || {}) };
 
   const stats = { ...(S.stats || {}) };
   stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) + res.diffDevices);
 
   const nextInstalls = res.nextPrograms.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
-  c.programs = res.nextPrograms;
-  c.programsCount = res.nextPrograms.length;
-  c.installationsCount = nextInstalls;
-  c.endDate = '';
-  c.programNames = res.nextPrograms.map(p => p.programName);
+  const nextNames = res.nextPrograms.map(p => p.programName);
+
+  const updatedClient = {
+    ...c,
+    programs: res.nextPrograms,
+    programsCount: res.nextPrograms.length,
+    installationsCount: nextInstalls,
+    endDate: '',
+    programNames: nextNames,
+    _dirtyLocal: true
+  };
   S.stats = stats;
-  setClients([...clients]);
+  setClients(clients.map(x => (String(x?.id) === String(c.id) ? updatedClient : x)));
+  R();
 
-  enqueueSyncAction('SAVE_SUB_ITEM', {
-    clientId: String(c.id),
-    collectionName: 'programs',
-    itemId: String(res.targetProgram.id),
-    itemData: res.targetProgram,
-    counterUpdates: {
-      programs: res.nextPrograms,
-      programsCount: res.nextPrograms.length,
-      installationsCount: nextInstalls,
-      endDate: '',
-      programNames: c.programNames
-    },
-    stats
-  });
+  let ack = null;
+  try {
+    ack = await commitOnlineMutation('SAVE_SUB_ITEM', {
+      clientId: String(c.id),
+      collectionName: 'programs',
+      itemId: String(res.targetProgram.id),
+      itemData: res.targetProgram,
+      counterUpdates: {
+        programs: res.nextPrograms,
+        programsCount: res.nextPrograms.length,
+        installationsCount: nextInstalls,
+        endDate: '',
+        programNames: nextNames
+      },
+      stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: Number(targetOld?.versionNum || 1),
+        isCreate: false
+      }
+    });
+  } catch (err) {
+    if (err?.code !== 'VERSION_CONFLICT') {
+      setClients(prevClients);
+      S.stats = prevStats;
+      R();
+      showToast(t('فشل تحديث عدد الأجهزة: ') + (err?.message || ''), 'error');
+    }
+    return;
+  }
 
+  const isQueued = Boolean(ack?.queued);
   logActivity(
     c.id,
     ActivityType.PROGRAM_EDITED,
     "تحديث عدد أجهزة الترخيص",
     `تم تعديل عدد أجهزة البرنامج "${res.targetProgram.programName}" إلى ${res.targetProgram.installationsCount} أجهزة.`,
-    'local',
+    isQueued ? 'local' : 'online-crm',
     {
       clientName: c.fullName,
       programId: res.targetProgram.id,
@@ -158,6 +214,11 @@ export async function adjustProgramDevices(cid, pid, delta) {
     }
   ).catch(err => console.error(err));
 
+  if (isQueued) {
+    showToast(t('تم حفظ التعديل محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم تحديث عدد الأجهزة وحفظه في السحابة.'), 'success');
+  }
   R();
 }
 
@@ -193,16 +254,17 @@ export async function saveProgram(editId) {
   const installationsCount = Math.max(1, gn('fp_ic', 1));
   const c = gc(); if (!c) return;
 
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const prevStats = { ...(S.stats || {}) };
+
   const typeDisplay = type ? type.split(' (')[0].trim() : (platform === 'Web' ? 'الويب' : '');
-  const derivedProgramName = platform === 'Mobile'
-    ? `${platform} - ${typeDisplay}`.trim()
-    : `${platform} - ${typeDisplay} ${version}`.trim();
+  const derivedProgramName = `${platform} - ${typeDisplay}${version ? ` ${version}` : ''}`.trim();
   
   let d = {
     programName: derivedProgramName,
     platform: platform,
     type: type || 'الويب',
-    version: platform === 'Mobile' ? '' : version,
+    version: version,
     installationsCount: installationsCount,
     startDate: gv('fp_sd') || td(),
     endDate: ''
@@ -213,11 +275,14 @@ export async function saveProgram(editId) {
   let nextProgs = [...c.programs];
   const stats = { ...(S.stats || {}) };
   let mergedExisting = false;
+  let oldItemVersionNum = null;
+  let isCreateItem = programEditId === null;
 
   if (programEditId !== null) {
     const i = nextProgs.findIndex(p => p.id === programEditId);
     if (i > -1) {
       const oldP = nextProgs[i];
+      oldItemVersionNum = Number(oldP.versionNum || 1);
       const diffInstalls = d.installationsCount - (Number(oldP.installationsCount) || 1);
       stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) + diffInstalls);
       
@@ -226,40 +291,67 @@ export async function saveProgram(editId) {
     }
   } else {
     d.id = Date.now();
+    const existingCount = nextProgs.length;
     const mergeRes = mergeOrAddClientProgram(nextProgs, d);
     nextProgs = mergeRes.nextPrograms;
     d = mergeRes.targetProgram;
     stats.totalPrograms = (stats.totalPrograms || 0) + mergeRes.addedProgramsCount;
     stats.totalLicensedDevices = (stats.totalLicensedDevices || 0) + mergeRes.addedDevices;
     mergedExisting = mergeRes.action === 'merged';
+    if (mergedExisting && existingCount > 0) {
+      isCreateItem = false;
+      oldItemVersionNum = Number(d.versionNum || 1);
+    }
   }
 
   const nextInstalls = nextProgs.reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0);
+  const nextNames = nextProgs.map(p => p.programName);
 
-  // Optimistic Local Update
-  c.programs = nextProgs;
-  c.programsCount = nextProgs.length;
-  c.installationsCount = nextInstalls;
-  c.endDate = '';
-  c.programNames = nextProgs.map(p => p.programName);
+  const updatedClient = {
+    ...c,
+    programs: nextProgs,
+    programsCount: nextProgs.length,
+    installationsCount: nextInstalls,
+    endDate: '',
+    programNames: nextNames,
+    _dirtyLocal: true
+  };
   S.stats = stats;
-  setClients([...clients]);
+  setClients(clients.map(x => (x && x.id === c.id ? updatedClient : x)));
+  R();
 
-  // Enqueue Sync Action
-  enqueueSyncAction('SAVE_SUB_ITEM', {
-    clientId: String(c.id),
-    collectionName: 'programs',
-    itemId: String(d.id),
-    itemData: d,
-    counterUpdates: { 
-      programs: nextProgs,
-      programsCount: nextProgs.length, 
-      installationsCount: nextInstalls, 
-      endDate: '',
-      programNames: nextProgs.map(p => p.programName)
-    },
-    stats
-  });
+  let ack = null;
+  try {
+    ack = await commitOnlineMutation('SAVE_SUB_ITEM', {
+      clientId: String(c.id),
+      collectionName: 'programs',
+      itemId: String(d.id),
+      itemData: d,
+      counterUpdates: { 
+        programs: nextProgs,
+        programsCount: nextProgs.length, 
+        installationsCount: nextInstalls, 
+        endDate: '',
+        programNames: nextNames
+      },
+      stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: isCreateItem ? null : oldItemVersionNum,
+        isCreate: isCreateItem
+      }
+    });
+  } catch (err) {
+    if (err?.code !== 'VERSION_CONFLICT') {
+      setClients(prevClients);
+      S.stats = prevStats;
+      R();
+      showToast(t('فشل حفظ البرنامج في قاعدة البيانات: ') + (err?.message || ''), 'error');
+    }
+    return;
+  }
+
+  const isQueued = Boolean(ack?.queued);
 
   // Log timeline activity
   if (programEditId !== null || mergedExisting) {
@@ -270,7 +362,7 @@ export async function saveProgram(editId) {
       mergedExisting
         ? `تم دمج ${installationsCount} جهاز(أجهزة) على البرنامج "${d.programName}" ليصبح المجموع ${d.installationsCount} أجهزة مرخصة.`
         : `تم تعديل بيانات ترخيص البرنامج "${d.programName}". الأجهزة المرخصة: ${d.installationsCount}.`,
-      'local',
+      isQueued ? 'local' : 'online-crm',
       {
         clientName: c.fullName,
         programId: d.id,
@@ -283,16 +375,13 @@ export async function saveProgram(editId) {
         endDate: ''
       }
     ).catch(err => console.error(err));
-    if (mergedExisting) {
-      showToast(`${t('تمت إضافة الأجهزة على البرنامج الموجود')} (${d.installationsCount} ${t('جهاز')})`);
-    }
   } else {
     logActivity(
       c.id,
       ActivityType.PROGRAM_ADDED,
       "إضافة برنامج ترخيص",
       `تم تسجيل ترخيص جديد للبرنامج "${d.programName}" مع ${d.installationsCount} أجهزة مرخصة.`,
-      'local',
+      isQueued ? 'local' : 'online-crm',
       {
         clientName: c.fullName,
         activityId: `act_prog_${c.id}_${d.id}`,
@@ -308,12 +397,157 @@ export async function saveProgram(editId) {
     ).catch(err => console.error(err));
   }
 
+  if (isQueued) {
+    showToast(t('تم حفظ البرنامج محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else if (mergedExisting) {
+    showToast(`${t('تمت إضافة الأجهزة على البرنامج الموجود')} (${d.installationsCount} ${t('جهاز')})`, 'success');
+  } else {
+    showToast(t('تم حفظ بيانات البرنامج وتأكيدها في السحابة.'), 'success');
+  }
+
   closeModal();
 }
 
-export async function saveClient(editId) {
-  console.log("saveClient: starting with editId =", editId);
+export async function confirmProgramVersionSync(clientId = null) {
+  if (!hasPermission('programs.edit')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل بيانات البرامج والتراخيص.'), 'error');
+    return false;
+  }
 
+  const targetClient = (clientId !== null && clientId !== undefined)
+    ? clients.find(x => String(x?.id) === String(clientId))
+    : gc();
+  if (!targetClient) {
+    showToast(t('تعذر العثور على بطاقة العميل.'), 'error');
+    return false;
+  }
+
+  const programKey = (gv('vs_program') || gv('fpu_prog') || '').trim();
+  const targetVersion = (gv('vs_version') || gv('fpu_ver') || '').trim();
+  const updateDate = (gv('vs_date') || gv('fpu_date') || td()).trim();
+  const note = (gv('vs_note') || gv('fpu_notes') || '').trim();
+
+  if (!programKey) {
+    showToast(t('الرجاء اختيار البرنامج المعني بالتحديث *'), 'error');
+    return false;
+  }
+  if (!targetVersion) {
+    showToast(t('الرجاء اختيار الإصدار الجديد صراحةً *'), 'error');
+    return false;
+  }
+
+  const actor = currentStaffUser || S.currentStaffUser || currentUser || S.currentUser || {};
+  const employeeName = actor.displayName || actor.fullName || actor.username || actor.email || 'المسؤول العام';
+  const employeeId = actor.id || actor.uid || 'gerant';
+
+  let plan;
+  try {
+    plan = buildVersionSyncPlan({
+      client: targetClient,
+      programKey,
+      targetVersion,
+      updateDate,
+      employeeName,
+      employeeId,
+      note
+    });
+  } catch (planErr) {
+    showToast(planErr?.message || t('بيانات تحديث الإصدار غير صالحة.'), 'error');
+    return false;
+  }
+
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const existingHistory = Array.isArray(targetClient.versionHistory) ? targetClient.versionHistory : [];
+  const nextVersionHistory = [plan.versionHistoryEntry, ...existingHistory].slice(0, 100);
+  const nextVersionUpdates = [plan.versionUpdateEntry, ...(targetClient.versionUpdates || [])].slice(0, 100);
+
+  const updatedClient = {
+    ...targetClient,
+    programs: plan.nextPrograms,
+    programNames: plan.counterUpdates.programNames,
+    programsCount: plan.counterUpdates.programsCount,
+    installationsCount: plan.counterUpdates.installationsCount,
+    versionHistory: nextVersionHistory,
+    versionUpdates: nextVersionUpdates,
+    _dirtyLocal: true
+  };
+
+  setClients(clients.map(x => (String(x?.id) === String(targetClient.id) ? updatedClient : x)));
+  R();
+
+  let ack = null;
+  try {
+    ack = await commitOnlineMutation('SYNC_PROGRAM_VERSION', {
+      clientId: String(targetClient.id),
+      programKey: plan.programKey,
+      programLabel: plan.programLabel,
+      previousVersion: plan.previousVersion,
+      newVersion: plan.newVersion,
+      affectedDevices: plan.affectedDevices,
+      updatedPrograms: plan.updatedPrograms,
+      counterUpdates: plan.counterUpdates,
+      versionHistoryEntry: plan.versionHistoryEntry,
+      baseVersion: Number(targetClient.version || 0),
+      concurrency: { baseVersion: Number(targetClient.version || 0) }
+    });
+  } catch (err) {
+    if (err?.code !== 'VERSION_CONFLICT') {
+      setClients(prevClients);
+      R();
+      showToast(t('فشل تحديث إصدار البرنامج في السحابة: ') + (err?.message || ''), 'error');
+    }
+    return false;
+  }
+
+  const isQueued = Boolean(ack?.queued);
+
+  logActivity(
+    targetClient.id,
+    ActivityType.PROGRAM_VERSION_UPDATED,
+    `تحديث إصدار ${plan.programLabel} إلى ${plan.newVersion}`,
+    `تم تحديث ${plan.affectedProgramsCount} ترخيص (${plan.affectedDevices} جهاز) من (${plan.previousVersion}) إلى (${plan.newVersion}) بواسطة ${employeeName}.`,
+    isQueued ? 'local' : 'online-crm',
+    {
+      clientName: targetClient.fullName,
+      programKey: plan.programKey,
+      programLabel: plan.programLabel,
+      previousVersion: plan.previousVersion,
+      newVersion: plan.newVersion,
+      toVersion: plan.newVersion,
+      affectedDevices: plan.affectedDevices,
+      affectedProgramsCount: plan.affectedProgramsCount,
+      updateDate
+    }
+  ).catch(err => console.error(err));
+
+  if (isQueued) {
+    showToast(t('تم حفظ تحديث الإصدار محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم تحديث الإصدار لجميع أجهزة البرنامج وحفظه في السحابة.'), 'success');
+  }
+
+  closeModal();
+  return true;
+}
+
+export async function openLogProgramUpdateModal(clientId = null) {
+  const c = (clientId !== null && clientId !== undefined)
+    ? clients.find(x => String(x?.id) === String(clientId))
+    : gc();
+  if (c) {
+    S.selId = c.id;
+  }
+  openModal('logProgramUpdate', { clientId: c?.id, targetVersion: '' });
+  if (S.form) {
+    S.form.targetVersion = '';
+  }
+}
+
+export async function saveProgramVersionUpdate(clientId = null) {
+  return await confirmProgramVersionSync(clientId);
+}
+
+export async function saveClient(editId) {
   // 1. Strict Validation of Mandatory Fields
   const fn = (gv('f_fn') || '').trim(); 
   if (!fn) { showToast(t('الرجاء إدخال الاسم الكامل للعميل *'), 'error'); return; }
@@ -361,7 +595,6 @@ export async function saveClient(editId) {
     lastContact: lc,
     notes: (gv('f_no') || '').trim()
   };
-  console.log("saveClient: validated form data d =", JSON.stringify(d));
 
   const clientEditId = editId !== null && editId !== 'null' ? editId : null;
   if (clientEditId === null && !hasPermission('clients.create') && !hasPermission('canAddClients')) {
@@ -372,13 +605,16 @@ export async function saveClient(editId) {
     showToast('⚠️ لا تملك صلاحية تعديل بيانات العملاء. الصلاحيات محددة من طرف الرئيس (Gérant).', 'error');
     return;
   }
+
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const prevStats = { ...(S.stats || {}) };
   const stats = { ...(S.stats || {}) };
   let createdClientId = null;
 
   if (clientEditId !== null) {
     const oldC = clients.find(c => c.id === clientEditId);
     if (oldC) {
-      const updatedClient = { ...oldC, ...d };
+      const updatedClient = { ...oldC, ...d, _dirtyLocal: true };
       
       // Update stats
       if (oldC.status !== d.status) {
@@ -396,18 +632,31 @@ export async function saveClient(editId) {
       if (i > -1) {
         const nextClients = [...clients];
         nextClients[i] = updatedClient;
-        console.log("saveClient: updating client index", i, "clients count", nextClients.length);
         setClients(nextClients);
       }
       S.stats = stats;
+      R();
       
-      // Enqueue Sync Action
-      enqueueSyncAction('UPDATE_CLIENT', {
-        clientId: String(clientEditId),
-        clientData: updatedClient,
-        oldStatus: oldC.status,
-        stats
-      });
+      let ack = null;
+      try {
+        ack = await commitOnlineMutation('UPDATE_CLIENT', {
+          clientId: String(clientEditId),
+          clientData: updatedClient,
+          oldStatus: oldC.status,
+          stats,
+          baseVersion: Number(oldC.version || 0)
+        });
+      } catch (err) {
+        if (err?.code !== 'VERSION_CONFLICT') {
+          setClients(prevClients);
+          S.stats = prevStats;
+          R();
+          showToast(t('فشل تحديث بيانات العميل في قاعدة البيانات: ') + (err?.message || ''), 'error');
+        }
+        return;
+      }
+
+      const isQueued = Boolean(ack?.queued);
       const fieldLabels = {
         fullName: 'الاسم واللقب', phone: 'الهاتف', gmailAccount: 'Gmail', company: 'الشركة',
         wilaya: 'الولاية', commune: 'البلدية', location: 'العنوان', businessType: 'النشاط',
@@ -432,11 +681,15 @@ export async function saveClient(editId) {
         ActivityType.CLIENT_EDITED,
         statusChanged ? `تحديث حالة العميل (${d.status})` : "تعديل بيانات العميل",
         changeDesc,
-        'online-crm',
+        isQueued ? 'local' : 'online-crm',
         { clientName: d.fullName, changedFields }
-      )
-        .catch(err => console.error(err));
-      showToast(t('تم تحديث بيانات العميل'));
+      ).catch(err => console.error(err));
+
+      if (isQueued) {
+        showToast(t('تم حفظ التعديلات محلياً وستُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+      } else {
+        showToast(t('تم تحديث بيانات العميل وحفظها في السحابة.'), 'success');
+      }
     }
   } else {
     const nextId = Date.now();
@@ -452,10 +705,12 @@ export async function saveClient(editId) {
       programsCount: 0,
       installationsCount: 0,
       programNames: [],
+      versionHistory: [],
       issues: [],
       requirements: [],
       contactHistory: [],
-      _subcollectionsLoaded: true
+      _subcollectionsLoaded: true,
+      _dirtyLocal: true
     };
 
     // Check if optional initial program was enabled in the modal
@@ -481,15 +736,13 @@ export async function saveClient(editId) {
         return;
       }
       const typeDisplay = pTy ? pTy.split(' (')[0].trim() : (pPl === 'Web' ? 'الويب' : '');
-      const derivedName = pPl === 'Mobile'
-        ? `${pPl} - ${typeDisplay}`.trim()
-        : `${pPl || 'Desktop'} - ${typeDisplay} ${pVer}`.trim();
+      const derivedName = `${pPl || 'Desktop'} - ${typeDisplay}${pVer ? ` ${pVer}` : ''}`.trim();
       initialProg = {
         id: nextId + 1,
         programName: derivedName,
         platform: pPl || 'Desktop',
         type: pTy || (pPl === 'Web' ? 'الويب' : 'تجاري'),
-        version: pPl === 'Mobile' ? '' : pVer,
+        version: pVer,
         installationsCount: Math.max(1, gn('f_p_ic', 1)),
         startDate: startDateVal || td(),
         endDate: ''
@@ -505,8 +758,6 @@ export async function saveClient(editId) {
       stats.totalLicensedDevices = (stats.totalLicensedDevices || 0) + initialProg.installationsCount;
     }
 
-    console.log("saveClient: inserting newClient =", JSON.stringify(newClient));
-    
     // Update stats
     stats.totalClients = (stats.totalClients || 0) + 1;
     if (d.status === 'نشط') stats.activeClients = (stats.activeClients || 0) + 1;
@@ -516,12 +767,26 @@ export async function saveClient(editId) {
     // Optimistic Update
     setClients([...clients, newClient]);
     S.stats = stats;
+    R();
     
-    // Enqueue Sync Action
-    enqueueSyncAction('ADD_CLIENT', {
-      clientData: newClient,
-      stats
-    });
+    let ack = null;
+    try {
+      ack = await commitOnlineMutation('ADD_CLIENT', {
+        clientData: newClient,
+        stats
+      });
+    } catch (err) {
+      if (err?.code !== 'VERSION_CONFLICT') {
+        setClients(prevClients);
+        S.stats = prevStats;
+        R();
+        showToast(t('فشل إضافة العميل إلى قاعدة البيانات: ') + (err?.message || ''), 'error');
+      }
+      return;
+    }
+
+    const isQueued = Boolean(ack?.queued);
+
     // Log timeline activity
     logActivity(nextId, ActivityType.CLIENT_CREATED, "إنشاء العميل", `تم تسجيل العميل بنظام CRM بنجاح: ${newClient.fullName}.`)
       .catch(err => console.error(err));
@@ -531,7 +796,7 @@ export async function saveClient(editId) {
         ActivityType.PROGRAM_ADDED,
         `خدمة ترخيص برنامج: ${initialProg.programName}`,
         `تقديم وتثبيت خدمة برمجية "${initialProg.programName}" للعميل ${newClient.fullName} - المنصة: ${initialProg.platform} - نوع الخدمة: ${initialProg.type} - أجهزة مرخصة: ${initialProg.installationsCount} محطة (البداية: ${initialProg.startDate})${initialProg.endDate ? ` (النهاية: ${initialProg.endDate})` : ''}.`,
-        'local',
+        isQueued ? 'local' : 'online-crm',
         {
           clientName: newClient.fullName,
           activityId: `act_prog_${nextId}_${initialProg.id}`,
@@ -546,7 +811,12 @@ export async function saveClient(editId) {
         }
       ).catch(err => console.error(err));
     }
-    showToast(t('تم إضافة العميل بنجاح'));
+
+    if (isQueued) {
+      showToast(t('تم حفظ العميل محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+    } else {
+      showToast(t('تم إضافة العميل بنجاح'));
+    }
   }
   
   const targetId = clientEditId !== null ? clientEditId : (createdClientId || S.selId);
@@ -559,7 +829,7 @@ export async function saveClient(editId) {
   R();
 }
 
-// 4. Client Issues Operations (Transactional - Now Enqueued with Optimistic Updates)
+// 4. Client Deletion (Real-Time Auto-Sync Transactional)
 
 export async function delClient(id) {
   if (!hasPermission('clients.delete') && !hasPermission('canDeleteClients')) {
@@ -575,6 +845,9 @@ export async function delClient(id) {
   if (!confirmed) return;
   const c = clients.find(x => x.id === id); if (!c) return;
 
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const prevStats = { ...(S.stats || {}) };
+
   const stats = { ...(S.stats || {}) };
   stats.totalClients = Math.max(0, (stats.totalClients || 0) - 1);
   if (c.status === 'نشط') stats.activeClients = Math.max(0, (stats.activeClients || 0) - 1);
@@ -583,27 +856,44 @@ export async function delClient(id) {
 
   stats.totalPrograms = Math.max(0, (stats.totalPrograms || 0) - (c.programsCount || (c.programs || []).length));
   stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) - (c.installationsCount || (c.programs || []).reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0)));
-  stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) - (c.openIssuesCount || c.issues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length));
+  stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) - (c.openIssuesCount || (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length));
 
   // Optimistic Local Update
   setClients(clients.filter(x => x.id !== id));
   S.stats = stats;
+  R();
   
-  // Enqueue Sync Action
-  enqueueSyncAction('DELETE_CLIENT', {
-    clientId: String(id),
-    clientData: {
-      ...c,
-      programsCount: c.programsCount || (c.programs || []).length,
-      installationsCount: c.installationsCount || (c.programs || []).reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0),
-      openIssuesCount: c.openIssuesCount || c.issues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length
-    },
-    stats
-  });
+  let ack = null;
+  try {
+    ack = await commitOnlineMutation('DELETE_CLIENT', {
+      clientId: String(id),
+      clientData: {
+        ...c,
+        programsCount: c.programsCount || (c.programs || []).length,
+        installationsCount: c.installationsCount || (c.programs || []).reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0),
+        openIssuesCount: c.openIssuesCount || (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length
+      },
+      stats
+    });
+  } catch (err) {
+    if (err?.code !== 'VERSION_CONFLICT') {
+      setClients(prevClients);
+      S.stats = prevStats;
+      R();
+      showToast(t('فشل حذف العميل من السحابة: ') + (err?.message || ''), 'error');
+    }
+    return;
+  }
 
-  // Log timeline activity
-  logActivity(id, ActivityType.CLIENT_DELETED, "حذف العميل نهائياً", `تم حذف العميل "${c.fullName}" وجميع بياناته المرتبطة من قاعدة البيانات.`, 'local', { clientName: c.fullName })
+  const isQueued = Boolean(ack?.queued);
+  logActivity(id, ActivityType.CLIENT_DELETED, "حذف العميل نهائياً", `تم حذف العميل "${c.fullName}" وجميع بياناته المرتبطة من قاعدة البيانات.`, isQueued ? 'local' : 'online-crm', { clientName: c.fullName })
     .catch(err => console.error(err));
+
+  if (isQueued) {
+    showToast(t('تم تسجيل الحذف محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم حذف العميل نهائياً من السحابة.'), 'success');
+  }
 
   S.view = 'list'; S.selId = null;
   R();
@@ -614,29 +904,48 @@ export async function delClient(id) {
 export async function captureGPS() {
   if (!navigator.geolocation) { showToast(t('المتصفح لا يدعم تحديد الموقع الجغرافي'), 'error'); return; }
   navigator.geolocation.getCurrentPosition(
-    pos => {
+    async pos => {
       const c = gc(); if (!c) return;
       const lat = Number(pos.coords.latitude.toFixed(6));
       const lng = Number(pos.coords.longitude.toFixed(6));
       const newGps = { lat, lng };
+      const prevClients = clients.map(cl => ({ ...cl }));
 
       // Optimistic Local Update
-      c.gps = newGps;
+      const updatedClient = { ...c, gps: newGps, _dirtyLocal: true };
+      setClients(clients.map(x => (x && x.id === c.id ? updatedClient : x)));
+      R();
 
-      // Enqueue Sync Action
-      enqueueSyncAction('UPDATE_CLIENT', {
-        clientId: String(c.id),
-        clientData: { ...c, gps: newGps },
-        oldStatus: c.status,
-        stats: S.stats
-      });
-      
-      // Log timeline activity
-      logActivity(c.id, ActivityType.GPS_CAPTURED, "تحديد الموقع الجغرافي", `تم التقاط إحداثيات GPS للعميل بنجاح (${lat}, ${lng}).`, 'local', { clientName: c.fullName })
+      let ack = null;
+      try {
+        ack = await commitOnlineMutation('UPDATE_CLIENT', {
+          clientId: String(c.id),
+          clientData: updatedClient,
+          oldStatus: c.status,
+          stats: S.stats,
+          baseVersion: Number(c.version || 0)
+        });
+      } catch (err) {
+        if (err?.code !== 'VERSION_CONFLICT') {
+          setClients(prevClients);
+          R();
+          showToast(t('فشل حفظ الموقع الجغرافي: ') + (err?.message || ''), 'error');
+        }
+        return;
+      }
+
+      const isQueued = Boolean(ack?.queued);
+      logActivity(c.id, ActivityType.GPS_CAPTURED, "تحديد الموقع الجغرافي", `تم التقاط إحداثيات GPS للعميل بنجاح (${lat}, ${lng}).`, isQueued ? 'local' : 'online-crm', { clientName: c.fullName })
         .catch(err => console.error(err));
 
+      if (isQueued) {
+        showToast(t('تم حفظ الإحداثيات محلياً وستُزامن عند عودة الاتصال.'), 'warning');
+      } else {
+        showToast(t('تم حفظ الموقع الجغرافي وتأكيده في السحابة.'), 'success');
+      }
       R();
     },
     err => { showToast(t('تعذر تحديد الموقع: ') + err.message + '\n' + t('تأكد من منح الإذن للمتصفح'), 'error'); }
   );
 }
+

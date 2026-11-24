@@ -10,11 +10,6 @@ import { t } from '../../utils/i18n.js';
 import { closeModal } from './uiActions.js';
 
 function ensureOnlineForMutation() {
-  const isBrowserOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
-  if (!S.isOnline || !isBrowserOnline) {
-    showToast(t('الاتصال بالإنترنت مقطوع. لا يمكن حفظ أي تعديل بدون تأكيد السحابة.'), 'error');
-    return false;
-  }
   if (S.quotaExceeded || (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
     showToast(t('تم تجاوز الحصة اليومية لـ Firestore. التعديلات موقوفة مؤقتاً لحماية قاعدة البيانات.'), 'error');
     return false;
@@ -71,8 +66,9 @@ export async function saveContact() {
   const latest = updatedHistory.reduce((m, h) => h.date > m ? h.date : m, '') || c.lastContact || '';
   const nextScore = computeScore({ ...c, contactHistory: updatedHistory, lastContact: latest }).total;
 
+  let ack = null;
   try {
-    await commitOnlineMutation('SAVE_SUB_ITEM', {
+    ack = await commitOnlineMutation('SAVE_SUB_ITEM', {
       clientId: String(c.id),
       collectionName: 'contacts',
       itemId: String(entryId),
@@ -82,7 +78,12 @@ export async function saveContact() {
         contactsCount: updatedHistory.length,
         score: nextScore
       },
-      stats: S.stats
+      stats: S.stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: null,
+        isCreate: true
+      }
     });
   } catch (err) {
     if (err?.code !== 'VERSION_CONFLICT') {
@@ -91,18 +92,28 @@ export async function saveContact() {
     return;
   }
 
+  const isQueued = Boolean(ack?.queued);
+  const syncedEntry = ack?.itemVersion ? { ...entry, version: ack.itemVersion } : entry;
+  const finalHistory = [...currentHistory, syncedEntry];
+
   setClients(clients.map(x => x && x.id === c.id ? {
     ...x,
-    contactHistory: updatedHistory,
+    contactHistory: finalHistory,
     lastContact: latest,
-    contactsCount: updatedHistory.length,
-    score: nextScore
+    contactsCount: finalHistory.length,
+    score: nextScore,
+    version: ack?.version ?? x.version,
+    _dirtyLocal: isQueued
   } : x));
 
-  logActivity(c.id, ActivityType.CONTACT_ADDED, "تسجيل تواصل", `تم تسجيل تواصل جديد بتاريخ ${entry.date}. الملاحظة: "${entry.note}".`, 'online-crm')
+  logActivity(c.id, ActivityType.CONTACT_ADDED, "تسجيل تواصل", `تم تسجيل تواصل جديد بتاريخ ${entry.date}. الملاحظة: "${entry.note}".`, isQueued ? 'local' : 'online-crm')
     .catch(err => console.error(err));
   
-  showToast(t('تم تسجيل التواصل وتأكيده في السحابة.'), 'success');
+  if (isQueued) {
+    showToast(t('تم حفظ سجل التواصل محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم تسجيل التواصل وتأكيده في السحابة.'), 'success');
+  }
   S.tab = 'contacts';
   closeModal();
 }
@@ -127,8 +138,9 @@ export async function delContact(cid, hid) {
   const latest = nextHistory.reduce((m, h) => h.date > m ? h.date : m, '') || '';
   const nextScore = computeScore({ ...c, contactHistory: nextHistory, lastContact: latest }).total;
 
+  let ack = null;
   try {
-    await commitOnlineMutation('DELETE_SUB_ITEM', {
+    ack = await commitOnlineMutation('DELETE_SUB_ITEM', {
       clientId: String(cid),
       collectionName: 'contacts',
       itemId: String(hid),
@@ -137,7 +149,12 @@ export async function delContact(cid, hid) {
         contactsCount: nextHistory.length,
         score: nextScore
       },
-      stats: S.stats
+      stats: S.stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: chToDelete ? Number(chToDelete.version || 1) : null,
+        isCreate: false
+      }
     });
   } catch (err) {
     if (err?.code !== 'VERSION_CONFLICT') {
@@ -146,19 +163,26 @@ export async function delContact(cid, hid) {
     return;
   }
 
+  const isQueued = Boolean(ack?.queued);
   setClients(clients.map(x => x && x.id === cid ? {
     ...x,
     contactHistory: nextHistory,
     lastContact: latest,
     contactsCount: nextHistory.length,
-    score: nextScore
+    score: nextScore,
+    version: ack?.version ?? x.version,
+    _dirtyLocal: isQueued
   } : x));
 
   const dateStr = chToDelete ? chToDelete.date : '';
-  logActivity(cid, ActivityType.CONTACT_DELETED, "حذف سجل تواصل", `تم إزالة سجل تواصل بتاريخ ${dateStr} من أرشيف العميل.`, 'online-crm')
+  logActivity(cid, ActivityType.CONTACT_DELETED, "حذف سجل تواصل", `تم إزالة سجل تواصل بتاريخ ${dateStr} من أرشيف العميل.`, isQueued ? 'local' : 'online-crm')
     .catch(err => console.error(err));
   
-  showToast(t('تم حذف سجل التواصل من السحابة.'), 'success');
+  if (isQueued) {
+    showToast(t('تم تسجيل الحذف محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم حذف سجل التواصل من السحابة.'), 'success');
+  }
   R();
 }
 
@@ -180,7 +204,7 @@ export function autoFillConf() {
   if (el) el.value = conf; if (vEl) vEl.textContent = conf + '%';
 }
 
-// 3. Client Issues Operations (Strict Online-Only Server-Acknowledged)
+// 3. Client Issues Operations (Real-Time Auto-Sync Transactional)
 
 export async function saveIssue(editId) {
   const eid = editId !== null && editId !== 'null' ? editId : null;
@@ -221,10 +245,12 @@ export async function saveIssue(editId) {
   let nextIssues = [...existingIssues];
   const stats = { ...(S.stats || {}) };
   const oldOpenCount = existingIssues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد').length;
+  let existingItemVersion = null;
 
   if (eid !== null) {
     const i = nextIssues.findIndex(x => x.id === eid);
     if (i > -1) {
+      existingItemVersion = Number(nextIssues[i].version || 1);
       d.id = eid;
       nextIssues[i] = { ...nextIssues[i], ...d };
     }
@@ -237,8 +263,9 @@ export async function saveIssue(editId) {
   stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) + (summary.openIssuesCount - oldOpenCount));
   const nextScore = computeScore({ ...c, issues: nextIssues }).total;
 
+  let ack = null;
   try {
-    await commitOnlineMutation('SAVE_SUB_ITEM', {
+    ack = await commitOnlineMutation('SAVE_SUB_ITEM', {
       clientId: String(c.id),
       collectionName: 'issues',
       itemId: String(d.id),
@@ -247,7 +274,12 @@ export async function saveIssue(editId) {
         ...summary,
         score: nextScore
       },
-      stats
+      stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: eid !== null ? existingItemVersion : null,
+        isCreate: eid === null
+      }
     });
   } catch (err) {
     if (err?.code !== 'VERSION_CONFLICT') {
@@ -256,23 +288,34 @@ export async function saveIssue(editId) {
     return;
   }
 
+  const isQueued = Boolean(ack?.queued);
+  if (ack?.itemVersion) {
+    nextIssues = nextIssues.map(x => (x.id === d.id ? { ...x, version: ack.itemVersion } : x));
+  }
+
   S.stats = stats;
   setClients(clients.map(x => x && x.id === c.id ? {
     ...x,
     issues: nextIssues,
     ...summary,
-    score: nextScore
+    score: nextScore,
+    version: ack?.version ?? x.version,
+    _dirtyLocal: isQueued
   } : x));
 
   if (eid !== null) {
-    logActivity(c.id, ActivityType.ISSUE_EDITED, "تعديل تذكرة مشكلة", `تم تعديل تذكرة المشكلة: "${d.title}".`, 'online-crm')
+    logActivity(c.id, ActivityType.ISSUE_EDITED, "تعديل تذكرة مشكلة", `تم تعديل تذكرة المشكلة: "${d.title}".`, isQueued ? 'local' : 'online-crm')
       .catch(err => console.error(err));
   } else {
-    logActivity(c.id, ActivityType.ISSUE_ADDED, "تسجيل مشكلة جديدة", `تم تسجيل مشكلة بعنوان: "${d.title}" وبأولوية (${d.priority}).`, 'online-crm')
+    logActivity(c.id, ActivityType.ISSUE_ADDED, "تسجيل مشكلة جديدة", `تم تسجيل مشكلة بعنوان: "${d.title}" وبأولوية (${d.priority}).`, isQueued ? 'local' : 'online-crm')
       .catch(err => console.error(err));
   }
 
-  showToast(t('تم حفظ التذكرة وتأكيدها في السحابة.'), 'success');
+  if (isQueued) {
+    showToast(t('تم حفظ التذكرة محلياً وستُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم حفظ التذكرة وتأكيدها في السحابة.'), 'success');
+  }
   closeModal();
 }
 
@@ -298,7 +341,7 @@ export async function markSolved(cid, iid) {
   const iss = (c.issues || []).find(x => x.id === iid); if (!iss) return;
 
   const updatedIssue = { ...iss, status: 'محلول', solution: sol || t('تم الحل'), resolvedDate: td() };
-  const nextIssues = c.issues.map(i => i.id === iid ? updatedIssue : i);
+  let nextIssues = c.issues.map(i => i.id === iid ? updatedIssue : i);
   const summary = computeIssueSummaries(nextIssues);
   const oldSummary = computeIssueSummaries(c.issues || []);
 
@@ -306,8 +349,9 @@ export async function markSolved(cid, iid) {
   stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) + (summary.openIssuesCount - oldSummary.openIssuesCount));
   const nextScore = computeScore({ ...c, issues: nextIssues }).total;
 
+  let ack = null;
   try {
-    await commitOnlineMutation('SAVE_SUB_ITEM', {
+    ack = await commitOnlineMutation('SAVE_SUB_ITEM', {
       clientId: String(cid),
       collectionName: 'issues',
       itemId: String(iid),
@@ -316,7 +360,12 @@ export async function markSolved(cid, iid) {
         ...summary,
         score: nextScore
       },
-      stats
+      stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: Number(iss.version || 1),
+        isCreate: false
+      }
     });
   } catch (err) {
     if (err?.code !== 'VERSION_CONFLICT') {
@@ -325,18 +374,29 @@ export async function markSolved(cid, iid) {
     return;
   }
 
+  const isQueued = Boolean(ack?.queued);
+  if (ack?.itemVersion) {
+    nextIssues = nextIssues.map(i => (i.id === iid ? { ...i, version: ack.itemVersion } : i));
+  }
+
   S.stats = stats;
   setClients(clients.map(x => x && x.id === cid ? {
     ...x,
     issues: nextIssues,
     ...summary,
-    score: nextScore
+    score: nextScore,
+    version: ack?.version ?? x.version,
+    _dirtyLocal: isQueued
   } : x));
 
-  logActivity(cid, ActivityType.ISSUE_RESOLVED, "حل تذكرة مشكلة", `تم وضع علامة "محلول" على المشكلة: "${iss.title}". وصف الحل: "${sol || 'تم تقديم الدعم وحل المشكلة.'}"`, 'online-crm')
+  logActivity(cid, ActivityType.ISSUE_RESOLVED, "حل تذكرة مشكلة", `تم وضع علامة "محلول" على المشكلة: "${iss.title}". وصف الحل: "${sol || 'تم تقديم الدعم وحل المشكلة.'}"`, isQueued ? 'local' : 'online-crm')
     .catch(err => console.error(err));
 
-  showToast(t('تم إغلاق التذكرة وحفظ الحل في السحابة.'), 'success');
+  if (isQueued) {
+    showToast(t('تم حفظ الحل محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم إغلاق التذكرة وحفظ الحل في السحابة.'), 'success');
+  }
   R();
 }
 
@@ -366,8 +426,9 @@ export async function delIssue(cid, iid) {
   stats.totalOpenIssues = Math.max(0, (stats.totalOpenIssues || 0) + (summary.openIssuesCount - oldSummary.openIssuesCount));
   const nextScore = computeScore({ ...c, issues: nextIssues }).total;
 
+  let ack = null;
   try {
-    await commitOnlineMutation('DELETE_SUB_ITEM', {
+    ack = await commitOnlineMutation('DELETE_SUB_ITEM', {
       clientId: String(cid),
       collectionName: 'issues',
       itemId: String(iid),
@@ -375,7 +436,12 @@ export async function delIssue(cid, iid) {
         ...summary,
         score: nextScore
       },
-      stats
+      stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: Number(issToDelete.version || 1),
+        isCreate: false
+      }
     });
   } catch (err) {
     if (err?.code !== 'VERSION_CONFLICT') {
@@ -384,22 +450,29 @@ export async function delIssue(cid, iid) {
     return;
   }
 
+  const isQueued = Boolean(ack?.queued);
   S.stats = stats;
   setClients(clients.map(x => x && x.id === cid ? {
     ...x,
     issues: nextIssues,
     ...summary,
-    score: nextScore
+    score: nextScore,
+    version: ack?.version ?? x.version,
+    _dirtyLocal: isQueued
   } : x));
 
-  logActivity(cid, ActivityType.ISSUE_DELETED, "حذف تذكرة مشكلة", `تم إزالة تذكرة المشكلة نهائياً: "${issToDelete.title}".`, 'online-crm')
+  logActivity(cid, ActivityType.ISSUE_DELETED, "حذف تذكرة مشكلة", `تم إزالة تذكرة المشكلة نهائياً: "${issToDelete.title}".`, isQueued ? 'local' : 'online-crm')
     .catch(err => console.error(err));
 
-  showToast(t('تم حذف التذكرة من السحابة.'), 'success');
+  if (isQueued) {
+    showToast(t('تم تسجيل الحذف محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم حذف التذكرة من السحابة.'), 'success');
+  }
   R();
 }
 
-// 5. Client Requirements Operations (Strict Online-Only Server-Acknowledged)
+// 5. Client Requirements Operations (Real-Time Auto-Sync Transactional)
 
 export async function saveReq(editId) {
   const eid = editId !== null && editId !== 'null' ? editId : null;
@@ -427,9 +500,11 @@ export async function saveReq(editId) {
 
   const existingReqs = Array.isArray(c.requirements) ? c.requirements : [];
   let nextReqs = [...existingReqs];
+  let existingItemVersion = null;
   if (eid !== null) {
     const i = nextReqs.findIndex(x => x.id === eid);
     if (i > -1) {
+      existingItemVersion = Number(nextReqs[i].version || 1);
       d.id = eid;
       nextReqs[i] = { ...nextReqs[i], ...d };
     }
@@ -441,8 +516,9 @@ export async function saveReq(editId) {
   const reqSummary = computeReqSummaries(nextReqs);
   const nextScore = computeScore({ ...c, requirements: nextReqs }).total;
 
+  let ack = null;
   try {
-    await commitOnlineMutation('SAVE_SUB_ITEM', {
+    ack = await commitOnlineMutation('SAVE_SUB_ITEM', {
       clientId: String(c.id),
       collectionName: 'requirements',
       itemId: String(d.id),
@@ -451,7 +527,12 @@ export async function saveReq(editId) {
         ...reqSummary,
         score: nextScore
       },
-      stats: S.stats
+      stats: S.stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: eid !== null ? existingItemVersion : null,
+        isCreate: eid === null
+      }
     });
   } catch (err) {
     if (err?.code !== 'VERSION_CONFLICT') {
@@ -460,22 +541,33 @@ export async function saveReq(editId) {
     return;
   }
 
+  const isQueued = Boolean(ack?.queued);
+  if (ack?.itemVersion) {
+    nextReqs = nextReqs.map(x => (x.id === d.id ? { ...x, version: ack.itemVersion } : x));
+  }
+
   setClients(clients.map(x => x && x.id === c.id ? {
     ...x,
     requirements: nextReqs,
     ...reqSummary,
-    score: nextScore
+    score: nextScore,
+    version: ack?.version ?? x.version,
+    _dirtyLocal: isQueued
   } : x));
 
   if (eid !== null) {
-    logActivity(c.id, ActivityType.REQUIREMENT_EDITED, "تعديل طلب ميزة", `تم تحديث متطلب الميزة: "${d.title}".`, 'online-crm')
+    logActivity(c.id, ActivityType.REQUIREMENT_EDITED, "تعديل طلب ميزة", `تم تحديث متطلب الميزة: "${d.title}".`, isQueued ? 'local' : 'online-crm')
       .catch(err => console.error(err));
   } else {
-    logActivity(c.id, ActivityType.REQUIREMENT_ADDED, "تسجيل متطلب جديد", `تم تسجيل متطلب ميزة جديد: "${d.title}" بتأثير (${d.impact}).`, 'online-crm')
+    logActivity(c.id, ActivityType.REQUIREMENT_ADDED, "تسجيل متطلب جديد", `تم تسجيل متطلب ميزة جديد: "${d.title}" بتأثير (${d.impact}).`, isQueued ? 'local' : 'online-crm')
       .catch(err => console.error(err));
   }
 
-  showToast(t('تم حفظ متطلب الميزة في السحابة.'), 'success');
+  if (isQueued) {
+    showToast(t('تم حفظ الطلب محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم حفظ متطلب الميزة في السحابة.'), 'success');
+  }
   closeModal();
 }
 
@@ -499,8 +591,9 @@ export async function delReq(cid, rid) {
   const reqSummary = computeReqSummaries(nextReqs);
   const nextScore = computeScore({ ...c, requirements: nextReqs }).total;
 
+  let ack = null;
   try {
-    await commitOnlineMutation('DELETE_SUB_ITEM', {
+    ack = await commitOnlineMutation('DELETE_SUB_ITEM', {
       clientId: String(cid),
       collectionName: 'requirements',
       itemId: String(rid),
@@ -508,7 +601,12 @@ export async function delReq(cid, rid) {
         ...reqSummary,
         score: nextScore
       },
-      stats: S.stats
+      stats: S.stats,
+      concurrency: {
+        baseVersion: Number(c.version || 0),
+        expectedItemVersion: reqToDelete ? Number(reqToDelete.version || 1) : null,
+        isCreate: false
+      }
     });
   } catch (err) {
     if (err?.code !== 'VERSION_CONFLICT') {
@@ -517,17 +615,24 @@ export async function delReq(cid, rid) {
     return;
   }
 
+  const isQueued = Boolean(ack?.queued);
   setClients(clients.map(x => x && x.id === cid ? {
     ...x,
     requirements: nextReqs,
     ...reqSummary,
-    score: nextScore
+    score: nextScore,
+    version: ack?.version ?? x.version,
+    _dirtyLocal: isQueued
   } : x));
 
-  logActivity(cid, ActivityType.REQUIREMENT_DELETED, "حذف طلب متطلب", `تم إزالة طلب المتطلب "${reqToDelete?.title || ''}" من حساب العميل.`, 'online-crm')
+  logActivity(cid, ActivityType.REQUIREMENT_DELETED, "حذف طلب متطلب", `تم إزالة طلب المتطلب "${reqToDelete?.title || ''}" من حساب العميل.`, isQueued ? 'local' : 'online-crm')
     .catch(err => console.error(err));
 
-  showToast(t('تم حذف الطلب من السحابة.'), 'success');
+  if (isQueued) {
+    showToast(t('تم تسجيل الحذف محلياً وسيُزامن تلقائياً عند عودة الاتصال.'), 'warning');
+  } else {
+    showToast(t('تم حذف الطلب من السحابة.'), 'success');
+  }
   R();
 }
 

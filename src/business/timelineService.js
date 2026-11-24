@@ -9,6 +9,22 @@ import { getTenantActivities, saveTenantActivity } from '../firebase/service.js'
 import { auth } from '../firebase/config.js';
 
 const inMemoryPendingActivities = new Map();
+const autoSyncedServicesTenants = new Set();
+const attemptedSyncActivityIdsByTenant = new Map();
+const backfillBlockedByPermissionTenants = new Set();
+let activitySyncPromise = null;
+
+export function resetTimelineSyncGuards(uid = null) {
+  if (uid) {
+    autoSyncedServicesTenants.delete(uid);
+    attemptedSyncActivityIdsByTenant.delete(uid);
+    backfillBlockedByPermissionTenants.delete(uid);
+    return;
+  }
+  autoSyncedServicesTenants.clear();
+  attemptedSyncActivityIdsByTenant.clear();
+  backfillBlockedByPermissionTenants.clear();
+}
 
 function readPendingActivities(uid) {
   return inMemoryPendingActivities.get(uid) || [];
@@ -110,6 +126,7 @@ export const ActivityType = {
   // Software & Licenses
   PROGRAM_ADDED: 'PROGRAM_ADDED',
   PROGRAM_EDITED: 'PROGRAM_EDITED',
+  PROGRAM_VERSION_UPDATED: 'PROGRAM_VERSION_UPDATED',
   PROGRAM_DELETED: 'PROGRAM_DELETED',
 
   // Issues & Tickets
@@ -162,6 +179,8 @@ export function getActivityVisuals(type) {
       return { icon: '📦', label: 'إضافة ترخيص برنامج', category: 'programs', colorClass: 'bg-teal-500/10 text-teal-500 border-teal-500/20' };
     case ActivityType.PROGRAM_EDITED:
       return { icon: '✏️', label: 'تعديل ترخيص برنامج', category: 'programs', colorClass: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20' };
+    case ActivityType.PROGRAM_VERSION_UPDATED:
+      return { icon: '🔄', label: 'تحديث إصدار برنامج', category: 'programs', colorClass: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
     case ActivityType.PROGRAM_DELETED:
       return { icon: '🗑️', label: 'حذف ترخيص برنامج', category: 'programs', colorClass: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
 
@@ -365,8 +384,25 @@ export async function loadGlobalActivities() {
     let merged = mergeActivities(inMemActivities || [], cloudActivities || []);
     S.globalActivities = merged;
 
-    if (tenantId && tenantId !== 'offline-tenant' && !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)) {
-      const generated = await syncCrmServicesToTimeline(tenantId);
+    if (
+      tenantId &&
+      tenantId !== 'offline-tenant' &&
+      !autoSyncedServicesTenants.has(tenantId) &&
+      !backfillBlockedByPermissionTenants.has(tenantId) &&
+      !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded)
+    ) {
+      autoSyncedServicesTenants.add(tenantId);
+      const oldestCloudTimestamp = (cloudActivities.length > 0)
+        ? cloudActivities.reduce((minTs, act) => {
+            const ts = String(act?.timestamp || '');
+            return ts && (!minTs || ts < minTs) ? ts : minTs;
+          }, '')
+        : '';
+      const generated = await syncCrmServicesToTimeline(tenantId, {
+        cutoffTimestamp: oldestCloudTimestamp,
+        syncToCloud: true,
+        maxUploads: 50
+      });
       if (generated && generated.length > 0) {
         merged = mergeActivities(generated, merged);
         S.globalActivities = merged;
@@ -387,27 +423,46 @@ export async function loadGlobalActivities() {
  * Ensures services for Today, Yesterday, and Day Before Yesterday (as well as historical dates)
  * are fully populated and backed up to Cloud Firestore.
  */
-export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser && auth.currentUser.uid) || currentUser?.tenantId || currentUser?.uid || getActiveTenantId()) {
+export async function syncCrmServicesToTimeline(
+  uid = (auth && auth.currentUser && auth.currentUser.uid) || currentUser?.tenantId || currentUser?.uid || getActiveTenantId(),
+  options = {}
+) {
   if (!uid) return [];
+  if (backfillBlockedByPermissionTenants.has(uid)) return [];
   if (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded) return [];
   const currentClients = Array.isArray(clients) ? clients : [];
   if (currentClients.length === 0) return [];
 
+  const cutoffTimestamp = String(options?.cutoffTimestamp || '');
   const existingActivities = Array.isArray(S.globalActivities) ? S.globalActivities : [];
   const existingIds = new Set(existingActivities.map(a => String(a.id)));
+  if (!attemptedSyncActivityIdsByTenant.has(uid)) {
+    attemptedSyncActivityIdsByTenant.set(uid, new Set());
+  }
+  const attemptedIds = attemptedSyncActivityIdsByTenant.get(uid);
 
   const generated = [];
   let itemCounter = 0;
 
-  function toIsoTimestamp(dateVal, fallbackId, fallbackIndex) {
+  function deterministicOffset(seedVal) {
+    const str = String(seedVal || '0');
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash * 31) + str.charCodeAt(i)) >>> 0;
+    }
+    return hash;
+  }
+
+  function toIsoTimestamp(dateVal, fallbackId) {
     if (dateVal && String(dateVal).includes('T')) {
       const d = new Date(dateVal);
       if (!Number.isNaN(d.getTime())) return d.toISOString();
     }
     if (dateVal && /^\d{4}-\d{2}-\d{2}$/.test(String(dateVal).trim())) {
       const cleanDate = String(dateVal).trim();
-      const hour = 9 + (fallbackIndex % 8);
-      const minute = (fallbackIndex * 17) % 60;
+      const offset = deterministicOffset(fallbackId);
+      const hour = 9 + (offset % 8);
+      const minute = (offset * 17) % 60;
       return `${cleanDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
     }
     const numId = Number(fallbackId);
@@ -489,7 +544,7 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
                 programName: p.programName || '',
                 platform: p.platform || 'Desktop',
                 type: p.type || 'تجاري',
-                version: p.platform === 'Mobile' ? '' : (p.version || ''),
+                version: p.version || '',
                 installationsCount: Number(p.installationsCount) || 1,
                 startDate: p.startDate || '',
                 endDate: ''
@@ -629,28 +684,51 @@ export async function syncCrmServicesToTimeline(uid = (auth && auth.currentUser 
     }
   }
 
-  if (generated.length > 0) {
-    console.log(`[Timeline] Populating ${generated.length} existing CRM services into Global Timeline and Cloud...`);
-    // Merge into local in-memory state
-    S.globalActivities = mergeActivities(generated, S.globalActivities || []);
-    
-    // Save to IDB and Cloud Firestore
-    // Strictly Online: No local activity caching.
-    for (const act of generated) {
-      if (typeof navigator === 'undefined' || navigator.onLine) {
-        saveTenantActivity(uid, act).catch(err => {
+  const toSync = generated.filter(act => {
+    const idStr = String(act.id);
+    if (attemptedIds.has(idStr)) return false;
+    if (cutoffTimestamp && String(act.timestamp || '') < cutoffTimestamp) return false;
+    return true;
+  });
+
+  if (toSync.length > 0) {
+    S.globalActivities = mergeActivities(toSync, S.globalActivities || []);
+
+    const allowCloudSync = options?.syncToCloud !== false && !options?.inMemoryOnly;
+    const maxUploads = Number(options?.maxUploads ?? 20);
+
+    if (allowCloudSync && maxUploads > 0 && !backfillBlockedByPermissionTenants.has(uid)) {
+      let uploadedCount = 0;
+      for (const act of toSync) {
+        if (uploadedCount >= maxUploads) break;
+        attemptedIds.add(String(act.id));
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) break;
+        if (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded) break;
+        if (backfillBlockedByPermissionTenants.has(uid)) break;
+
+        try {
+          await saveTenantActivity(uid, act, { onlyIfMissing: true });
+          uploadedCount++;
+        } catch (err) {
+          const code = String(err?.code || err?.classification || '').toLowerCase();
+          if (code === 'permission-denied' || code === 'resource-exhausted' || code === 'unauthenticated') {
+            if (code === 'permission-denied') {
+              backfillBlockedByPermissionTenants.add(uid);
+              console.warn('[Timeline] Stopping background service sync due to Firestore permission rules for existing immutable records.');
+            }
+            break;
+          }
           console.warn("[Timeline] Cloud upload notice for generated service:", err);
-        });
+          break;
+        }
       }
     }
-
-    // Strictly Online: No caching of activities to localStorage
 
     if (typeof window !== 'undefined' && window.R) {
       window.R();
     }
   }
 
-  return generated;
+  return toSync;
 }
 

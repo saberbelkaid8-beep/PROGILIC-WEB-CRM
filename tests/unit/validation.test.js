@@ -104,6 +104,6 @@ describe('Validation Logic', () => {
     expect(validateClient({ fullName: 'Test Client', gmailAccount: 'client@gmail.com' }).gmailAccount)
       .toBe('client@gmail.com');
     expect(validateProgram({ programName: 'PROGILIC POS', version: 'V24' }).version).toBe('V24');
-    expect(validateProgram({ programName: 'PROGILIC Mobile', platform: 'Mobile', version: 'V25' }).version).toBe('');
+    expect(validateProgram({ programName: 'PROGILIC Mobile', platform: 'Mobile', version: 'V25' }).version).toBe('V25');
   });
 });

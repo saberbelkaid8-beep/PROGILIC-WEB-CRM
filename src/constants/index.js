@@ -54,9 +54,15 @@ export const PROGRAM_TYPES = [
   "تطبيق VDD (Vendeur Distributeur)",
   "تطبيق التاجر (Commerçant)"
 ];
-export const PROGRAM_VERSIONS = ["V27", "V26", "V24", "V23", "V21", "v18", "v16", "v15", "R+", "arabe"];
+export const PROGRAM_VERSIONS = ["V27", "V26", "V25", "V24", "V23", "V22", "V21", "v18", "v16", "v15", "R+", "arabe"];
 
 export const PRIORITY_LEVELS = ["عاجل", "عالية", "متوسطة", "منخفضة"];
+export const ISSUE_SLA_HOURS = {
+  "عاجل": 24,
+  "عالية": 48,
+  "متوسطة": 96,
+  "منخفضة": 168
+};
 export const ISSUE_STATUSES = ["مفتوح", "قيد المعالجة", "محلول", "مغلق"];
 export const REQ_STATUSES = ["مقترح", "قيد الدراسة", "مخطط", "منفذ", "مرفوض"];
 export const IMPACT_LEVELS = ["عالي", "متوسط", "منخفض"];

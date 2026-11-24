@@ -75,7 +75,7 @@ import { createDefaultGerant } from './constants/index.js';
 import { onAuthStateChanged, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from './firebase/config.js';
 import { S, currentUser, setCurrentUser, setCurrentStaffUser, currentStaffUser, clients, getClients, setClients, subscribe, updateState, resetTenantSessionState } from './state/store.js';
-import { loadDataFromFirestore, stopRealtimeSync, stopClientDetailSync, startRealtimeSync, reconnectRealtimeSync } from './business/storage.js';
+import { loadDataFromFirestore, stopRealtimeSync, stopClientDetailSync, startRealtimeSync, reconnectRealtimeSync, flushSyncQueue } from './business/storage.js';
 import { getStoredEmployeeSession, hasPermission } from './business/employeeService.js';
 
 // Subscribe render-core's R function to state changes for automatic reactivity
@@ -107,6 +107,7 @@ window.setClients = setClients;
 window.getClients = getClients;
 window.resolveConflict = resolveConflict;
 window.reconnectRealtimeSync = reconnectRealtimeSync;
+window.flushSyncQueue = flushSyncQueue;
 window.mergeDatabase = actions.mergeWithSessionAndUser;
 
   // Boot application
@@ -293,8 +294,8 @@ subscribe(() => {
   }
 });
 
-// Strict Online Cloud Sync Network Listeners
-window.addEventListener('online', () => {
+// Real-Time Cloud Sync Network Listeners with Automatic Pending Queue Flush
+window.addEventListener('online', async () => {
   console.log('[Online Sync] Internet connection detected.');
   const isQuotaBlocked = S.quotaExceeded || (typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded);
   updateState({
@@ -302,10 +303,18 @@ window.addEventListener('online', () => {
     connectionState: isQuotaBlocked ? 'quota-exceeded' : 'connecting'
   });
   if (!isQuotaBlocked && currentUser && currentUser.uid) {
+    try {
+      const storageMod = await import('./business/storage.js');
+      if (typeof storageMod.flushSyncQueue === 'function') {
+        await storageMod.flushSyncQueue(currentUser.uid);
+      }
+    } catch (flushErr) {
+      console.warn('[Online Sync] Pending queue flush notice:', flushErr);
+    }
     startRealtimeSync(currentUser.uid);
   }
   if (!isQuotaBlocked) {
-    actions.showToast('🟢 تم الاتصال بالسحابة أونلاين - جاري إعادة مزامنة القراءة الحية من الخادم.', 'success');
+    actions.showToast('🟢 عاد الاتصال بالإنترنت - تم تفعيل المزامنة الفورية ومزامنة التعديلات المعلقة.', 'success');
   }
   R();
 });
@@ -313,7 +322,7 @@ window.addEventListener('online', () => {
 window.addEventListener('offline', () => {
   console.warn('[Online Sync] Internet connection lost.');
   updateState({ isOnline: false, connectionState: 'offline', dataIsStale: true });
-  actions.showToast('🔴 انقطع الاتصال بالإنترنت - نظام PROGILIC CRM يعمل حصرياً عبر السحابة أونلاين (تم إيقاف الحفظ).', 'error');
+  actions.showToast('🟠 انقطع الاتصال بالإنترنت - سيتم حفظ التعديلات محلياً ومزامنتها تلقائياً فور عودة الاتصال.', 'error');
   R();
 });
 

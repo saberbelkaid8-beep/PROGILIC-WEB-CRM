@@ -64,11 +64,10 @@ export function normalizeProgramCategory(progOrName) {
   if (!['Desktop', 'Mobile', 'Web'].includes(platform)) platform = 'Desktop';
 
   let version = isObj ? String(progOrName.version || '').trim().toUpperCase() : '';
-  if (!version && platform !== 'Mobile') {
-    const vMatch = rawName.match(/V\d+/i);
-    if (vMatch) version = vMatch[0].toUpperCase();
+  if (!version) {
+    const vMatch = rawName.match(/\b(V\d+|R\+|ARABE)\b/i);
+    if (vMatch) version = vMatch[1].toUpperCase();
   }
-  if (platform === 'Mobile') version = '';
 
   let categoryKey = 'Other';
   let labelAr = 'أخرى';
@@ -120,7 +119,7 @@ export function normalizeProgramCategory(progOrName) {
     subAppKey,
     version,
     identityKey: categoryKey === 'Mobile'
-      ? `Mobile|${subAppKey}`
+      ? `Mobile|${subAppKey}${version ? `|${version}` : ''}`
       : (categoryKey === 'Other'
         ? `${platform}|${rawName.trim().toLowerCase()}|${version}`
         : `${platform}|${categoryKey}|${version}`)
@@ -150,7 +149,7 @@ export function mergeOrAddClientProgram(existingPrograms, incomingProgram) {
       ...existing,
       platform: incNorm.platform,
       type: existing.type || incomingProgram.type || 'تجاري',
-      version: incNorm.platform === 'Mobile' ? '' : (existing.version || incNorm.version),
+      version: existing.version || incNorm.version || '',
       installationsCount: mergedInstalls,
       startDate: existing.startDate || incomingProgram.startDate || '',
       endDate: ''
@@ -168,7 +167,7 @@ export function mergeOrAddClientProgram(existingPrograms, incomingProgram) {
   const created = {
     ...incomingProgram,
     platform: incNorm.platform,
-    version: incNorm.platform === 'Mobile' ? '' : (incomingProgram.version || incNorm.version || ''),
+    version: incomingProgram.version || incNorm.version || '',
     installationsCount: incomingCount,
     endDate: ''
   };
@@ -318,6 +317,8 @@ export function computeFleetDeviceMetrics(clientsList, todayObj = new Date()) {
   const categoryDevices = { Commercial: 0, Production: 0, Distribution: 0, Mobile: 0, Web: 0, Other: 0 };
   const categoryPrograms = { Commercial: 0, Production: 0, Distribution: 0, Mobile: 0, Web: 0, Other: 0 };
   const mobileSubApps = { dashboard: 0, vdd: 0, commercant: 0, general: 0 };
+  const versionDevices = {};
+  const versionPrograms = {};
 
   const deviceEntries = []; // { startMs, devices }
   let totalCalls = 0;
@@ -345,6 +346,9 @@ export function computeFleetDeviceMetrics(clientsList, todayObj = new Date()) {
           const subKey = norm.subAppKey || 'general';
           mobileSubApps[subKey] = (mobileSubApps[subKey] || 0) + inst;
         }
+        const verKey = String(p.version || norm.version || '').trim() || 'غير محدد';
+        versionDevices[verKey] = (versionDevices[verKey] || 0) + inst;
+        versionPrograms[verKey] = (versionPrograms[verKey] || 0) + 1;
 
         const startMs = parseDateMsStrict(p.startDate || c.startDate, p.id);
         deviceEntries.push({ startMs, devices: inst });
@@ -365,6 +369,9 @@ export function computeFleetDeviceMetrics(clientsList, todayObj = new Date()) {
             const subKey = item.subAppKey || 'general';
             mobileSubApps[subKey] = (mobileSubApps[subKey] || 0) + item.devices;
           }
+          const verKey = String(item.version || '').trim() || 'غير محدد';
+          versionDevices[verKey] = (versionDevices[verKey] || 0) + item.devices;
+          versionPrograms[verKey] = (versionPrograms[verKey] || 0) + 1;
           const startMs = parseDateMsStrict(c.startDate, c.id);
           deviceEntries.push({ startMs, devices: item.devices });
         });
@@ -379,7 +386,8 @@ export function computeFleetDeviceMetrics(clientsList, todayObj = new Date()) {
 
     // Follow-up & Communication coverage
     const hist = Array.isArray(c.contactHistory) ? c.contactHistory : [];
-    totalCalls += hist.length;
+    const calls = hist.length > 0 ? hist.length : (Number(c.contactsCount) || 0);
+    totalCalls += calls;
     hist.forEach(h => {
       const ms = parseDateMsStrict(h?.date, h?.id);
       if (ms !== null) allContactDatesMs.push(ms);
@@ -438,6 +446,8 @@ export function computeFleetDeviceMetrics(clientsList, todayObj = new Date()) {
     categoryDevices,
     categoryPrograms,
     mobileSubApps,
+    versionDevices,
+    versionPrograms,
     newDevices30d,
     newPrograms30d,
     devicesSparkline,
@@ -508,7 +518,8 @@ export function filterRecentDashboardActivities(activities, clientsList, allowed
     const isCall = tp.includes('CONTACT');
     const isSolved = tp.includes('RESOLVED');
     const isIssue = tp.includes('ISSUE') && !isSolved;
-    const isProgEdit = tp === 'PROGRAM_EDITED';
+    const isProgVersionSync = tp === 'PROGRAM_VERSION_UPDATED';
+    const isProgEdit = tp === 'PROGRAM_EDITED' || isProgVersionSync;
     const isProg = tp.includes('PROGRAM');
     const isReq = tp.includes('REQUIREMENT');
     const isClient = tp.includes('CLIENT');
@@ -529,6 +540,10 @@ export function filterRecentDashboardActivities(activities, clientsList, allowed
       badgeTag = 'تذكرة دعم';
       badgeColor = '#991B1B';
       badgeBg = '#FEF2F2';
+    } else if (isProgVersionSync) {
+      badgeTag = 'ترقية إصدار';
+      badgeColor = '#047857';
+      badgeBg = '#ECFDF5';
     } else if (isProgEdit) {
       badgeTag = 'تحديث ترخيص';
       badgeColor = '#9A3412';

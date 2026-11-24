@@ -1743,3 +1743,594 @@ body.dark .ticket-modal-item:hover {
   background: rgba(10, 132, 255, 0.07);
 }
 
+/* ==========================================================================
+   17. Executive Command Center Dashboard (Unified Liquid Glass Architecture)
+   ========================================================================== */
+.exec-root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.exec-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.exec-head-title h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-title1);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0;
+}
+
+.exec-subtitle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: var(--fs-footnote);
+  color: var(--muted);
+}
+
+.exec-head-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.exec-wilaya-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.exec-select {
+  appearance: auto;
+  min-width: 155px;
+  max-width: 220px;
+  min-height: 38px;
+  padding-inline: 14px 28px;
+  font-weight: 600;
+}
+
+.exec-icon-btn {
+  padding: 0 12px;
+  min-width: 38px;
+}
+
+.exec-sm-btn {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+/* Unified 5-Cell Liquid Glass Executive Pulse Strip */
+.exec-pulse-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 0;
+  gap: 0;
+  flex-direction: row;
+}
+
+.exec-pulse-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  cursor: pointer;
+  border-inline-end: 1px solid var(--border-soft);
+  transition: background var(--d-fast) var(--ease);
+  min-width: 0;
+}
+
+.exec-pulse-cell:last-child {
+  border-inline-end: none;
+}
+
+@media (hover: hover) {
+  .exec-pulse-cell:hover {
+    background: rgba(10, 132, 255, 0.06);
+  }
+}
+
+.exec-pulse-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.exec-pulse-lbl {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exec-pulse-delta {
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.exec-pulse-delta.good { color: var(--good-t); }
+.exec-pulse-delta.warn { color: var(--warn-t); }
+.exec-pulse-delta.bad  { color: var(--bad-t); }
+
+.exec-pulse-val {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.exec-pulse-num {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.exec-pulse-val b {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 1.9vw, 29px);
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.exec-pulse-val small {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.exec-pulse-val svg {
+  margin-inline-start: auto;
+}
+
+.exec-pulse-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: auto;
+}
+
+/* Primary 12-Col Bento Grid */
+.exec-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+}
+
+.exec-span-8 { grid-column: span 8; }
+.exec-span-4 { grid-column: span 4; }
+
+.exec-legend-end {
+  margin-inline-start: auto;
+  padding-top: 2px;
+}
+
+.exec-chart-wrap {
+  width: 100%;
+  min-height: 185px;
+}
+
+.exec-fleet-split {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.95fr) minmax(260px, 1.05fr);
+  gap: 22px;
+  align-items: center;
+}
+
+.exec-fleet-col-plat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-inline-end: 18px;
+  border-inline-end: 1px solid var(--border-soft);
+}
+
+.exec-plat-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.exec-plat-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.35);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--ease), border-color var(--d-fast) var(--ease);
+}
+
+body.dark .exec-plat-link {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.exec-plat-link.plat-d { color: var(--info-t); }
+.exec-plat-link.plat-m { color: var(--good-t); }
+.exec-plat-link.plat-w { color: var(--warn-t); }
+
+.exec-plat-link:hover {
+  border-color: var(--sys-blue);
+  background: rgba(10, 132, 255, 0.12);
+}
+
+.exec-fleet-col-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  --rh: 38px;
+}
+
+.exec-hb-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-inline-start: 4px;
+}
+
+.exec-mobile-subline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.exec-mobile-subline strong {
+  color: var(--ink2);
+}
+
+/* Priority Radar Card */
+.exec-radar-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.exec-mini-chips {
+  padding: 2px;
+  border-radius: var(--r-sm);
+}
+
+.exec-mini-chips .chip {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  min-height: 28px;
+}
+
+.exec-radar-list,
+.exec-activity-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.exec-inline-state {
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.exec-inline-state.bad  { color: var(--bad-t); }
+.exec-inline-state.warn { color: var(--warn-t); }
+
+.exec-inline-tag {
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-inline-start: 4px;
+}
+
+.exec-time {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.exec-card-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.exec-foot-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  padding: 4px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sys-blue);
+  cursor: pointer;
+}
+
+.exec-foot-link:hover {
+  text-decoration: underline;
+}
+
+.exec-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 36px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Tier 3 Helpers: Section rows, Patterns, Lifecycle Strip, Sectors */
+.exec-sec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.exec-sec-row .sec {
+  margin: 0;
+}
+
+.exec-inline-act {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--sys-blue);
+  cursor: pointer;
+}
+
+.exec-muted-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.exec-pattern-row,
+.exec-sector-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 6px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: background var(--d-fast) var(--ease);
+}
+
+.exec-pattern-row:hover,
+.exec-sector-row:hover {
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.exec-pattern-name,
+.exec-sector-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--ink2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exec-pattern-meta,
+.exec-sector-stats {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.exec-pattern-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 2px;
+}
+
+.exec-ratio-bar {
+  display: flex;
+  height: 10px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--border-soft);
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.exec-ratio-bar span {
+  height: 100%;
+  transition: width 0.35s var(--ease);
+}
+
+.exec-ratio-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exec-ratio-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--ink2);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.exec-ratio-legend button:hover {
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.exec-ratio-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+}
+
+.exec-ratio-legend strong {
+  color: var(--ink);
+}
+
+/* Tier 4: Unified 4-Department Glass Band */
+.exec-dept-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.exec-dept-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.exec-dept-head h3 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.exec-dept-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.exec-dept-band {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0;
+  flex-direction: row;
+}
+
+.exec-dept-cell {
+  border-radius: 0;
+  border-inline-end: 1px solid var(--border-soft);
+  padding: 18px 20px;
+}
+
+.exec-dept-cell:last-child {
+  border-inline-end: none;
+}
+
+.exec-dept-cell:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(10, 132, 255, 0.06);
+}
+
+.exec-dept-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Responsive Breakpoints for Executive Command Center */
+@media (max-width: 1280px) {
+  .exec-pulse-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .exec-pulse-cell {
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .exec-span-8 { grid-column: span 12; }
+  .exec-span-4 { grid-column: span 6; }
+  .exec-dept-band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .exec-dept-cell {
+    border-bottom: 1px solid var(--border-soft);
+  }
+}
+
+@media (max-width: 860px) {
+  .exec-pulse-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .exec-fleet-split {
+    grid-template-columns: 1fr;
+  }
+  .exec-fleet-col-plat {
+    padding-inline-end: 0;
+    padding-bottom: 16px;
+    border-inline-end: none;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .exec-span-4 { grid-column: span 12; }
+}
+
+@media (max-width: 640px) {
+  .exec-pulse-strip,
+  .exec-dept-band {
+    grid-template-columns: 1fr;
+  }
+  .exec-pulse-cell,
+  .exec-dept-cell {
+    border-inline-end: none;
+    border-bottom: 1px solid var(--border-soft);
+    padding: 15px 16px;
+  }
+  .exec-pulse-cell:last-child,
+  .exec-dept-cell:last-child {
+    border-bottom: none;
+  }
+  .exec-head-controls {
+    width: 100%;
+  }
+  .exec-select {
+    max-width: none;
+    flex: 1;
+  }
+}
+
+

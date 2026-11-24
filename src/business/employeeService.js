@@ -155,6 +155,19 @@ export const PERMISSION_DEFINITIONS = [
   { key: 'contacts.edit_entry', label: 'تعديل مدخل التواصل', group: 'سجلات التواصل (Contacts)', desc: 'تعديل تفاصيل المكالمة أو الملاحظة' },
   { key: 'contacts.delete_entry', label: 'حذف سجل تواصل', group: 'سجلات التواصل (Contacts)', desc: 'مسح سجل مكالمة أو موعد' },
 
+  // 5b. إدارة المهام والمتابعات (Tasks - 5)
+  { key: 'tasks.view', label: 'عرض المهام والمتابعات', group: 'المهام والمتابعات (Tasks & Follow-ups)', desc: 'الاطلاع على المهام اليومية والمتأخرة وحالات المتابعة' },
+  { key: 'tasks.create', label: 'إنشاء مهام متابعة جديدة', group: 'المهام والمتابعات (Tasks & Follow-ups)', desc: 'إضافة مهام متابعة أو تحويل نتائج التواصل لمهام' },
+  { key: 'tasks.edit', label: 'تعديل المهام وتحديث حالتها', group: 'المهام والمتابعات (Tasks & Follow-ups)', desc: 'تغيير حالة المهمة وتسجيل نتائج التنفيذ' },
+  { key: 'tasks.delete', label: 'حذف المهام', group: 'المهام والمتابعات (Tasks & Follow-ups)', desc: 'إلغاء وحذف مهام المتابعة' },
+  { key: 'tasks.assign', label: 'إسناد المهام للموظفين والأقسام', group: 'المهام والمتابعات (Tasks & Follow-ups)', desc: 'تعيين المهام وتوزيعها بين الأقسام والموظفين' },
+
+  // 5c. قائمة Backlog التطوير المركزية (Product Backlog - 4)
+  { key: 'backlog.view', label: 'عرض Backlog التطوير المركزي', group: 'Backlog التطوير (Product Backlog)', desc: 'الاطلاع على طلبات التطوير الموحدة وعدد العملاء المهتمين' },
+  { key: 'backlog.create', label: 'إنشاء عناصر Backlog موحدة', group: 'Backlog التطوير (Product Backlog)', desc: 'تجميع وربط طلبات العملاء المتشابهة في عنصر تطوير واحد' },
+  { key: 'backlog.edit', label: 'تعديل أولوية ومسار Backlog', group: 'Backlog التطوير (Product Backlog)', desc: 'تحديث حالة التطوير والمطور المسؤول' },
+  { key: 'backlog.delete', label: 'حذف عناصر Backlog', group: 'Backlog التطوير (Product Backlog)', desc: 'حذف عنصر من قائمة التطوير المركزية' },
+
   // 6. لوحة القيادة والتقارير (Dashboard & Reports - 3)
   { key: 'dashboard.view', label: 'عرض لوحة القيادة والمؤشرات', group: 'لوحة القيادة والتقارير (Dashboard & Reports)', desc: 'الاطلاع على الإحصائيات والمؤشرات العامة', legacyKey: 'canViewDashboard' },
   { key: 'reports.view', label: 'استعراض التقارير الإحصائية', group: 'لوحة القيادة والتقارير (Dashboard & Reports)', desc: 'عرض تقارير التوزيع الجغرافي والولايات' },

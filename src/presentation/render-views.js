@@ -79,6 +79,7 @@ function getTimelineEventSvg(type) {
     case ActivityType.GPS_CAPTURED: return { icon: 'pin', tone: 'var(--sys-blue)' };
     case ActivityType.PROGRAM_ADDED:
     case ActivityType.PROGRAM_EDITED: return { icon: 'package', tone: 'var(--sys-teal)' };
+    case ActivityType.PROGRAM_VERSION_UPDATED: return { icon: 'refresh', tone: 'var(--g)' };
     case ActivityType.ISSUE_ADDED:
     case ActivityType.ISSUE_EDITED: return { icon: 'warn', tone: 'var(--w)' };
     case ActivityType.ISSUE_RESOLVED: return { icon: 'check', tone: 'var(--g)' };
@@ -349,8 +350,10 @@ export function renderDetail() {
     `;
   }
 
-  const oi = c.issues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
-  const fo = c.issues.filter(i => i.featureOpp).length;
+  const cIssues = Array.isArray(c.issues) ? c.issues : [];
+  const cRequirements = Array.isArray(c.requirements) ? c.requirements : [];
+  const oi = cIssues.filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة').length;
+  const fo = cIssues.filter(i => i.featureOpp).length;
   const sc = computeScore(c);
   const scColor = scoreColor(sc.total);
   const ps = getProgramStats(c);
@@ -358,7 +361,7 @@ export function renderDetail() {
   const headerProgText = cb.groupedSummary.length > 0
     ? cb.groupedSummary.map(g => `${g.labelAr} (${g.devices})`).join(' · ')
     : (c.programNames?.[0] || t('برنامج مرخص'));
-  const urgentCount = c.issues.filter(i => i.priority === 'عاجل' && i.status !== 'محلول' && i.status !== 'مغلق').length;
+  const urgentCount = cIssues.filter(i => i.priority === 'عاجل' && i.status !== 'محلول' && i.status !== 'مغلق').length;
 
   return `
     <div class="dashboard-root">
@@ -397,8 +400,8 @@ export function renderDetail() {
       <div class="tabs-wrap">
         <button class="tabBtn${S.tab === 'overview' ? ' on' : ''}" onclick="setTab('overview')">${vIc('user', 14)} <span>${t('نظرة عامة')}</span></button>
         ${hasPermission('programs.view') ? `<button class="tabBtn${S.tab === 'programs' ? ' on' : ''}" onclick="setTab('programs')">${vIc('package', 14)} <span>${t('البرامج')}</span> <span class="tab-count num">${(c.programs || []).length}</span></button>` : ''}
-        ${hasPermission('issues.view') ? `<button class="tabBtn${S.tab === 'issues' ? ' on' : ''}" onclick="setTab('issues')">${vIc('wrench', 14)} <span>${t('المشاكل')}</span> <span class="tab-count num${urgentCount > 0 ? ' urgent' : ''}">${c.issues.length}</span></button>` : ''}
-        ${hasPermission('features.view') ? `<button class="tabBtn${S.tab === 'requirements' ? ' on' : ''}" onclick="setTab('requirements')">${vIc('bulb', 14)} <span>${t('المتطلبات')}</span> <span class="tab-count num">${c.requirements.length}</span></button>` : ''}
+        ${hasPermission('issues.view') ? `<button class="tabBtn${S.tab === 'issues' ? ' on' : ''}" onclick="setTab('issues')">${vIc('wrench', 14)} <span>${t('المشاكل')}</span> <span class="tab-count num${urgentCount > 0 ? ' urgent' : ''}">${cIssues.length}</span></button>` : ''}
+        ${hasPermission('features.view') ? `<button class="tabBtn${S.tab === 'requirements' ? ' on' : ''}" onclick="setTab('requirements')">${vIc('bulb', 14)} <span>${t('المتطلبات')}</span> <span class="tab-count num">${cRequirements.length}</span></button>` : ''}
         ${hasPermission('contacts.view_history') ? `<button class="tabBtn${S.tab === 'contacts' ? ' on' : ''}" onclick="setTab('contacts')">${vIc('phone', 14)} <span>${t('التواصل')}</span> <span class="tab-count num">${(c.contactHistory || []).length}</span></button>` : ''}
         ${hasPermission('clients.view_timeline') ? `<button class="tabBtn${S.tab === 'timeline' ? ' on' : ''}" onclick="setTab('timeline')">${vIc('clock', 14)} <span>${t('الخط الزمني')}</span></button>` : ''}
         ${hasPermission('reports.view') ? `<button class="tabBtn${S.tab === 'report' ? ' on' : ''}" onclick="setTab('report')">${vIc('file', 14)} <span>${t('التقرير')}</span></button>` : ''}
@@ -592,7 +595,10 @@ function renderPrograms(c) {
     </div>
     <div class="pane-hdr">
       <span class="pane-title">${t('قائمة البرامج والتراخيص')}</span>
-      ${hasPermission('programs.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${vIc('plus', 14)} <span>${t('برنامج جديد')}</span></button>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${canEdit && progs.length > 0 ? `<button class="btn btn-outline btn-sm" onclick="openModal('syncProgramVersion')">${vIc('refresh', 14)} <span>${t('تحديث إصدار برنامج')}</span></button>` : ''}
+        ${hasPermission('programs.create') ? `<button class="btn btn-primary btn-sm" onclick="openModal('addProgram')">${vIc('plus', 14)} <span>${t('برنامج جديد')}</span></button>` : ''}
+      </div>
     </div>
     ${progs.length === 0
       ? `<div class="empty">
@@ -638,6 +644,35 @@ function renderPrograms(c) {
           </div>
         </div>`;
       }).join('')}
+    ${Array.isArray(c.versionHistory) && c.versionHistory.length > 0 ? `
+      <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+        <div class="pane-hdr" style="margin-bottom:10px">
+          <span class="pane-title" style="display:inline-flex;align-items:center;gap:6px">${vIc('refresh', 14)} <span>${t('سجل تحديثات الإصدارات')} (<span class="num">${c.versionHistory.length}</span>)</span></span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${c.versionHistory.map(vh => `
+            <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;display:flex;flex-direction:column;gap:5px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:12.5px;color:var(--t1)">${esc(vh.programLabel || vh.programKey || 'برنامج')}</strong>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span class="bdg bdg-gr num">${esc(vh.previousVersion || '—')}</span>
+                  <span style="color:var(--t3)">→</span>
+                  <span class="bdg bdg-g num">${esc(vh.newVersion || '—')}</span>
+                </div>
+              </div>
+              <div style="font-size:11.5px;color:var(--t2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span>${t('الأجهزة المحدثة')}: <strong class="num" style="color:var(--t1)">${vh.affectedDevices || 0}</strong></span>
+                <span>·</span>
+                <span>${t('التاريخ')}: <span class="num">${fmtD(vh.updateDate) || esc(vh.updateDate || '—')}</span></span>
+                <span>·</span>
+                <span>${t('بواسطة')}: <strong style="color:var(--t1)">${esc(vh.employeeName || '—')}</strong></span>
+              </div>
+              ${vh.note ? `<div style="font-size:11.5px;color:var(--t3)">${esc(vh.note)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
   `;
 }
 
@@ -738,11 +773,30 @@ function renderReport(c) {
         ${ps.total === 0
           ? `<div class="rep-card" style="color:var(--t3);text-align:center">لا توجد برامج مرتبطة</div>`
           : (c.programs || []).map(p => `<div class="rep-card">
-                <div class="rep-row"><div class="rep-dot green"></div><div><strong>${esc(p.programName)}</strong> — <span style="color:var(--g)">نشط (مدى الحياة)</span></div></div>
+                <div class="rep-row"><div class="rep-dot green"></div><div><strong>${esc(p.programName)}</strong>${p.version ? ` · <span class="bdg bdg-b num">${esc(p.version)}</span>` : ''} — <span style="color:var(--g)">نشط (مدى الحياة)</span></div></div>
                 <div class="rep-row"><div class="rep-dot"></div><div>المنصة: ${esc(p.platform)} · النوع: ${esc(p.type)} · <span class="num">${p.installationsCount}</span> جهاز</div></div>
                 <div class="rep-row"><div class="rep-dot"></div><div>تاريخ التثبيت: <span class="num">${fmtD(p.startDate) || '—'}</span></div></div>
               </div>`).join('')}
       </div>
+      ${Array.isArray(c.versionHistory) && c.versionHistory.length > 0 ? `
+      <div class="rep-sec">
+        <div class="rep-sec-title">${vIc('refresh', 14)} <span>تاريخ تحديثات الإصدارات</span></div>
+        <div class="rep-card">
+          ${c.versionHistory.map(vh => `
+            <div class="rep-row">
+              <div class="rep-dot green"></div>
+              <div>
+                <strong>${esc(vh.programLabel || vh.programKey)}</strong>:
+                <span class="num">${esc(vh.previousVersion || '—')}</span> → <strong class="num" style="color:var(--gt)">${esc(vh.newVersion || '—')}</strong>
+                · <span class="num">${vh.affectedDevices || 0}</span> جهاز
+                · <span class="num">${fmtD(vh.updateDate) || esc(vh.updateDate || '—')}</span>
+                · بواسطة ${esc(vh.employeeName || '—')}
+                ${vh.note ? ` — ${esc(vh.note)}` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
 
       <div class="rep-sec">
         <div class="rep-sec-title">${vIc('wrench', 14)} <span>تحليل المشاكل</span></div>

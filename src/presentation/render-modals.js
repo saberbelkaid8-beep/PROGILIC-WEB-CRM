@@ -4,6 +4,7 @@ import { gc, selOpts, td, wOpts, actTypeOpts, esc, isClientAtRisk } from '../uti
 import { getPurgeAuditLogs } from '../business/purgeService.js';
 import { computeScore, scoreColor } from '../business/intelligence.js';
 import { normalizeProgramCategory } from '../business/programMetrics.js';
+import { getClientProgramGroups } from '../business/versionSync.js';
 
 const CSTATUSES = ['نشط', 'محتمل', 'متوقف'];
 const ITYPES = ISSUE_TYPES;
@@ -72,6 +73,8 @@ export function renderModal(){
   if(m==='addIssue'||m==='editIssue')html=renderIssueModal();
   if(m==='addRequirement'||m==='editReq')html=renderReqModal();
   if(m==='addProgram'||m==='editProgram')html=renderProgramModal();
+  if(m==='syncProgramVersion'||m==='logProgramUpdate')html=renderSyncProgramVersionModal();
+  if(m==='conflict')html=renderConflictModal();
   if(m==='addContact')html=renderAddContactModal();
   if(m==='backupManager')html=renderBackupManagerModal();
   if(m==='dbPurge')html=renderDbPurgeModal();
@@ -204,7 +207,7 @@ function renderProgramModal(){
       </div>
     </div>
     <div class="frow">
-      <div class="fgroup" id="fp_ver_group" style="${curPlat==='Mobile'?'display:none;':''}">
+      <div class="fgroup" id="fp_ver_group">
         <label class="flbl">${t('إصدار البرنامج')} *</label>
         <select class="fctl" id="fp_ver">
           <option value="">${t('اختر الإصدار')}</option>
@@ -225,6 +228,80 @@ function renderProgramModal(){
       <button class="btn btn-ghost" onclick="closeModal()">${t('إلغاء')}</button>
       <button class="btn btn-primary" onclick="saveProgram(${isEdit?p.id:null})">${isEdit?t('حفظ التغييرات'):t('إضافة البرنامج')}</button>
     </div>`;
+}
+
+function renderSyncProgramVersionModal() {
+  const c = gc() || clients.find(x => x.id === S.selId);
+  if (!c) return '';
+  const groups = getClientProgramGroups(c.programs || []);
+  const selectedKey = (S.form && S.form.programKey && groups.some(g => g.key === S.form.programKey))
+    ? S.form.programKey
+    : (groups[0]?.key || '');
+  const activeGroup = groups.find(g => g.key === selectedKey) || null;
+  const currentVersText = activeGroup && activeGroup.currentVersions.length > 0
+    ? activeGroup.currentVersions.join(' / ')
+    : t('غير محدد');
+
+  const isLogProgramUpdate = S.modal === 'logProgramUpdate';
+  const progSelectId = isLogProgramUpdate ? 'fpu_prog' : 'vs_program';
+  const verSelectId = isLogProgramUpdate ? 'fpu_ver' : 'vs_version';
+  const dateInputId = isLogProgramUpdate ? 'fpu_date' : 'vs_date';
+  const noteInputId = isLogProgramUpdate ? 'fpu_notes' : 'vs_note';
+
+  return `
+    <div class="mhdr">
+      <div class="mtitle" style="display:flex;align-items:center;gap:8px">
+        ${mIc('refresh', 16)}
+        <span>${t('تحديث إصدار برنامج')}</span>
+      </div>
+      <button class="mclose" onclick="closeModal()">×</button>
+    </div>
+    ${groups.length === 0 ? `
+      <div style="padding:18px;text-align:center;color:var(--t2);font-size:13px">
+        ${t('لا توجد برامج مسجلة لهذا العميل لتحديث إصدارها.')}
+      </div>
+      <div class="facts">
+        <button class="btn btn-ghost" onclick="closeModal()">${t('إغلاق')}</button>
+      </div>
+    ` : `
+      <div style="background:rgba(10,132,255,0.07);border:1px solid rgba(10,132,255,0.22);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--t2);line-height:1.6">
+        ${t('عند تأكيد التحديث، سيتم تحديث الإصدار تلقائياً لجميع الأجهزة والتراخيص المرتبطة بنفس البرنامج لدى هذا العميل فقط، مع تسجيل السجل التاريخي.')}
+      </div>
+      <div class="fgroup">
+        <label class="flbl">${t('البرنامج المعني بالتحديث')} *</label>
+        <select class="fctl" id="${progSelectId}" onchange="if(window.S&&window.S.form){window.S.form.programKey=this.value; window.S.form.targetVersion='';} R();">
+          ${groups.map(g => `<option value="${esc(g.key)}"${g.key === selectedKey ? ' selected' : ''}>${esc(g.label)} · ${g.devicesCount} ${t('جهاز')}</option>`).join('')}
+        </select>
+      </div>
+      ${activeGroup ? `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px">
+          <span><strong style="color:var(--t2)">${t('الإصدار الحالي المسجل')}:</strong> <span class="bdg bdg-gr num">${esc(currentVersText)}</span></span>
+          <span><strong style="color:var(--t2)">${t('الأجهزة التي سيتم تحديثها')}:</strong> <span class="bdg bdg-b num">${activeGroup.devicesCount} ${t('جهاز')} (${activeGroup.entriesCount} ${t('ترخيص')})</span></span>
+        </div>
+      ` : ''}
+      <div class="frow">
+        <div class="fgroup">
+          <label class="flbl">${t('الإصدار الجديد (اختيار صريح)')} *</label>
+          <select class="fctl" id="${verSelectId}" onchange="if(window.S&&window.S.form){window.S.form.targetVersion=this.value;}">
+            <option value="" selected>${t('اختر الإصدار الجديد *')}</option>
+            ${PROGRAM_VERSIONS.map(v => `<option value="${v}">${v}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fgroup">
+          <label class="flbl">${t('تاريخ التحديث')} *</label>
+          <input type="date" class="fctl" id="${dateInputId}" value="${td()}">
+        </div>
+      </div>
+      <div class="fgroup">
+        <label class="flbl">${t('ملاحظة التحديث')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري')})</span></label>
+        <textarea class="fctl" id="${noteInputId}" placeholder="${t('مثال: ترقية ميدانية أو عن بعد لجميع أجهزة العميل')}"></textarea>
+      </div>
+      <div class="facts">
+        <button class="btn btn-ghost" onclick="closeModal()">${t('إلغاء')}</button>
+        <button class="btn btn-primary" onclick="confirmProgramVersionSync(${c.id})">${t('تأكيد وتحديث الإصدار')}</button>
+      </div>
+    `}
+  `;
 }
 
 function renderIssueModal(){
@@ -386,8 +463,20 @@ function renderConflictModal() {
   const item = S.conflictItem;
   const serverData = S.conflictServerData;
   if (!item || !serverData) return '';
-  const localData = item.payload.clientData;
-  
+  const localClient = item.payload?.clientData || clients.find(c => String(c?.id) === String(item.payload?.clientId)) || {};
+  const isSubItem = item.type === 'SAVE_SUB_ITEM' || item.type === 'DELETE_SUB_ITEM';
+  const isVersionSync = item.type === 'SYNC_PROGRAM_VERSION';
+  const localVersionLabel = isVersionSync
+    ? `${item.payload?.programLabel || ''} → ${item.payload?.newVersion || ''} (أساس #${item.payload?.baseVersion ?? 0})`
+    : (isSubItem
+      ? `${item.payload?.collectionName || ''} #${item.payload?.itemId || ''} (أساس #${item.payload?.concurrency?.baseVersion ?? 0})`
+      : `${localClient.version || 0}`);
+  const localSummaryTitle = isVersionSync
+    ? `ترقية ${item.payload?.programLabel || 'برنامج'} إلى ${item.payload?.newVersion || ''}`
+    : (isSubItem
+      ? `${item.payload?.itemData?.programName || item.payload?.itemData?.title || item.payload?.itemData?.note || item.payload?.collectionName || 'تعديل فرعي'}`
+      : (localClient.fullName || 'غير محدد'));
+
   return `
     <div class="mhdr">
       <div class="mtitle" style="color: var(--rt); display:flex; align-items:center; gap:8px;">
@@ -398,25 +487,25 @@ function renderConflictModal() {
     </div>
     <div class="mbdy">
       <p style="margin-bottom: 14px; font-size: 13.5px; color: var(--t2); line-height: 1.65;">
-        تم تعديل هذا العميل في الخادم بواسطة مستخدم آخر أثناء انقطاع اتصالك بالإنترنت. يرجى اختيار التعديل الذي ترغب في الاحتفاظ به.
+        تم تعديل هذا السجل في السحابة بواسطة جلسة أو مستخدم آخر قبل إتمام حفظك. يرجى اختيار النسخة التي ترغب في اعتمادها حتى لا تُفقد أي بيانات.
       </p>
       
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px;">
         <div style="border: 1px solid rgba(10,132,255,0.28); border-radius: var(--r-sm); padding: 14px; background: rgba(10,132,255,0.06);">
           <h4 style="margin-top:0; margin-bottom:8px; color: var(--bt); font-size: 13.5px; font-weight:700;">بيانات الخادم (الأحدث)</h4>
           <ul style="padding-inline-start: 18px; font-size: 13px; color: var(--t1); margin-bottom: 0; line-height: 1.7;">
-            <li><strong style="color:var(--t2)">الاسم:</strong> ${esc(serverData.fullName || 'غير محدد')}</li>
+            <li><strong style="color:var(--t2)">العميل:</strong> ${esc(serverData.fullName || 'غير محدد')}</li>
             <li><strong style="color:var(--t2)">الحالة:</strong> ${esc(serverData.status || 'غير محدد')}</li>
-            <li><strong style="color:var(--t2)">رقم الإصدار:</strong> <span class="num">${serverData.version || 0}</span></li>
+            <li><strong style="color:var(--t2)">رقم النسخة:</strong> <span class="num">${serverData.version || 0}</span></li>
           </ul>
         </div>
         
         <div style="border: 1px solid rgba(48,209,88,0.28); border-radius: var(--r-sm); padding: 14px; background: rgba(48,209,88,0.06);">
-          <h4 style="margin-top:0; margin-bottom:8px; color: var(--gt); font-size: 13.5px; font-weight:700;">تعديلاتك المحلية (غير المحفوظة)</h4>
+          <h4 style="margin-top:0; margin-bottom:8px; color: var(--gt); font-size: 13.5px; font-weight:700;">تعديلك المحلي (بانتظار التأكيد)</h4>
           <ul style="padding-inline-start: 18px; font-size: 13px; color: var(--t1); margin-bottom: 0; line-height: 1.7;">
-            <li><strong style="color:var(--t2)">الاسم:</strong> ${esc(localData.fullName || 'غير محدد')}</li>
-            <li><strong style="color:var(--t2)">الحالة:</strong> ${esc(localData.status || 'غير محدد')}</li>
-            <li><strong style="color:var(--t2)">رقم الإصدار:</strong> <span class="num">${localData.version || 0}</span></li>
+            <li><strong style="color:var(--t2)">التعديل:</strong> ${esc(localSummaryTitle)}</li>
+            <li><strong style="color:var(--t2)">الحالة:</strong> ${esc(localClient.status || serverData.status || 'غير محدد')}</li>
+            <li><strong style="color:var(--t2)">النسخة المرجعية:</strong> <span class="num">${esc(localVersionLabel)}</span></li>
           </ul>
         </div>
       </div>
@@ -1332,7 +1421,7 @@ export function renderLicensesExplorerModal() {
             platform: norm.platform,
             type: norm.labelAr,
             categoryKey: norm.categoryKey,
-            version: norm.platform === 'Mobile' ? '' : (norm.version || '—'),
+            version: norm.version || '—',
             installationsCount: devices,
             startDate: c.startDate || '',
             endDate: '',

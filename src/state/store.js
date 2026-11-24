@@ -46,6 +46,8 @@ let internalState = {
   activeDetailClientId: null,
   hasConfirmedServerSync: false,
   clientsFromCache: false,
+  hasPendingLocalWrites: false,
+  pendingSyncCount: 0,
   timelineUserFilter: 'all',
   timelineDatePreset: 'today',
   timelineDateFrom: '',
@@ -327,6 +329,8 @@ export function resetTenantSessionState() {
     activeDetailClientId: null,
     hasConfirmedServerSync: false,
     clientsFromCache: false,
+    hasPendingLocalWrites: false,
+    pendingSyncCount: 0,
     stats: {
       activeClients: 0,
       prospectiveClients: 0,
@@ -536,7 +540,9 @@ if (typeof window !== 'undefined') {
 export function setClients(newClients) {
   const isDifferent = clients !== newClients && JSON.stringify(clients) !== JSON.stringify(newClients);
   if (!isDifferent) {
-    window.__renderAudit.unnecessaryRendersPrevented++;
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.unnecessaryRendersPrevented++;
+    }
     return;
   }
   
@@ -561,7 +567,9 @@ export function setCurrentUser(newUser) {
   }
   const isDifferent = JSON.stringify(currentUser) !== JSON.stringify(newUser);
   if (!isDifferent) {
-    window.__renderAudit.unnecessaryRendersPrevented++;
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.unnecessaryRendersPrevented++;
+    }
     return;
   }
 
@@ -581,7 +589,9 @@ export function setCurrentUser(newUser) {
 
 export function setSyncing(val) {
   if (_isSyncing === !!val) {
-    window.__renderAudit.unnecessaryRendersPrevented++;
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.unnecessaryRendersPrevented++;
+    }
     return;
   }
 
@@ -594,7 +604,9 @@ export function setLastSyncedTime(val) {
   const nextTime = val instanceof Date ? val : val ? new Date(val) : null;
   const isDifferent = String(_lastSyncedTime) !== String(nextTime);
   if (!isDifferent) {
-    window.__renderAudit.unnecessaryRendersPrevented++;
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.unnecessaryRendersPrevented++;
+    }
     return;
   }
 
@@ -612,7 +624,9 @@ export function setLoading(val) {
   }
 
   if (internalState.isLoading === !!val) {
-    window.__renderAudit.unnecessaryRendersPrevented++;
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.unnecessaryRendersPrevented++;
+    }
     return;
   }
   handleRecursiveCheck('isLoading');
@@ -634,7 +648,9 @@ export function setLoading(val) {
 
 export function setSaveError(val) {
   if (_saveError === !!val) {
-    window.__renderAudit.unnecessaryRendersPrevented++;
+    if (typeof window !== 'undefined' && window.__renderAudit) {
+      window.__renderAudit.unnecessaryRendersPrevented++;
+    }
     return;
   }
 
@@ -687,7 +703,9 @@ export const S = new Proxy({}, {
     }
 
     if (JSON.stringify(internalState[prop]) === JSON.stringify(value)) {
-      window.__renderAudit.unnecessaryRendersPrevented++;
+      if (typeof window !== 'undefined' && window.__renderAudit) {
+        window.__renderAudit.unnecessaryRendersPrevented++;
+      }
       return true;
     }
 

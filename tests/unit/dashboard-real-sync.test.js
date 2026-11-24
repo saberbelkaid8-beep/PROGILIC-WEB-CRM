@@ -438,12 +438,12 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
 
     const html = renderDashboard();
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const kpiCards = Array.from(doc.querySelectorAll('.card.kpi'));
+    const kpiCards = Array.from(doc.querySelectorAll('.exec-pulse-cell.kpi'));
 
     // 1. Exact devices count = 5 (4 Desktop + 1 Mobile), KPI 2 shows 5 الأجهزة المرخصة عبر 2 برامج
     expect(kpiCards[1].textContent).toContain('الأجهزة المرخصة');
     expect(kpiCards[1].querySelector('.val b')?.textContent?.trim()).toBe('5');
-    expect(html).toContain('عبر 2 برنامج مرخص');
+    expect(kpiCards[1].textContent).toContain('عبر 2 برنامج مرخص');
 
     // 2. Open issues counts both 'مفتوح' and 'جديد' = 2
     expect(html).toContain('تذاكر دعم مفتوحة');
@@ -454,7 +454,7 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     const liveS2 = computeScore(clientZeroPrograms).total;
     const expectedAvg = Math.round((liveS1 + liveS2) / 2);
     expect(expectedAvg).toBeLessThan(100);
-    expect(html).toContain(`<b class="num">${expectedAvg}</b><small>/ 100</small>`);
+    expect(kpiCards[4].textContent).toContain(`${expectedAvg}/100`);
 
     // 4. Real 30d delta for Card 1 (clients: 1 new in 30d) & Card 2 (devices: 5 added in 30d)
     expect(kpiCards[0].textContent).toContain('+1 هذا الشهر');
@@ -467,14 +467,14 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     expect(html).not.toContain('نسخة احتياطية');
     expect(html).toContain('selClient(1)');
 
-    // 6. Contracts & Client Health replaced cleanly
+    // 6. Contracts & old Client Health donut replaced cleanly
     expect(html).not.toContain('عقود تنتهي');
     expect(html).not.toContain('صحة العملاء');
     expect(html).toContain('تغطية المتابعة');
-    expect(html).toContain('الأجهزة المباعة حسب الفئة');
+    expect(html).toContain('الأجهزة المباعة حسب الفئة والمنصة');
 
-    // 6. Department Commercial has exactly 2 events (prog 10 deduplicated between globalActivities and c.programs + prog 11), NOT 3
-    const deptCards = Array.from(doc.querySelectorAll('.card.dept'));
+    // 7. Department Commercial has exactly 2 events (prog 10 deduplicated between globalActivities and c.programs + prog 11), NOT 3
+    const deptCards = Array.from(doc.querySelectorAll('.exec-dept-cell.dept'));
     const commercialCard = deptCards.find(el => el.textContent.includes('القسم التجاري'));
     expect(commercialCard).toBeTruthy();
     expect(commercialCard.querySelector('.big')?.firstChild?.textContent?.trim()).toBe('2');
@@ -614,7 +614,7 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
     // 2. Executive Dashboard Verification
     const dashHtml = renderDashboard();
     const dashDoc = new DOMParser().parseFromString(dashHtml, 'text/html');
-    const kpiCards = Array.from(dashDoc.querySelectorAll('.card.kpi'));
+    const kpiCards = Array.from(dashDoc.querySelectorAll('.exec-pulse-cell.kpi'));
 
     // Card 2 is "الأجهزة المرخصة" showing total devices (9) across 4 programs
     const progCard = kpiCards[1];
@@ -671,7 +671,7 @@ describe('Dashboard Real CRM Sync & Metrics', () => {
 
     const updatedDashHtml = renderDashboard();
     const updatedDoc = new DOMParser().parseFromString(updatedDashHtml, 'text/html');
-    const updatedProgCard = Array.from(updatedDoc.querySelectorAll('.card.kpi'))[1];
+    const updatedProgCard = Array.from(updatedDoc.querySelectorAll('.exec-pulse-cell.kpi'))[1];
     expect(updatedProgCard.querySelector('.val b')?.textContent?.trim()).toBe('8');
     expect(updatedProgCard.textContent).toContain('عبر 3 برنامج مرخص');
   });

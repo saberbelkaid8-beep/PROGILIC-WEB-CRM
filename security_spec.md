@@ -10,6 +10,7 @@ This specification defines the strict security posture and data invariants enfor
 3. **ID Poisoning Defenses**: Client documents at `users/{userId}/clients/{clientId}` must satisfy `incoming().id == int(clientId)` ensuring that IDs cannot be mutated or mismatched.
 4. **Subcollection Lock**: Subcollection records (programs, issues, requirements, contacts) must keep their `id` field immutable on update operations.
 5. **Pre-aggregated Schema Limits**: User profiles cannot be expanded beyond designated statistical counters and settings, preventing arbitrary document pollution.
+6. **Tenant-Isolated Task & Backlog Integrity**: Tasks (`users/{userId}/tasks/{taskId}`) and central Backlog items (`users/{userId}/backlog/{backlogId}`) enforce `isValidId()` path validation, `incoming().id == pathId` binding, strict status allowlists, and bounded payload sizes.
 
 ---
 

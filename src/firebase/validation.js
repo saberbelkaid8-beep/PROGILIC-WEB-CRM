@@ -61,6 +61,29 @@ export function validateClient(c) {
   const requirementsCount = data.requirementsCount !== undefined ? Number(data.requirementsCount) || 0 : rawReqs.length;
   const contactsCount = data.contactsCount !== undefined ? Number(data.contactsCount) || 0 : rawContacts.length;
 
+  const rawVersionHistory = Array.isArray(data.versionHistory)
+    ? data.versionHistory
+        .filter(h => h && typeof h === 'object')
+        .slice(0, 100)
+        .map(h => ({
+          id: String(h.id || `vh_${Date.now()}`).substring(0, 80),
+          programKey: String(h.programKey || '').substring(0, 100),
+          programLabel: String(h.programLabel || '').substring(0, 120),
+          platform: String(h.platform || '').substring(0, 30),
+          previousVersion: String(h.previousVersion || '').substring(0, 50),
+          previousVersions: Array.isArray(h.previousVersions) ? h.previousVersions.map(v => String(v).substring(0, 30)).slice(0, 20) : [],
+          newVersion: String(h.newVersion || '').substring(0, 30),
+          updateDate: String(h.updateDate || '').substring(0, 20),
+          updatedAt: String(h.updatedAt || '').substring(0, 40),
+          employeeName: String(h.employeeName || '').substring(0, 100),
+          employeeId: String(h.employeeId || '').substring(0, 80),
+          affectedDevices: Math.max(0, Number(h.affectedDevices) || 0),
+          affectedProgramsCount: Math.max(0, Number(h.affectedProgramsCount) || 0),
+          programIds: Array.isArray(h.programIds) ? h.programIds.slice(0, 100) : [],
+          note: String(h.note || '').substring(0, 500)
+        }))
+    : [];
+
   const doc = {
     id: Number(data.id) || Date.now(),
     version: Math.max(1, Number(data.version) || 1),
@@ -91,6 +114,7 @@ export function validateClient(c) {
     contactsCount,
     programNames,
     programs: rawPrograms,
+    versionHistory: rawVersionHistory,
     updatedAt: data.updatedAt ? String(data.updatedAt) : new Date().toISOString()
   };
   if (data.programsPurgedAt) {
@@ -101,15 +125,12 @@ export function validateClient(c) {
 
 export function validateProgram(p) {
   const objId = Number(p.id) || (Date.now() + Math.floor(Math.random() * 9999));
-  const isMobile = p.platform === 'Mobile';
   const allowedVersions = [
-    "V27", "V26", "V24", "V23", "V21", "v18", "v16", "v15", "R+", "arabe",
+    "V27", "V26", "V25", "V24", "V23", "V22", "V21", "v18", "v16", "v15", "R+", "arabe",
     "V18", "V16", "V15", "r+", "Arabe"
   ];
   const rawVer = String(p.version || '').trim();
-  const normalizedVer = isMobile
-    ? ""
-    : (allowedVersions.includes(rawVer) ? rawVer : rawVer.substring(0, 20));
+  const normalizedVer = allowedVersions.includes(rawVer) ? rawVer : rawVer.substring(0, 20);
   return {
     id: objId,
     versionNum: Math.max(1, Number(p.versionNum) || 1),

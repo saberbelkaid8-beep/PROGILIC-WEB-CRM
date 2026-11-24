@@ -1,5 +1,5 @@
 import { S, clients, setClients, updateState, currentUser, setCurrentUser, hasPermission, isGerant } from '../../state/store.js';
-import { persist, loadClientSubcollectionsIfNeeded, hydrateAllClientSubcollections, enqueueSyncAction } from '../storage.js';
+import { persist, loadClientSubcollectionsIfNeeded, hydrateAllClientSubcollections, stopClientDetailSync, enqueueSyncAction } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline, loadGlobalActivities } from '../timelineService.js';
 import { loadClientTimeline } from './ticketActions.js';
@@ -24,9 +24,15 @@ import {
 
 let lastDashboardActivitiesLoadMs = 0;
 
-export function goBack() { S.view = 'list'; S.selId = null; R(); }
+export function goBack() {
+  stopClientDetailSync();
+  S.view = 'list';
+  S.selId = null;
+  R();
+}
 
 export async function setView(v) {
+  stopClientDetailSync();
   if (v === 'dashboard') {
     S.view = 'dashboard';
     S.selId = null;
@@ -34,11 +40,11 @@ export async function setView(v) {
     if (clients.some(c => c && !c._subcollectionsLoaded)) {
       hydrateAllClientSubcollections().catch(console.warn);
     }
-    const nowMs = Date.now();
-    const shouldRefreshActs = (!Array.isArray(S.globalActivities) || S.globalActivities.length === 0 || (nowMs - lastDashboardActivitiesLoadMs) > 15000) &&
+    const shouldRefreshActs = (!Array.isArray(S.globalActivities) || S.globalActivities.length === 0) &&
+      lastDashboardActivitiesLoadMs === 0 &&
       !(typeof globalThis !== 'undefined' && globalThis.__progilicFirestoreQuotaExceeded);
     if (shouldRefreshActs) {
-      lastDashboardActivitiesLoadMs = nowMs;
+      lastDashboardActivitiesLoadMs = Date.now();
       loadGlobalActivities().then(() => {
         if (S.view === 'dashboard') R();
       }).catch(console.warn);
@@ -89,7 +95,7 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية إضافة برامج وتراخيص جديدة.'), 'error');
     return;
   }
-  if (m === 'editProg' && !hasPermission('programs.edit')) {
+  if ((m === 'editProg' || m === 'editProgram' || m === 'syncProgramVersion') && !hasPermission('programs.edit')) {
     showToast(t('⚠️ لا تملك صلاحية تعديل البرامج والتراخيص.'), 'error');
     return;
   }
@@ -105,7 +111,7 @@ export function openModal(m, formData) {
     showToast(t('⚠️ لا تملك صلاحية تسجيل متطلبات أو ميزات جديدة.'), 'error');
     return;
   }
-  if (m === 'editRequirement' && !hasPermission('features.edit')) {
+  if ((m === 'editRequirement' || m === 'editReq') && !hasPermission('features.edit')) {
     showToast(t('⚠️ لا تملك صلاحية تعديل متطلبات التطوير.'), 'error');
     return;
   }
@@ -337,7 +343,7 @@ export function exportLicensesCSV() {
             status: c.status || 'نشط',
             platform: plat,
             type: 'تجاري',
-            version: plat === 'Mobile' ? '' : (vMatch ? vMatch[0].toUpperCase() : ''),
+            version: vMatch ? vMatch[0].toUpperCase() : '',
             devices: Math.max(1, Math.round((Number(c.installationsCount) || summaryProgCount) / summaryProgCount)),
             startDate: c.startDate || ''
           });

@@ -297,4 +297,37 @@ describe('Global timeline filters and report', () => {
     const emptyHtml = renderGlobalTimeline();
     expect(emptyHtml).toContain('tl-empty-card');
   });
+
+  it('does not re-upload pre-window historical services when cloud already holds >=200 activities or across repeated calls', async () => {
+    const { resetTimelineSyncGuards } = await import('../../src/business/timelineService.js');
+    resetTimelineSyncGuards('timeline-tenant');
+    setCurrentUser({ uid: 'timeline-tenant', role: 'gerant', email: 'owner@example.test' });
+
+    const twoHundredRecent = Array.from({ length: 200 }, (_, i) => ({
+      id: `recent_${i}`,
+      type: ActivityType.CONTACT_ADDED,
+      clientId: 500 + i,
+      timestamp: '2026-11-20T10:00:00.000Z'
+    }));
+    cloudMocks.get.mockResolvedValue(twoHundredRecent);
+
+    setClients([
+      { id: 1001, fullName: 'عميل قديم جداً', startDate: '2026-11-01', programs: [] },
+      { id: 1002, fullName: 'عميل حديث مفقود', startDate: '2026-11-22', programs: [] }
+    ]);
+
+    await loadGlobalActivities();
+    // Only post-cutoff missing service (1002) should be populated, NOT old pre-window client 1001
+    expect(cloudMocks.save).toHaveBeenCalledTimes(1);
+    expect(cloudMocks.save).toHaveBeenCalledWith(
+      'timeline-tenant',
+      expect.objectContaining({ clientId: 1002 }),
+      { onlyIfMissing: true }
+    );
+
+    // Subsequent loadGlobalActivities in same session must not re-run backfill
+    cloudMocks.save.mockClear();
+    await loadGlobalActivities();
+    expect(cloudMocks.save).not.toHaveBeenCalled();
+  });
 });

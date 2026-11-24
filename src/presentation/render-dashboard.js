@@ -9,6 +9,7 @@ import { esc, isClientAtRisk } from '../utils/index.js';
 import { t } from '../utils/i18n.js';
 import { DEPARTMENTS } from '../business/employeeService.js';
 import { computeFleetDeviceMetrics, filterRecentDashboardActivities } from '../business/programMetrics.js';
+import { computeProgramVersionMetrics } from '../business/programVersionSync.js';
 
 // SVG Icons Dictionary
 const I = {
@@ -582,6 +583,7 @@ export function renderDashboard() {
     { l: 'Mobile', v: fleet.platformDevices.Mobile, progs: fleet.platformPrograms.Mobile },
     { l: 'Web', v: fleet.platformDevices.Web, progs: fleet.platformPrograms.Web }
   ];
+  const versionMetrics = computeProgramVersionMetrics(cl);
 
   // 8. Urgent Alerts list (filtered to active Wilaya if selected)
   const urgentAlerts = computeAlerts()
@@ -683,7 +685,7 @@ export function renderDashboard() {
     if (tp === 'CLIENT_CREATED' || tp === 'CLIENT_EDITED' || tp === 'GPS_CAPTURED') {
       deptId = 'pre_vente';
       key = tp === 'CLIENT_CREATED' && cidStr ? `client:${cidStr}` : `act:${actIdStr}`;
-    } else if (tp === 'PROGRAM_ADDED' || tp === 'PROGRAM_EDITED') {
+    } else if (tp === 'PROGRAM_ADDED' || tp === 'PROGRAM_EDITED' || tp === 'PROGRAM_VERSION_UPDATED') {
       deptId = 'commercial';
       let progId = act.meta?.programId ? String(act.meta.programId) : '';
       if (!progId && actIdStr.startsWith(`act_prog_${cidStr}_`)) {
@@ -746,8 +748,11 @@ export function renderDashboard() {
   activitiesByDept.commercial.subtext = `${totalLicensedDevices} ${t('جهاز مرخص')} · ${totalPrograms} ${t('برنامج')}`;
   const totalCalls = fleet.totalCalls;
   activitiesByDept.suivi.subtext = `${totalCalls} ${t('مكالمة وزيارة')} · ${activitiesByDept.suivi.staffCount} ${t('موظف')}`;
-  const totalSolvedIssues = allIssues.filter(i => i.status === 'محلول').length;
-  activitiesByDept.technique.subtext = `${totalSolvedIssues} ${t('تذكرة محلولة')} · ${allReqs.length} ${t('ميزة')}`;
+  const unhydratedSolvedIssuesExtra = cl.reduce((acc, c) => acc + (!c._subcollectionsLoaded && (c.issues || []).length === 0 ? (Number(c.solvedIssuesCount) || 0) : 0), 0);
+  const totalSolvedIssues = allIssues.filter(i => i.status === 'محلول').length + unhydratedSolvedIssuesExtra;
+  const unhydratedReqsExtra = cl.reduce((acc, c) => acc + (!c._subcollectionsLoaded && (c.requirements || []).length === 0 ? (Number(c.requirementsCount) || 0) : 0), 0);
+  const totalReqsCount = allReqs.length + unhydratedReqsExtra;
+  activitiesByDept.technique.subtext = `${totalSolvedIssues} ${t('تذكرة محلولة')} · ${totalReqsCount} ${t('ميزة')}`;
 
   // Date Header String
   const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -1048,9 +1053,25 @@ export function renderDashboard() {
             ${colChart(platformRows)}
           </div>
           <div class="hr" style="margin:12px 0 10px"></div>
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;color:var(--t2)">${t('توزيع عدد الأجهزة المباعة حسب المنصة')}</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span class="sec" style="margin:0">${t('توزيع الإصدارات المعتمدة')} (${versionMetrics.totalVersionedDevices} ${t('جهاز')})</span>
             <span style="font-size:11px;color:#007AFF;cursor:pointer;font-weight:700" onclick="openLicensesExplorerModal()">${t('استعراض الكل')} ↗</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;--rh:36px">
+            ${versionMetrics.byVersion.length > 0 ? versionMetrics.byVersion.slice(0, 5).map(v => `
+              ${hb(
+                v.version,
+                v.devicesCount,
+                Math.max(versionMetrics.totalVersionedDevices, 1),
+                '#0EA5E9',
+                `${v.devicesCount} ${t('جهاز')}`,
+                `(${v.programsCount})`,
+                `onclick="openLicensesExplorerModal('all','${v.version === 'غير محدد' ? 'all' : esc(v.version)}')" title="${t('عرض التراخيص على الإصدار')} ${esc(v.version)}"`,
+                'cat-breakdown-row'
+              )}
+            `).join('') : `
+              <div style="font-size:12px;color:var(--muted);padding:6px 0">${t('لا توجد إصدارات مسجلة بعد')}</div>
+            `}
           </div>
         </div>
 
