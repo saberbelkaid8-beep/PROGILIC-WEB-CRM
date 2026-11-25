@@ -109,4 +109,19 @@ describe('Client filters', () => {
     setAdvFil('fActivity', 'تجارة جملة');
     expect(S.fActType).toBe('');
   });
+
+  it('filters clients by مشاكل مفتوحة and falls back safely if legacy خطر filter is set', () => {
+    const sample = [
+      { id: 1, fullName: 'Open Issue Client', status: 'مؤكد', issues: [{ status: 'مفتوح' }] },
+      { id: 2, fullName: 'Clean Client', status: 'مؤكد', issues: [{ status: 'محلول' }] },
+      { id: 3, fullName: 'Summary Issue Client', status: 'غير مؤكد', openIssuesCount: 2 }
+    ];
+    setClients(sample);
+
+    updateState({ filter: 'مشاكل مفتوحة', sortBy: 'id', sortOrder: 'asc' });
+    expect(applyFilters(sample).map(c => c.id)).toEqual([1, 3]);
+
+    updateState({ filter: 'خطر', sortBy: 'id', sortOrder: 'asc' });
+    expect(applyFilters(sample).map(c => c.id)).toEqual([1, 2, 3]);
+  });
 });

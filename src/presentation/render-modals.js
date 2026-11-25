@@ -1,6 +1,6 @@
 import { S, clients } from '../state/store.js';
 import { BUSINESS_TYPES, PLATFORMS, PROGRAM_TYPES, PROGRAM_VERSIONS, ISSUE_TYPES, PRIORITY_LEVELS, ISSUE_STATUSES, ISSUE_SOURCES, REQ_STATUSES, IMPACT_LEVELS, WILAYAS } from '../constants/index.js';
-import { gc, selOpts, td, wOpts, actTypeOpts, esc, isClientAtRisk } from '../utils/index.js';
+import { gc, selOpts, td, wOpts, actTypeOpts, esc } from '../utils/index.js';
 import { getPurgeAuditLogs } from '../business/purgeService.js';
 import { computeScore, scoreColor } from '../business/intelligence.js';
 import { normalizeProgramCategory } from '../business/programMetrics.js';
@@ -1336,7 +1336,7 @@ export function renderHealthScoreExplainerModal() {
 
       <div style="border:1px solid rgba(255,69,58,0.28);background:rgba(255,69,58,0.08);border-radius:var(--r-sm);padding:12px">
         <div style="display:flex;align-items:center;gap:8px;font-weight:800;color:var(--rt);margin-bottom:4px">
-          ${mIc('flame', 15)} <span>خطر عالٍ (أقل من <span class="num">25</span> نقطة)</span>
+          ${mIc('flame', 15)} <span>${t('متابعة عاجلة')} (أقل من <span class="num">25</span> نقطة)</span>
         </div>
         <div style="font-size:12px;color:var(--t2);line-height:1.55">
           حساب حرج يحتاج متابعة عاجلة؛ تراكم مشاكل غير محلولة، أو انقطاع التواصل لأكثر من 60 يوماً.

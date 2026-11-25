@@ -25,9 +25,9 @@ export function checkCacheValidity() {
 }
 
 export function scoreColor(s){if(s>=75)return'#10B981';if(s>=50)return'#F59E0B';if(s>=25)return'#F97316';return'#EF4444'}
-export function scoreLabel(s){if(s>=75)return'عميل متميز';if(s>=50)return'عميل جيد';if(s>=25)return'يحتاج متابعة';return'خطر عالي'}
+export function scoreLabel(s){if(s>=75)return'عميل متميز';if(s>=50)return'عميل جيد';if(s>=25)return'يحتاج متابعة';return'متابعة عاجلة'}
 export function riskColor(l){return l==='high'?'var(--r)':l==='medium'?'var(--w)':'var(--g)'}
-export function riskLabel(l){return l==='high'?'خطر عالي':l==='medium'?'تحت المراقبة':'وضع مستقر'}
+export function riskLabel(l){return l==='high'?'أولوية متابعة':l==='medium'?'تحت المتابعة':'وضع مستقر'}
 export function riskBdg(l){return l==='high'?'bdg-r':l==='medium'?'bdg-y':'bdg-g'}
 
 export function computeScore(c){
@@ -135,10 +135,10 @@ export function computeRiskProfile(c){
   let level = dims.riskLevel || 'low';
 
   if (sc.total < 25 && !risks.some(r => r.includes('نقاط'))) {
-    risks.push('نقاط صحة العميل منخفضة جداً — خطر تراجع أو فقدان الحساب');
+    risks.push('نقاط التفاعل منخفضة — يُنصح بجدولة متابعة وتنشيط الحساب');
     level = 'high';
   } else if (sc.total < 50 && level === 'low') {
-    risks.push('نقاط صحة العميل دون المتوسط');
+    risks.push('نقاط التفاعل دون المتوسط');
     level = 'medium';
   }
 
@@ -165,12 +165,28 @@ export function computeGlobalStats(){
   const slaBreachedIssues=openIssues.filter(i=>evaluateIssueSla(i).breached);
   const featureOpps=allIssues.filter(i=>i.featureOpp);
   const highRiskClients=safeClients.filter(c=>computeRiskProfile(c).level==='high');
+  const solvedIssuesCount = allIssues.filter(i => i.status === 'محلول' || i.status === 'مغلق').length;
+  const resolutionRate = allIssues.length ? Math.round((solvedIssuesCount / allIssues.length) * 100) : 100;
+  const confirmedClientsCount = safeClients.filter(c => isConfirmedClientStatus(c.status)).length;
+  const topClients = safeClients
+    .filter(c => isConfirmedClientStatus(c.status) || getProgramStats(c).total > 0)
+    .map(c => {
+      const ps = getProgramStats(c) || { total: 0, totalInstalls: 0 };
+      return {
+        client: c,
+        score: computeScore(c).total,
+        programsCount: ps.total || 0,
+        devicesCount: ps.totalInstalls || 0
+      };
+    })
+    .sort((a, b) => b.devicesCount - a.devicesCount || b.score - a.score)
+    .slice(0, 5);
   const crossIssues=detectCrossClientIssues();
   const avgScore=safeClients.length?Math.round(safeClients.reduce((s,c)=>s+computeScore(c).total,0)/safeClients.length):0;
   const impactW={عالي:3,متوسط:2,منخفض:1};const prioW={عاجل:4,عالية:3,متوسطة:2,منخفضة:1};
   const topReqs=[...allReqs].filter(r=>r.status!=='مرفوض').sort((a,b)=>
     ((impactW[b.impact]||1)+(prioW[b.priority]||1))-((impactW[a.impact]||1)+(prioW[a.priority]||1))).slice(0,5);
-  return{totalProgsGlobal,totalInstGlobal,openIssues,slaBreachedIssues,featureOpps,highRiskClients,crossIssues,avgScore,topReqs,allReqs,allIssues};
+  return{totalProgsGlobal,totalInstGlobal,openIssues,solvedIssuesCount,resolutionRate,confirmedClientsCount,topClients,slaBreachedIssues,featureOpps,highRiskClients,crossIssues,avgScore,topReqs,allReqs,allIssues};
 }
 
 export function computeAlerts(){
@@ -216,13 +232,6 @@ export function computeAlerts(){
       alerts.push({type:'LOW_SATISFACTION',cid:c.id,
         msg:`انخفاض تقييم رضا ${c.fullName} (${dims.indicators.avgSatisfaction}/5)`,
         sub:c.company,level:'urgent',icon:'⭐'});
-    }
-    const rp=computeRiskProfile(c);
-    if(rp.level==='high'&&confirmed){
-      const existsAlready=alerts.some(a=>a.cid===c.id&&a.type==='HIGH_RISK');
-      if(!existsAlready)alerts.push({type:'HIGH_RISK',cid:c.id,
-        msg:`${c.fullName} — خطر تراجع العلاقة (${rp.customerRisk}%)`,
-        sub:rp.risks[0]||'',level:'urgent',icon:'⚠️'});
     }
   });
   return alerts.sort((a,b)=>a.level==='urgent'&&b.level!=='urgent'?-1:b.level==='urgent'&&a.level!=='urgent'?1:0);

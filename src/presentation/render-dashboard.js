@@ -4,8 +4,8 @@
  */
 
 import { S, clients, staffUsers, isGerant, hasPermission } from '../state/store.js';
-import { computeScore, computeRiskProfile, computeAlerts } from '../business/intelligence.js';
-import { esc, isClientAtRisk, getProgramStats } from '../utils/index.js';
+import { computeScore, computeAlerts, evaluateIssueSla } from '../business/intelligence.js';
+import { esc, getProgramStats } from '../utils/index.js';
 import { isConfirmedClientStatus, isUnconfirmedClientStatus } from '../business/clientStatus.js';
 import { t } from '../utils/i18n.js';
 import { DEPARTMENTS } from '../business/employeeService.js';
@@ -265,15 +265,15 @@ export function renderDashboard() {
     منفذ: allReqs.filter(r => r.status === 'منفذ').length
   };
 
-  // 4. Client Scores and Health
+  // 4. Client Scores, Health & Top Accounts
   let totalScoreSum = 0;
   const scoreCategories = {
     متميز: 0,       // 75+
     جيد: 0,          // 50–74
     'يحتاج متابعة': 0, // 25–49
-    'خطر عالٍ': 0    // <25
+    'متابعة عاجلة': 0  // <25
   };
-  const atRiskClientsList = [];
+  const topClientsList = [];
 
   cl.forEach(c => {
     const sc = c._subcollectionsLoaded
@@ -283,24 +283,23 @@ export function renderDashboard() {
     if (sc >= 75) scoreCategories['متميز']++;
     else if (sc >= 50) scoreCategories['جيد']++;
     else if (sc >= 25) scoreCategories['يحتاج متابعة']++;
-    else scoreCategories['خطر عالٍ']++;
+    else scoreCategories['متابعة عاجلة']++;
 
-    const clientWithLiveScore = c.score === sc ? c : { ...c, score: sc };
-    const isRisk = isClientAtRisk(clientWithLiveScore);
-    if (isRisk) {
-      const rp = computeRiskProfile(clientWithLiveScore);
-      atRiskClientsList.push({
+    const ps = getProgramStats(c);
+    if (ps.total > 0 || isConfirmedClientStatus(c.status)) {
+      topClientsList.push({
         client: c,
         score: sc,
-        level: rp.level,
-        reasons: rp.risks.length ? rp.risks.join(' · ') : (c.status === 'متوقف' ? 'حالة الحساب متوقف' : (isUnconfirmedClientStatus(c.status) ? 'غير مؤكد' : 'النقاط دون المتوسط'))
+        programsCount: ps.total,
+        devicesCount: ps.totalInstalls,
+        lastContact: c.lastContact || ''
       });
     }
   });
 
   const avgScore = totalClients ? Math.round(totalScoreSum / totalClients) : 0;
   const excellentPct = totalClients ? Math.round((scoreCategories['متميز'] / totalClients) * 100) : 0;
-  atRiskClientsList.sort((a, b) => a.score - b.score);
+  topClientsList.sort((a, b) => b.devicesCount - a.devicesCount || b.score - a.score);
 
   // 5. Wilayas Distribution
   const wilayaCounts = {};
@@ -499,17 +498,25 @@ export function renderDashboard() {
     return pts;
   })();
 
-  // KPI 4: At-risk clients breakdown & trend
-  const criticalRiskCount = atRiskClientsList.filter(item => item.score < 25 || item.level === 'high').length;
-  const atRiskIdsSet = new Set(atRiskClientsList.map(item => Number(item.client.id)));
-  const riskSparkline = checkpoints30d.map((cp, idx) => {
-    if (idx === 7) return atRiskClientsList.length;
-    return cl.filter(c => {
-      if (!atRiskIdsSet.has(Number(c.id))) return false;
-      const ms = parseLocalDateMs(c.startDate, c.id);
-      return ms === null || ms <= cp;
-    }).length;
-  });
+  // KPI 4: Support Resolution Rate & SLA Compliance
+  const unhydratedSolvedIssuesExtra = cl.reduce((acc, c) => acc + (!c._subcollectionsLoaded && (c.issues || []).length === 0 ? (Number(c.solvedIssuesCount) || 0) : 0), 0);
+  const totalSolvedIssues = allIssues.filter(i => i.status === 'محلول' || i.status === 'مغلق').length + unhydratedSolvedIssuesExtra;
+  const totalIssuesCount = totalOpenIssuesCount + totalSolvedIssues;
+  const resolutionRatePct = totalIssuesCount ? Math.round((totalSolvedIssues / totalIssuesCount) * 100) : 100;
+  const slaBreachedOpenCount = openIssues.filter(i => evaluateIssueSla(i, now).breached).length;
+  const resolvedSparkline = (() => {
+    const pts = [];
+    for (let dayOffset = 7; dayOffset >= 0; dayOffset--) {
+      const d = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate() - dayOffset);
+      const dStr = toLocalYmd(d);
+      const solvedByDay = allIssues.filter(iss => {
+        const ymd = getIssueResolvedYmd(iss);
+        return ymd && ymd <= dStr;
+      }).length + unhydratedSolvedIssuesExtra;
+      pts.push(solvedByDay);
+    }
+    return pts;
+  })();
 
   // KPI 5: Health score cohort trend & stable ratio
   const healthyClientsCount = scoreCategories['متميز'] + scoreCategories['جيد'];
@@ -748,8 +755,6 @@ export function renderDashboard() {
   activitiesByDept.commercial.subtext = `${totalLicensedDevices} ${t('جهاز مرخص')} · ${totalPrograms} ${t('برنامج')}`;
   const totalCalls = fleet.totalCalls;
   activitiesByDept.suivi.subtext = `${totalCalls} ${t('مكالمة وزيارة')} · ${activitiesByDept.suivi.staffCount} ${t('موظف')}`;
-  const unhydratedSolvedIssuesExtra = cl.reduce((acc, c) => acc + (!c._subcollectionsLoaded && (c.issues || []).length === 0 ? (Number(c.solvedIssuesCount) || 0) : 0), 0);
-  const totalSolvedIssues = allIssues.filter(i => i.status === 'محلول').length + unhydratedSolvedIssuesExtra;
   const unhydratedReqsExtra = cl.reduce((acc, c) => acc + (!c._subcollectionsLoaded && (c.requirements || []).length === 0 ? (Number(c.requirementsCount) || 0) : 0), 0);
   const totalReqsCount = allReqs.length + unhydratedReqsExtra;
   activitiesByDept.technique.subtext = `${totalSolvedIssues} ${t('تذكرة محلولة')} · ${totalReqsCount} ${t('ميزة')}`;
@@ -869,18 +874,20 @@ export function renderDashboard() {
         })}
 
         ${kpi({
-          icon: 'shield',
-          tint: '#FEF2F2',
-          fg: '#DC2626',
-          label: t('عملاء في وضع خطر'),
-          value: atRiskClientsList.length,
-          unit: t('عميلًا'),
-          sub: `${totalClients ? ((atRiskClientsList.length / totalClients) * 100).toFixed(1) : 0}% ${t('من قاعدة العملاء')}`,
-          delta: atRiskClientsList.length > 0 ? 'warn' : 'check',
-          dgood: atRiskClientsList.length === 0,
-          dtxt: `${criticalRiskCount} ${t('حرج')} · ${Math.max(0, atRiskClientsList.length - criticalRiskCount)} ${t('للمتابعة')}`,
-          data: riskSparkline,
-          color: '#2a78d6'
+          icon: 'check',
+          tint: '#ECFDF5',
+          fg: '#059669',
+          label: t('معدل حل التذاكر'),
+          value: resolutionRatePct,
+          unit: '%',
+          sub: `${totalSolvedIssues} ${t('محلولة من أصل')} ${totalIssuesCount}`,
+          delta: issuesResolved7d > 0 ? 'up' : 'check',
+          dgood: resolutionRatePct >= 70 || totalOpenIssuesCount === 0,
+          dtxt: issuesResolved7d > 0
+            ? `+${issuesResolved7d} ${t('محلولة هذا الأسبوع')}`
+            : (slaBreachedOpenCount === 0 ? t('ضمن وقت الاستجابة') : `${slaBreachedOpenCount} ${t('متجاوزة لـ SLA')}`),
+          data: resolvedSparkline,
+          color: '#10B981'
         })}
 
         ${kpi({
@@ -937,11 +944,6 @@ export function renderDashboard() {
               <h3>${t('حالة العملاء')}</h3>
               <p>${t('حسب حالة الحساب')}</p>
             </div>
-            ${(hasPermission('clients.edit') || hasPermission('canEditClients')) ? `
-              <div class="act" onclick="openClientCleanupModal()" title="${t('تصفية وتصنيف الزبائن')}">
-                ${t('تصفية وتصنيف الزبائن')} ${ic('chevl', 14, 2.6)}
-              </div>
-            ` : ''}
           </div>
           <div style="display:flex;justify-content:center;margin:2px 0 8px">
             ${donut([
@@ -1136,7 +1138,7 @@ export function renderDashboard() {
           <div class="chd">
             <div>
               <h3>${t('تنبيهات عاجلة')}</h3>
-              <p>${t('تتطلب تدخلاً فورياً (مشاكل حرجة · انقطاع تواصل · حسابات متراجعة)')}</p>
+              <p>${t('تتطلب تدخلاً فورياً (تذاكر عاجلة · تجاوز SLA · انقطاع تواصل)')}</p>
             </div>
             <span class="pill r" style="margin-inline-start:auto">${urgentAlerts.length} ${t('عاجلة')}</span>
           </div>
@@ -1159,36 +1161,36 @@ export function renderDashboard() {
           `}
         </div>
 
-        <!-- D2: Clients at Risk (Fixed Navigation to Populated List) -->
+        <!-- D2: Top Active Clients & Licenses -->
         <div class="card c4">
           <div class="chd">
             <div>
-              <h3>${t('عملاء في وضع خطر')}</h3>
-              <p>${t('الأدنى نقاطًا وأعلى مخاطرة')}</p>
+              <h3>${t('أبرز العملاء وتراخيصهم')}</h3>
+              <p>${t('الأكثر أجهزة ونشاطاً وتفاعلاً')}</p>
             </div>
             <div 
               class="act" 
-              onclick="S.filter='خطر'; S.sortBy='score'; S.sortOrder='asc'; setView('list');" 
-              title="${t('عرض كافة العملاء في وضع الخطر في القائمة')}"
+              onclick="S.filter='مؤكد'; S.sortBy='score'; S.sortOrder='desc'; setView('list');" 
+              title="${t('عرض كافة العملاء المؤكدين في القائمة')}"
             >
-              ${t('عرض الـ')} ${atRiskClientsList.length} ${ic('chevl', 14, 2.6)}
+              ${t('عرض الكل')} ${ic('chevl', 14, 2.6)}
             </div>
           </div>
-          ${atRiskClientsList.slice(0, 5).map(item => `
+          ${topClientsList.slice(0, 5).map(item => `
             <div class="item" onclick="selClient(${item.client.id})" title="${t('فتح ملف')} ${esc(item.client.fullName)}">
-              ${ringScore(item.score, item.score < 25 ? '#EF4444' : '#F97316')}
+              ${ringScore(item.score, item.score >= 75 ? '#10B981' : (item.score >= 50 ? '#2563EB' : '#F59E0B'))}
               <div class="tx">
                 <b>${esc(item.client.fullName)}</b>
-                <span>${esc(item.client.wilaya || '')} · ${esc(item.reasons)}</span>
+                <span>${esc(item.client.wilaya || '—')} · ${item.programsCount} ${t('برامج')} · ${item.lastContact ? `${t('آخر تواصل:')} ${esc(item.lastContact)}` : t('بدون تواصل مسجل')}</span>
               </div>
               <div class="end">
-                <span class="pill ${item.score < 25 ? 'r' : 'w'}">${item.score < 25 ? t('خطر عالٍ') : t('يحتاج متابعة')}</span>
+                <span class="num" style="font-size:12px;font-weight:700;color:var(--sys-blue)">${item.devicesCount} ${t('جهاز')}</span>
               </div>
             </div>
           `).join('') || `
             <div style="padding:2rem 1rem;text-align:center;color:var(--muted)">
-              <div style="font-size:24px;margin-bottom:6px">🛡️</div>
-              <div>${t('جميع العملاء في وضع صحي ممتاز')}</div>
+              <div style="font-size:24px;margin-bottom:6px">📦</div>
+              <div>${t('سيظهر أبرز العملاء بمجرد تسجيل البرامج والتراخيص')}</div>
             </div>
           `}
         </div>

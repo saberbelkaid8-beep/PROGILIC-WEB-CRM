@@ -246,34 +246,20 @@ export function searchMatch(c, rawQ) {
 
 import { performSearch } from '../business/searchIndex.js';
 
-export function isClientAtRisk(c) {
-  if (!c || typeof c !== 'object') return false;
-  const sc = c.score !== undefined ? Number(c.score) : 100;
-  if (sc < 50 || c.status === 'متوقف') return true;
-
-  // No contact for 30+ days (only flag confirmed active accounts, not uncontacted non-confirmed leads)
-  if (c.lastContact && isConfirmedClientStatus(c.status)) {
-    try {
-      const days = Math.floor((Date.now() - new Date(c.lastContact + 'T00:00').getTime()) / 86400000);
-      if (days >= 30) return true;
-    } catch (e) {}
+export function getClientOpenIssuesCount(c) {
+  if (!c || typeof c !== 'object') return 0;
+  const iss = Array.isArray(c.issues) ? c.issues : [];
+  if (iss.length > 0 || c._subcollectionsLoaded) {
+    return iss.filter(i => i && (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')).length;
   }
-
-  // Open urgent or high priority issues
-  const hasUrgent = (c.issues || []).some(i => 
-    i && (i.priority === 'عاجل' || i.priority === 'عالية') && 
-    (i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد')
-  );
-  if (hasUrgent) return true;
-
-  return false;
+  return Number(c.openIssuesCount) || 0;
 }
 
 export function applyFilters(list) {
   let fil = [...list];
-  if (S.filter !== 'الكل') {
-    if (S.filter === 'خطر') {
-      fil = fil.filter(c => isClientAtRisk(c));
+  if (S.filter !== 'الكل' && S.filter !== 'خطر') {
+    if (S.filter === 'مشاكل مفتوحة') {
+      fil = fil.filter(c => getClientOpenIssuesCount(c) > 0);
     } else if (S.filter === 'بدون برامج') {
       fil = fil.filter(c => getProgramStats(c).total === 0);
     } else if (S.filter === 'مؤكد') {

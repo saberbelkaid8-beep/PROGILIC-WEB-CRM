@@ -1545,7 +1545,25 @@ const extraTranslations = {
   "تحديث ترخيص": ["Mise à jour licence", "License Updated"],
   "تذكرة دعم": ["Ticket support", "Support Ticket"],
   "طلب ميزة": ["Demande fonctionnalité", "Feature Request"],
-  "تحديث عميل": ["Mise à jour client", "Client Updated"]
+  "تحديث عميل": ["Mise à jour client", "Client Updated"],
+  "معدل حل التذاكر": ["Taux de résolution", "Ticket Resolution Rate"],
+  "محلولة من أصل": ["résolus sur", "resolved out of"],
+  "ضمن وقت الاستجابة": ["Dans les délais SLA", "Within SLA"],
+  "متجاوزة لـ SLA": ["hors SLA", "SLA breached"],
+  "أبرز العملاء وتراخيصهم": ["Principaux clients et licences", "Top Clients & Licenses"],
+  "الأكثر أجهزة ونشاطاً وتفاعلاً": ["Plus grand nombre d'appareils et d'engagement", "Most licensed devices & active engagement"],
+  "عرض كافة العملاء المؤكدين في القائمة": ["Afficher tous les clients confirmés dans la liste", "View all confirmed clients in the list"],
+  "بدون تواصل مسجل": ["Aucun contact enregistré", "No contact logged"],
+  "سيظهر أبرز العملاء بمجرد تسجيل البرامج والتراخيص": ["Les principaux clients apparaîtront après l'ajout de licences", "Top clients will appear once licenses are added"],
+  "تتطلب تدخلاً فورياً (تذاكر عاجلة · تجاوز SLA · انقطاع تواصل)": ["Action immédiate requise (tickets urgents · SLA dépassé · absence de contact)", "Immediate attention needed (urgent tickets · SLA breach · no contact)"],
+  "متابعة عاجلة": ["Suivi prioritaire", "Priority Follow-up"],
+  "أولوية متابعة": ["Suivi prioritaire", "Priority Follow-up"],
+  "تحت المتابعة": ["Sous suivi", "Under Follow-up"],
+  "مؤشر المتابعة": ["Indice de suivi", "Follow-up Index"],
+  "مؤشرات المتابعة والتشغيل": ["Indicateurs de suivi et d'exploitation", "Follow-up & Operations Indicators"],
+  "كافة المؤشرات التشغيلية مستقرة": ["Tous les indicateurs opérationnels sont stables", "All operational indicators are stable"],
+  "نسبة حل المشاكل": ["Taux de résolution des tickets", "Issue Resolution Rate"],
+  "تذاكر متجاوزة لوقت الاستجابة (SLA)": ["Tickets hors délai (SLA)", "SLA Breached Tickets"]
 };
 
 Object.assign(extraTranslations, {

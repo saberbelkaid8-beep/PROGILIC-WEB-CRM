@@ -4,7 +4,7 @@ import {
   gc, applyFilters, pBdg, sBdg, srcCls, isBdg, fmtD, rBdg,
   progStatusLabel, progStatusCls, progTypeBdg, getProgramStats,
   selOpts, wOpts, actTypeOpts, getActTypes, esc, avCls, init,
-  searchMatch, countAdvFil, pBorder, cOpts, isClientAtRisk
+  searchMatch, countAdvFil, pBorder, cOpts, getClientOpenIssuesCount
 } from '../utils/index.js';
 import {
   computeScore, computeGlobalStats, generateAutoNote, computeRiskProfile,
@@ -16,8 +16,7 @@ import { getClientCategoryBreakdown } from '../business/programMetrics.js';
 import {
   normalizeClientStatus,
   isConfirmedClientStatus,
-  isUnconfirmedClientStatus,
-  buildClientClassificationPlan
+  isUnconfirmedClientStatus
 } from '../business/clientStatus.js';
 import { t } from '../utils/i18n.js';
 
@@ -127,13 +126,10 @@ export function renderList() {
   const confirmedCount = safeAll.filter(c => isConfirmedClientStatus(c.status)).length;
   const unconfirmedCount = safeAll.filter(c => isUnconfirmedClientStatus(c.status)).length;
   const noProgCount = safeAll.filter(c => getProgramStats(c).total === 0).length;
-  const legacyCount = safeAll.filter(c => c.status !== 'مؤكد' && c.status !== 'غير مؤكد').length;
-  const plan = buildClientClassificationPlan(safeAll, 'balanced');
   const totalProgs = safeAll.reduce((s, c) => s + getProgramStats(c).total, 0);
   const totalInstalls = safeAll.reduce((s, c) => s + getProgramStats(c).totalInstalls, 0);
   const fil = applyFilters(safeAll);
   const cnt = countAdvFil();
-  const canEditClients = hasPermission('clients.edit') || hasPermission('canEditClients');
 
   if (S.isLoading && clients.length === 0) {
     return `
@@ -172,12 +168,6 @@ export function renderList() {
           <p class="sub">${t('إدارة ومتابعة قاعدة العملاء والتراخيص النشطة عبر الولايات')}</p>
         </div>
         <div class="phead-actions">
-          ${canEditClients ? `
-            <button class="btn btn-outline btn-sm" onclick="openClientCleanupModal()" title="${t('تصفية وتصنيف الزبائن')}">
-              ${vIc('sliders', 14)}
-              <span>${t('تصفية وتصنيف الزبائن')}</span>
-            </button>
-          ` : ''}
           ${hasPermission('analytics.view') ? `
             <button class="btn btn-outline btn-sm" onclick="S.gi=true;R()">
               ${vIc('cpu', 14)}
@@ -212,26 +202,6 @@ export function renderList() {
         </div>
       </div>
 
-      ${canEditClients && (plan.changesCount > 0 || legacyCount > 0) ? `
-        <div style="background:rgba(255,159,10,0.09);border:1px solid rgba(255,159,10,0.28);border-radius:var(--r-md);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">
-            <span style="width:32px;height:32px;border-radius:10px;background:rgba(255,159,10,0.16);color:var(--wt);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${vIc('sliders', 16)}</span>
-            <div>
-              <div style="font-size:13px;font-weight:800;color:var(--t1)">
-                ${t('تصنيف تلقائي مقترح')}: <span class="num" style="color:var(--wt)">${plan.changesCount}</span> ${t('عميل بحاجة للتحديث')}
-              </div>
-              <div style="font-size:12px;color:var(--t2);margin-top:2px">
-                ${t('المتوازن (أي برنامج أو تواصل أو سجل = مؤكد)')} · <span class="num">${noProgCount}</span> ${t('بدون برامج')}${legacyCount > 0 ? ` · <span class="num">${legacyCount}</span> ${t('حالات قديمة')}` : ''}
-              </div>
-            </div>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="openClientCleanupModal()">
-            ${vIc('sliders', 14)}
-            <span>${t('تصفية وتصنيف الزبائن')}</span>
-          </button>
-        </div>
-      ` : ''}
-
       <div class="search-row">
         ${hasPermission('search.global') || hasPermission('search.clients') ? `
           <div style="position:relative;flex:1;display:flex;align-items:center">
@@ -263,15 +233,15 @@ export function renderList() {
 
       <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 12px;gap:12px;flex-wrap:wrap">
         <div class="filter-bar" style="margin:0;border:none;padding:0;gap:6px">
-          ${['الكل', 'مؤكد', 'غير مؤكد', 'بدون برامج', 'خطر'].map(s => {
-            const isRisk = s === 'خطر';
-            const rCnt = isRisk ? safeAll.filter(c => isClientAtRisk(c)).length : 0;
+          ${['الكل', 'مؤكد', 'غير مؤكد', 'بدون برامج', 'مشاكل مفتوحة'].map(s => {
+            const isIssues = s === 'مشاكل مفتوحة';
+            const oCnt = isIssues ? safeAll.filter(c => getClientOpenIssuesCount(c) > 0).length : 0;
             const active = S.filter === s;
-            const riskStyle = isRisk
-              ? (active ? 'background:var(--r);color:#fff;border-color:rgba(255,69,58,0.45)' : 'color:var(--rt);border-color:rgba(255,69,58,0.30)')
+            const issuesStyle = isIssues && oCnt > 0 && !active
+              ? 'color:var(--wt);border-color:rgba(255,159,10,0.35)'
               : '';
-            return `<span class="fpill${active ? ' on' : ''}${isRisk ? ' fpill-risk' : ''}" style="${riskStyle}" onclick="setFil('${s}')">
-              ${isRisk ? `${vIc('warn', 13)} <span>${t('في وضع خطر')} (<span class="num">${rCnt}</span>)</span>` : t(s)}
+            return `<span class="fpill${active ? ' on' : ''}" style="${issuesStyle}" onclick="setFil('${s}')">
+              ${isIssues ? `${vIc('warn', 13)} <span>${t('مشاكل مفتوحة')} (<span class="num">${oCnt}</span>)</span>` : t(s)}
             </span>`;
           }).join('')}
         </div>
@@ -318,7 +288,6 @@ export function renderList() {
             const phoneDisplay = hasPermission('clients.view_sensitive') ? (esc(c.phone) || '—') : (c.phone ? '0550•• ••••' : '—');
             const ps = getProgramStats(c);
             const cb = getClientCategoryBreakdown(c);
-            const atRisk = isClientAtRisk(c);
             const catSummaryText = cb.groupedSummary
               .slice(0, 3)
               .map(g => `${g.labelAr} (${g.devices})`)
@@ -331,7 +300,7 @@ export function renderList() {
                     <div class="cc-name">${esc(c.fullName)}</div>
                     <div class="cc-company" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.company) || '—'}</div>
                   </div>
-                  <div class="score-tip num" style="font-size:15px;font-weight:800;color:${scColor};flex-shrink:0" data-tip="${sc.total >= 75 ? t('عميل متميز') : sc.total >= 50 ? t('عميل جيد') : sc.total >= 25 ? t('يحتاج متابعة') : t('خطر عالٍ')}">
+                  <div class="score-tip num" style="font-size:15px;font-weight:800;color:${scColor};flex-shrink:0" data-tip="${sc.total >= 75 ? t('عميل متميز') : sc.total >= 50 ? t('عميل جيد') : sc.total >= 25 ? t('يحتاج متابعة') : t('متابعة عاجلة')}">
                     ${sc.total}
                   </div>
                 </div>
@@ -353,7 +322,6 @@ export function renderList() {
                 </div>
 
                 ${oi > 0 ? `<div class="cc-alert" style="color:${urg > 0 ? 'var(--rt)' : 'var(--wt)'}">${vIc('warn', 12)} <span class="num">${oi}</span> ${t('مشاكل مفتوحة')}${urg > 0 ? ` (${t('عاجل')})` : ''}</div>` : ''}
-                ${atRisk ? `<div class="cc-alert" style="color:var(--rt)">${vIc('shield', 12)} <span>${esc(computeRiskProfile(c).risks[0] || (c.status === 'متوقف' ? t('الحساب متوقف') : (isUnconfirmedClientStatus(c.status) ? t('غير مؤكد') : t('في وضع خطر'))))}</span></div>` : ''}
               </div>
             `;
           }).join('')}
@@ -739,7 +707,7 @@ function renderReport(c) {
 
   const scColor = sc.total >= 75 ? 'var(--g)' : sc.total >= 50 ? 'var(--w)' : sc.total >= 25 ? 'var(--brand)' : 'var(--r)';
   const locale = S.lang === 'fr' ? 'fr-FR' : (S.lang === 'en' ? 'en-US' : 'ar-DZ');
-  const riskLbl = rp.level === 'high' ? t('خطر عالٍ') : rp.level === 'medium' ? t('تحت المراقبة') : t('وضع مستقر');
+  const riskLbl = rp.level === 'high' ? t('أولوية متابعة') : rp.level === 'medium' ? t('تحت المتابعة') : t('وضع مستقر');
   const riskBdgCls = rp.level === 'high' ? 'bdg-r' : rp.level === 'medium' ? 'bdg-y' : 'bdg-g';
 
   const oppLevel = (() => {
@@ -795,7 +763,7 @@ function renderReport(c) {
         <div class="rkpi ${openIss.length > 0 ? 'rr' : 'rg'}"><div class="rkpi-v num">${openIss.length}</div><div class="rkpi-l">مشاكل مفتوحة</div></div>
         <div class="rkpi rb"><div class="rkpi-v num">${ps.total}</div><div class="rkpi-l">برامج · ${ps.totalInstalls} جهاز</div></div>
         <div class="rkpi ro"><div class="rkpi-v num">${hist.length}</div><div class="rkpi-l">سجلات تواصل</div></div>
-        <div class="rkpi ${rp.level === 'high' ? 'rr' : rp.level === 'medium' ? 'ro' : 'rg'}"><div class="rkpi-v" style="font-size:15px">${riskLbl}</div><div class="rkpi-l">مستوى الخطر</div></div>
+        <div class="rkpi ${rp.level === 'high' ? 'rr' : rp.level === 'medium' ? 'ro' : 'rg'}"><div class="rkpi-v" style="font-size:15px">${riskLbl}</div><div class="rkpi-l">${t('مؤشر المتابعة')}</div></div>
         <div class="rkpi"><div class="rkpi-v" style="color:${oppColor};font-size:16px">${oppLevel}</div><div class="rkpi-l">مستوى الفرصة</div></div>
         <div class="rkpi"><div class="rkpi-v num">${c.requirements.length}</div><div class="rkpi-l">متطلبات</div></div>
       </div>
@@ -869,7 +837,7 @@ function renderReport(c) {
         <div class="rep-card">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
             <div class="num" style="font-size:28px;font-weight:800;color:${scColor}">${sc.total}</div>
-            <div style="font-size:12.5px;color:var(--t2)">${sc.total >= 75 ? 'عميل متميز' : sc.total >= 50 ? 'عميل جيد' : sc.total >= 25 ? 'يحتاج متابعة' : 'خطر عالٍ'}</div>
+            <div style="font-size:12.5px;color:var(--t2)">${sc.total >= 75 ? 'عميل متميز' : sc.total >= 50 ? 'عميل جيد' : sc.total >= 25 ? 'يحتاج متابعة' : 'متابعة عاجلة'}</div>
           </div>
           ${sbar('البرامج', sc.prog, 35, 'var(--sys-green)')}
           ${sbar('التواصل', sc.act, 25, 'var(--sys-blue)')}
@@ -879,12 +847,12 @@ function renderReport(c) {
       </div>
 
       <div class="rep-sec">
-        <div class="rep-sec-title">${vIc('shield', 14)} <span>ملف المخاطر</span></div>
+        <div class="rep-sec-title">${vIc('target', 14)} <span>${t('مؤشرات المتابعة والتشغيل')}</span></div>
         <div class="rep-card">
           <div class="rep-risk-badge bdg ${riskBdgCls}">${riskLbl}</div>
           ${rp.risks.length === 0
-            ? `<div style="color:var(--gt)">لا توجد مخاطر مكتشفة</div>`
-            : rp.risks.map(r => `<div class="rep-row"><div class="rep-dot red"></div><div>${esc(r)}</div></div>`).join('')}
+            ? `<div style="color:var(--gt)">${t('كافة المؤشرات التشغيلية مستقرة')}</div>`
+            : rp.risks.map(r => `<div class="rep-row"><div class="rep-dot yellow"></div><div>${esc(r)}</div></div>`).join('')}
         </div>
       </div>
 
@@ -955,11 +923,11 @@ function renderIntelligence(c) {
     </div>
 
     <div class="intel-sec">
-      <div class="intel-sec-title">ملف المخاطر</div>
-      <div class="intel-card" style="${rp.level === 'high' ? 'border-color:rgba(255,69,58,0.35);background:rgba(255,69,58,0.06)' : ''}">
-        <div class="intelc-title">${vIc('shield', 15)} <span class="bdg ${riskBdg(rp.level)}">${riskLabel(rp.level)}</span></div>
+      <div class="intel-sec-title">${t('مؤشرات المتابعة والتشغيل')}</div>
+      <div class="intel-card" style="${rp.level === 'high' ? 'border-color:rgba(255,159,10,0.35);background:rgba(255,159,10,0.06)' : ''}">
+        <div class="intelc-title">${vIc('target', 15)} <span class="bdg ${riskBdg(rp.level)}">${riskLabel(rp.level)}</span></div>
         ${rp.risks.length === 0
-          ? `<div class="risk-empty">لا توجد مخاطر مكتشفة</div>`
+          ? `<div class="risk-empty">${t('كافة المؤشرات التشغيلية مستقرة')}</div>`
           : rp.risks.map(r => `<div class="risk-bar"><span class="risk-icon">${vIc('warn', 14)}</span><span class="risk-text">${esc(r)}</span></div>`).join('')}
       </div>
     </div>
@@ -1032,28 +1000,41 @@ export function renderGlobalIntelligence() {
           <div class="gi-kpi"><div class="gi-kpi-v num" style="color:var(--b)">${gs.totalProgsGlobal}</div><div class="gi-kpi-l">برامج · ${gs.totalInstGlobal} جهاز</div></div>
           <div class="gi-kpi"><div class="gi-kpi-v num" style="color:${gs.openIssues.length > 0 ? 'var(--r)' : 'var(--g)'}">${gs.openIssues.length}</div><div class="gi-kpi-l">مشاكل مفتوحة</div></div>
           <div class="gi-kpi"><div class="gi-kpi-v num" style="color:var(--purple)">${gs.featureOpps.length}</div><div class="gi-kpi-l">فرص ميزات</div></div>
-          <div class="gi-kpi"><div class="gi-kpi-v num" style="color:${gs.highRiskClients.length > 0 ? 'var(--r)' : 'var(--g)'}">${gs.highRiskClients.length}</div><div class="gi-kpi-l">عملاء في خطر</div></div>
+          <div class="gi-kpi"><div class="gi-kpi-v num" style="color:${gs.resolutionRate >= 70 ? 'var(--g)' : 'var(--w)'}">${gs.resolutionRate}%</div><div class="gi-kpi-l">${t('نسبة حل المشاكل')}</div></div>
           <div class="gi-kpi"><div class="gi-kpi-v num">${gs.avgScore}</div><div class="gi-kpi-l">متوسط نقاط العملاء</div></div>
           <div class="gi-kpi"><div class="gi-kpi-v num" style="color:var(--brand)">${alerts.filter(a => a.level === 'urgent').length}</div><div class="gi-kpi-l">تنبيهات عاجلة</div></div>
         </div>
 
-        ${gs.highRiskClients.length > 0 ? `
+        ${gs.slaBreachedIssues.length > 0 ? `
           <div class="gi-sec">
-            <div class="gi-sec-title">عملاء في وضع خطر</div>
-            ${gs.highRiskClients.map(c => {
-              const rp = computeRiskProfile(c);
-              const sc = computeScore(c);
-              return `<div class="gi-card" style="border-color:rgba(255,69,58,0.35);background:rgba(255,69,58,0.06);cursor:pointer" onclick="S.gi=false;selClient(${c.id})">
+            <div class="gi-sec-title">${t('تذاكر متجاوزة لوقت الاستجابة (SLA)')}</div>
+            ${gs.slaBreachedIssues.slice(0, 5).map(iss => `
+              <div class="gi-card" style="border-color:rgba(255,159,10,0.35);background:rgba(255,159,10,0.06);cursor:pointer" onclick="S.gi=false;selClient(${iss.clientId})">
                 <div class="gi-card-title">
-                  ${vIc('warn', 14)}
-                  <span class="bdg bdg-r">خطر عالي</span>
-                  <span>${esc(c.fullName)}</span>
-                  <span class="bdg bdg-gr" style="margin-inline-start:auto">${esc(c.wilaya)}</span>
-                  <span class="num" style="font-size:11.5px;color:var(--t3)">نقاط: ${sc.total}</span>
+                  ${vIc('clock', 14)}
+                  <span class="bdg bdg-y">${esc(iss.priority || 'متوسطة')}</span>
+                  <span>${esc(iss.title)}</span>
+                  <span class="bdg bdg-gr" style="margin-inline-start:auto">${esc(iss.clientName)}</span>
                 </div>
-                <div class="gi-card-body">${rp.risks.map(r => `<div class="gi-item"><span>·</span><span>${esc(r)}</span></div>`).join('')}</div>
-              </div>`;
-            }).join('')}
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        ${gs.topClients && gs.topClients.length > 0 ? `
+          <div class="gi-sec">
+            <div class="gi-sec-title">${t('أبرز العملاء وتراخيصهم')}</div>
+            ${gs.topClients.map(item => `
+              <div class="gi-card" style="cursor:pointer" onclick="S.gi=false;selClient(${item.client.id})">
+                <div class="gi-card-title">
+                  ${vIc('package', 14)}
+                  <span class="bdg bdg-b num">${item.devicesCount} ${t('جهاز')}</span>
+                  <span>${esc(item.client.fullName)}</span>
+                  <span class="bdg bdg-gr" style="margin-inline-start:auto">${esc(item.client.wilaya || '—')}</span>
+                  <span class="num" style="font-size:11.5px;color:var(--t3)">${t('نقاط:')} ${item.score}</span>
+                </div>
+              </div>
+            `).join('')}
           </div>
         ` : ''}
 

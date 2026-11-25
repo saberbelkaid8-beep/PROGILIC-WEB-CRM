@@ -182,4 +182,42 @@ describe('Presentation Layer - Views', () => {
       }
     }
   });
+
+  it('omits at-risk clients UI everywhere and renders ticket resolution and top clients analytics', async () => {
+    const { renderGlobalIntelligence } = await import('../../src/presentation/render-views.js');
+    setClients([
+      {
+        id: 1,
+        fullName: 'Amine Enterprise',
+        company: 'Amine Co',
+        status: 'مؤكد',
+        score: 15,
+        lastContact: '2024-01-01',
+        programs: [{ id: 11, programName: 'Commercial V27', installationsCount: 5 }],
+        issues: [
+          { id: 21, title: 'Printer Bug', priority: 'عاجل', status: 'مفتوح', date: '2026-01-01' },
+          { id: 22, title: 'Sync Fix', priority: 'متوسطة', status: 'محلول', date: '2026-01-02' }
+        ],
+        requirements: [],
+        wilaya: 'الجزائر'
+      }
+    ]);
+
+    const dashHtml = renderDashboard();
+    expect(dashHtml).not.toContain('عملاء في وضع خطر');
+    expect(dashHtml).not.toContain('في وضع خطر');
+    expect(dashHtml).toContain('معدل حل التذاكر');
+    expect(dashHtml).toContain('أبرز العملاء وتراخيصهم');
+
+    const listHtml = renderList();
+    expect(listHtml).not.toContain('في وضع خطر');
+    expect(listHtml).not.toContain('تصنيف تلقائي مقترح');
+    expect(listHtml).toContain('مشاكل مفتوحة');
+
+    const giHtml = renderGlobalIntelligence();
+    expect(giHtml).not.toContain('عملاء في وضع خطر');
+    expect(giHtml).not.toContain('عملاء في خطر');
+    expect(giHtml).toContain('نسبة حل المشاكل');
+    expect(giHtml).toContain('أبرز العملاء وتراخيصهم');
+  });
 });

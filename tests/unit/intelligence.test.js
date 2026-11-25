@@ -103,4 +103,41 @@ describe('Intelligence Module', () => {
       expect(score).toEqual({ total: 85, prog: 0, act: 0, iss: 0, req: 0 });
     });
   });
+
+  it('uses follow-up terminology instead of risk labels and omits HIGH_RISK alerts', async () => {
+    const { setClients } = await import('../../src/state/store.js');
+    expect(scoreLabel(10)).toBe('متابعة عاجلة');
+    expect(riskLabel('high')).toBe('أولوية متابعة');
+    expect(riskLabel('medium')).toBe('تحت المتابعة');
+
+    setClients([
+      {
+        id: 501,
+        fullName: 'Client Urgent',
+        status: 'مؤكد',
+        score: 10,
+        lastContact: '2023-01-01',
+        programs: [{ id: 'p1', programName: 'POS', installationsCount: 4 }],
+        issues: [{ id: 'i1', title: 'Crash', priority: 'عاجل', status: 'مفتوح', date: '2026-01-01' }],
+        requirements: []
+      },
+      {
+        id: 502,
+        fullName: 'Client Solved',
+        status: 'مؤكد',
+        programs: [{ id: 'p2', programName: 'Commercial', installationsCount: 2 }],
+        issues: [{ id: 'i2', title: 'Fixed', priority: 'متوسطة', status: 'محلول', date: '2026-01-01' }],
+        requirements: []
+      }
+    ]);
+
+    const alerts = computeAlerts();
+    expect(alerts.some(a => a.type === 'HIGH_RISK')).toBe(false);
+
+    const gs = computeGlobalStats();
+    expect(gs.resolutionRate).toBe(50);
+    expect(gs.topClients.length).toBe(2);
+    expect(gs.topClients[0].client.id).toBe(501);
+    setClients([]);
+  });
 });

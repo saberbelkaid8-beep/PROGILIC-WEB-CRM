@@ -79,7 +79,7 @@ export function setTab(t) {
   R(); 
 }
 
-export function setFil(f) { S.filter = f; R(); }
+export function setFil(f) { S.filter = f === 'خطر' ? 'الكل' : f; R(); }
 
 export function onQ(q) { S.q = q; R(); }
 
