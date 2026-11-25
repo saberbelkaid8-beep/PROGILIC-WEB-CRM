@@ -5,7 +5,8 @@
 
 import { S, clients, staffUsers, isGerant, hasPermission } from '../state/store.js';
 import { computeScore, computeRiskProfile, computeAlerts } from '../business/intelligence.js';
-import { esc, isClientAtRisk } from '../utils/index.js';
+import { esc, isClientAtRisk, getProgramStats } from '../utils/index.js';
+import { isConfirmedClientStatus, isUnconfirmedClientStatus } from '../business/clientStatus.js';
 import { t } from '../utils/i18n.js';
 import { DEPARTMENTS } from '../business/employeeService.js';
 import { computeFleetDeviceMetrics, filterRecentDashboardActivities } from '../business/programMetrics.js';
@@ -226,9 +227,9 @@ export function renderDashboard() {
     : safeClients.filter(c => c.wilaya === selectedWilaya);
 
   const totalClients = cl.length;
-  const activeClients = cl.filter(c => c.status === 'نشط').length;
-  const prospectiveClients = cl.filter(c => c.status === 'محتمل').length;
-  const stoppedClients = cl.filter(c => c.status === 'متوقف').length;
+  const confirmedClients = cl.filter(c => isConfirmedClientStatus(c.status)).length;
+  const unconfirmedClients = cl.filter(c => isUnconfirmedClientStatus(c.status)).length;
+  const noProgramsClients = cl.filter(c => getProgramStats(c).total === 0).length;
 
   const todayMidnightMs = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate()).getTime();
   const todayStr = toLocalYmd(todayObj);
@@ -292,7 +293,7 @@ export function renderDashboard() {
         client: c,
         score: sc,
         level: rp.level,
-        reasons: rp.risks.length ? rp.risks.join(' · ') : (c.status === 'متوقف' ? 'حالة الحساب متوقف' : 'النقاط دون المتوسط')
+        reasons: rp.risks.length ? rp.risks.join(' · ') : (c.status === 'متوقف' ? 'حالة الحساب متوقف' : (isUnconfirmedClientStatus(c.status) ? 'غير مؤكد' : 'النقاط دون المتوسط'))
       });
     }
   });
@@ -714,7 +715,7 @@ export function renderDashboard() {
   // 2. Client records & subcollections not yet represented in timeline activities this week
   cl.forEach(c => {
     const cidStr = String(c.id);
-    if (c.status === 'محتمل') {
+    if (isUnconfirmedClientStatus(c.status)) {
       const dt = parseLocalDateMs(c.startDate, c.id);
       recordDeptEvent('pre_vente', `client:${cidStr}`, dt);
     }
@@ -743,8 +744,7 @@ export function renderDashboard() {
     activitiesByDept.technique.count;
 
   // Department descriptive subtexts
-  const prospectiveCount = cl.filter(c => c.status === 'محتمل').length;
-  activitiesByDept.pre_vente.subtext = `${prospectiveCount} ${t('عميل محتمل')} · ${activitiesByDept.pre_vente.staffCount} ${t('موظف')}`;
+  activitiesByDept.pre_vente.subtext = `${unconfirmedClients} ${t('غير مؤكد')} · ${activitiesByDept.pre_vente.staffCount} ${t('موظف')}`;
   activitiesByDept.commercial.subtext = `${totalLicensedDevices} ${t('جهاز مرخص')} · ${totalPrograms} ${t('برنامج')}`;
   const totalCalls = fleet.totalCalls;
   activitiesByDept.suivi.subtext = `${totalCalls} ${t('مكالمة وزيارة')} · ${activitiesByDept.suivi.staffCount} ${t('موظف')}`;
@@ -827,7 +827,7 @@ export function renderDashboard() {
           fg: '#2563EB',
           label: t('إجمالي العملاء'),
           value: totalClients,
-          sub: `${activeClients} ${t('نشط')} · ${prospectiveClients} ${t('محتمل')}`,
+          sub: `${confirmedClients} ${t('مؤكد')} · ${unconfirmedClients} ${t('غير مؤكد')}`,
           delta: 'up',
           dgood: true,
           dtxt: `+${newClients30d} ${t('هذا الشهر')}`,
@@ -937,33 +937,37 @@ export function renderDashboard() {
               <h3>${t('حالة العملاء')}</h3>
               <p>${t('حسب حالة الحساب')}</p>
             </div>
+            ${(hasPermission('clients.edit') || hasPermission('canEditClients')) ? `
+              <div class="act" onclick="openClientCleanupModal()" title="${t('تصفية وتصنيف الزبائن')}">
+                ${t('تصفية وتصنيف الزبائن')} ${ic('chevl', 14, 2.6)}
+              </div>
+            ` : ''}
           </div>
           <div style="display:flex;justify-content:center;margin:2px 0 8px">
             ${donut([
-              { v: activeClients, c: '#10B981' },
-              { v: prospectiveClients, c: '#F59E0B' },
-              { v: stoppedClients, c: '#EF4444' }
+              { v: confirmedClients, c: '#10B981' },
+              { v: unconfirmedClients, c: '#F59E0B' }
             ], 176, 66, 22, `
               <div>
-                <div class="num" style="font-family:Inter;font-size:34px;font-weight:800;line-height:1;color:var(--ink)">${totalClients}</div>
-                <div style="font-size:12px;color:var(--muted);font-weight:600">${t('عميل')}</div>
+                <div class="num" style="font-family:Inter;font-size:34px;font-weight:800;line-height:1;color:var(--ink)">${totalClients ? Math.round((confirmedClients / totalClients) * 100) : 0}%</div>
+                <div style="font-size:12px;color:var(--muted);font-weight:600">${t('مؤكد')} · <span class="num">${totalClients}</span></div>
               </div>
             `)}
           </div>
-          <div class="lrow" style="cursor:pointer" onclick="S.filter='نشط';setView('list')" title="${t('عرض العملاء النشطين')}">
-            <i style="background:#10B981"></i>${t('نشط')}
-            <span class="n">${activeClients}</span>
-            <span class="p">${totalClients ? Math.round((activeClients / totalClients) * 100) : 0}%</span>
+          <div class="lrow" style="cursor:pointer" onclick="S.filter='مؤكد';setView('list')" title="${t('مؤكد')}">
+            <i style="background:#10B981"></i>${t('مؤكد')}
+            <span class="n">${confirmedClients}</span>
+            <span class="p">${totalClients ? Math.round((confirmedClients / totalClients) * 100) : 0}%</span>
           </div>
-          <div class="lrow" style="cursor:pointer" onclick="S.filter='محتمل';setView('list')" title="${t('عرض العملاء المحتملين')}">
-            <i style="background:#F59E0B"></i>${t('محتمل')}
-            <span class="n">${prospectiveClients}</span>
-            <span class="p">${totalClients ? Math.round((prospectiveClients / totalClients) * 100) : 0}%</span>
+          <div class="lrow" style="cursor:pointer" onclick="S.filter='غير مؤكد';setView('list')" title="${t('غير مؤكد')}">
+            <i style="background:#F59E0B"></i>${t('غير مؤكد')}
+            <span class="n">${unconfirmedClients}</span>
+            <span class="p">${totalClients ? Math.round((unconfirmedClients / totalClients) * 100) : 0}%</span>
           </div>
-          <div class="lrow" style="cursor:pointer" onclick="S.filter='متوقف';setView('list')" title="${t('عرض العملاء المتوقفين')}">
-            <i style="background:#EF4444"></i>${t('متوقف')}
-            <span class="n">${stoppedClients}</span>
-            <span class="p">${totalClients ? Math.round((stoppedClients / totalClients) * 100) : 0}%</span>
+          <div class="lrow" style="cursor:pointer" onclick="S.filter='بدون برامج';setView('list')" title="${t('بدون برامج')}">
+            <i style="background:#64748B"></i>${t('بدون برامج')}
+            <span class="n">${noProgramsClients}</span>
+            <span class="p">${totalClients ? Math.round((noProgramsClients / totalClients) * 100) : 0}%</span>
           </div>
         </div>
 

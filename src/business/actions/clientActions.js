@@ -1,5 +1,5 @@
-import { closeModal } from "./uiActions.js";
-import { S, clients, setClients, updateState, currentUser, setCurrentUser, currentStaffUser, hasPermission, getActiveTenantId } from '../../state/store.js';
+import { openModal, closeModal } from "./uiActions.js";
+import { S, clients, setClients, updateState, currentUser, setCurrentUser, currentStaffUser, hasPermission, getActiveTenantId, setSyncing, setLastSyncedTime } from '../../state/store.js';
 import { persist, loadClientSubcollectionsIfNeeded, startClientDetailSync, commitOnlineMutation } from '../storage.js';
 import { R } from '../../presentation/render-core.js';
 import { logActivity, ActivityType, getTimeline } from '../timelineService.js';
@@ -14,6 +14,14 @@ import { showConfirm, showPrompt } from '../../utils/confirm.js';
 import { t } from '../../utils/i18n.js';
 import { mergeOrAddClientProgram, adjustClientProgramDevices } from '../programMetrics.js';
 import { buildVersionSyncPlan } from '../versionSync.js';
+import {
+  normalizeClientStatus,
+  isConfirmedClientStatus,
+  isUnconfirmedClientStatus,
+  buildClientClassificationPlan
+} from '../clientStatus.js';
+import { computeStats } from '../mergeDatabase.js';
+import { batchClassifyClientsStatus } from '../../firebase/service.js';
 
 export async function selClient(id) {
   const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
@@ -569,14 +577,16 @@ export async function saveClient(editId) {
   const bf = (gv('f_bf') || '').trim();
   if (!bf) { showToast(t('الرجاء اختيار تخصص النشاط *'), 'error'); return; }
 
-  const st = (gv('f_st') || 'نشط').trim();
-  if (!st) { showToast(t('الرجاء تحديد حالة العميل (نشط / محتمل / متوقف) *'), 'error'); return; }
+  const clientEditId = editId !== null && editId !== 'null' ? editId : null;
+  const rawSt = (gv('f_st') || (clientEditId === null ? 'غير مؤكد' : 'مؤكد')).trim();
+  const st = normalizeClientStatus(rawSt);
+  if (!rawSt) { showToast(t('الرجاء تحديد حالة العميل (مؤكد / غير مؤكد) *'), 'error'); return; }
 
   const lc = (gv('f_lc') || '').trim();
-  if (!lc) { showToast(t('الرجاء تحديد تاريخ آخر تواصل *'), 'error'); return; }
+  if (isConfirmedClientStatus(st) && !lc) { showToast(t('الرجاء تحديد تاريخ آخر تواصل *'), 'error'); return; }
 
   const sd = (gv('f_sd') || '').trim();
-  if (!sd) { showToast(t('الرجاء تحديد تاريخ البدء / التسجيل *'), 'error'); return; }
+  if (isConfirmedClientStatus(st) && !sd) { showToast(t('الرجاء تحديد تاريخ البدء / التسجيل *'), 'error'); return; }
 
   // Optional fields: gmailAccount, location, notes
   const d = {
@@ -596,7 +606,6 @@ export async function saveClient(editId) {
     notes: (gv('f_no') || '').trim()
   };
 
-  const clientEditId = editId !== null && editId !== 'null' ? editId : null;
   if (clientEditId === null && !hasPermission('clients.create') && !hasPermission('canAddClients')) {
     showToast('⚠️ لا تملك صلاحية إضافة عملاء جدد. الصلاحيات محددة من طرف الرئيس (Gérant).', 'error');
     return;
@@ -617,14 +626,23 @@ export async function saveClient(editId) {
       const updatedClient = { ...oldC, ...d, _dirtyLocal: true };
       
       // Update stats
-      if (oldC.status !== d.status) {
-        if (oldC.status === 'نشط') stats.activeClients = Math.max(0, (stats.activeClients || 0) - 1);
-        else if (oldC.status === 'محتمل') stats.prospectiveClients = Math.max(0, (stats.prospectiveClients || 0) - 1);
-        else if (oldC.status === 'متوقف') stats.stoppedClients = Math.max(0, (stats.stoppedClients || 0) - 1);
-        
-        if (d.status === 'نشط') stats.activeClients = (stats.activeClients || 0) + 1;
-        else if (d.status === 'محتمل') stats.prospectiveClients = (stats.prospectiveClients || 0) + 1;
-        else if (d.status === 'متوقف') stats.stoppedClients = (stats.stoppedClients || 0) + 1;
+      if (isConfirmedClientStatus(oldC.status) !== isConfirmedClientStatus(d.status)) {
+        if (isConfirmedClientStatus(oldC.status)) {
+          stats.activeClients = Math.max(0, (stats.activeClients || 0) - 1);
+          stats.confirmedClients = Math.max(0, (stats.confirmedClients || 0) - 1);
+        } else {
+          stats.stoppedClients = Math.max(0, (stats.stoppedClients || 0) - 1);
+          stats.unconfirmedClients = Math.max(0, (stats.unconfirmedClients || 0) - 1);
+        }
+
+        if (isConfirmedClientStatus(d.status)) {
+          stats.activeClients = (stats.activeClients || 0) + 1;
+          stats.confirmedClients = (stats.confirmedClients || 0) + 1;
+        } else {
+          stats.stoppedClients = (stats.stoppedClients || 0) + 1;
+          stats.unconfirmedClients = (stats.unconfirmedClients || 0) + 1;
+        }
+        stats.prospectiveClients = 0;
       }
       
       // Optimistic Update
@@ -694,7 +712,7 @@ export async function saveClient(editId) {
   } else {
     const nextId = Date.now();
     createdClientId = nextId;
-    const startDateVal = d.startDate || (d.status === 'نشط' ? td() : '');
+    const startDateVal = d.startDate || (isConfirmedClientStatus(d.status) ? td() : '');
     const newClient = {
       ...d,
       startDate: startDateVal,
@@ -760,9 +778,14 @@ export async function saveClient(editId) {
 
     // Update stats
     stats.totalClients = (stats.totalClients || 0) + 1;
-    if (d.status === 'نشط') stats.activeClients = (stats.activeClients || 0) + 1;
-    else if (d.status === 'محتمل') stats.prospectiveClients = (stats.prospectiveClients || 0) + 1;
-    else if (d.status === 'متوقف') stats.stoppedClients = (stats.stoppedClients || 0) + 1;
+    if (isConfirmedClientStatus(d.status)) {
+      stats.activeClients = (stats.activeClients || 0) + 1;
+      stats.confirmedClients = (stats.confirmedClients || 0) + 1;
+    } else {
+      stats.stoppedClients = (stats.stoppedClients || 0) + 1;
+      stats.unconfirmedClients = (stats.unconfirmedClients || 0) + 1;
+    }
+    stats.prospectiveClients = 0;
     
     // Optimistic Update
     setClients([...clients, newClient]);
@@ -850,9 +873,14 @@ export async function delClient(id) {
 
   const stats = { ...(S.stats || {}) };
   stats.totalClients = Math.max(0, (stats.totalClients || 0) - 1);
-  if (c.status === 'نشط') stats.activeClients = Math.max(0, (stats.activeClients || 0) - 1);
-  else if (c.status === 'محتمل') stats.prospectiveClients = Math.max(0, (stats.prospectiveClients || 0) - 1);
-  else if (c.status === 'متوقف') stats.stoppedClients = Math.max(0, (stats.stoppedClients || 0) - 1);
+  if (isConfirmedClientStatus(c.status)) {
+    stats.activeClients = Math.max(0, (stats.activeClients || 0) - 1);
+    stats.confirmedClients = Math.max(0, (stats.confirmedClients || 0) - 1);
+  } else if (isUnconfirmedClientStatus(c.status)) {
+    stats.stoppedClients = Math.max(0, (stats.stoppedClients || 0) - 1);
+    stats.unconfirmedClients = Math.max(0, (stats.unconfirmedClients || 0) - 1);
+  }
+  stats.prospectiveClients = 0;
 
   stats.totalPrograms = Math.max(0, (stats.totalPrograms || 0) - (c.programsCount || (c.programs || []).length));
   stats.totalLicensedDevices = Math.max(0, (stats.totalLicensedDevices || 0) - (c.installationsCount || (c.programs || []).reduce((acc, p) => acc + (Number(p.installationsCount) || 1), 0)));
@@ -948,4 +976,159 @@ export async function captureGPS() {
     err => { showToast(t('تعذر تحديد الموقع: ') + err.message + '\n' + t('تأكد من منح الإذن للمتصفح'), 'error'); }
   );
 }
+
+export async function toggleClientConfirmationStatus(clientId) {
+  if (!hasPermission('clients.edit') && !hasPermission('canEditClients')) {
+    showToast('⚠️ لا تملك صلاحية تعديل حالة العملاء.', 'error');
+    return;
+  }
+  const target = clients.find(c => String(c?.id) === String(clientId));
+  if (!target) return;
+
+  const currentConfirmed = isConfirmedClientStatus(target.status);
+  const nextStatus = currentConfirmed ? 'غير مؤكد' : 'مؤكد';
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const prevStats = { ...(S.stats || {}) };
+
+  const updatedClient = {
+    ...target,
+    status: nextStatus,
+    startDate: (!currentConfirmed && !target.startDate) ? td() : (target.startDate || ''),
+    _dirtyLocal: true
+  };
+
+  const nextClients = clients.map(c => (String(c?.id) === String(target.id) ? updatedClient : c));
+  const { stats } = computeStats(nextClients);
+
+  setClients(nextClients);
+  S.stats = stats;
+  R();
+
+  let ack = null;
+  try {
+    ack = await commitOnlineMutation('UPDATE_CLIENT', {
+      clientId: String(target.id),
+      clientData: updatedClient,
+      oldStatus: target.status,
+      stats,
+      baseVersion: Number(target.version || 0)
+    });
+  } catch (err) {
+    if (err?.code !== 'VERSION_CONFLICT') {
+      setClients(prevClients);
+      S.stats = prevStats;
+      R();
+      showToast(t('فشل تحديث حالة العميل في السحابة: ') + (err?.message || ''), 'error');
+    }
+    return;
+  }
+
+  const isQueued = Boolean(ack?.queued);
+  logActivity(
+    target.id,
+    ActivityType.CLIENT_EDITED,
+    `تحديث حالة العميل (${nextStatus})`,
+    `تم تغيير وضعية العميل "${target.fullName}" إلى "${nextStatus}".`,
+    isQueued ? 'local' : 'online-crm',
+    { clientName: target.fullName, prevStatus: target.status, nextStatus }
+  ).catch(console.error);
+
+  showToast(
+    nextStatus === 'مؤكد'
+      ? t('تم تأكيد العميل وحفظ الحالة في السحابة.')
+      : t('تم تحويل العميل إلى غير مؤكد وحفظ الحالة في السحابة.'),
+    isQueued ? 'warning' : 'success'
+  );
+  R();
+}
+
+export function setCleanupMode(mode) {
+  S.cleanupMode = mode === 'strict' ? 'strict' : 'balanced';
+  R();
+}
+
+export async function applyClientStatusCleanup() {
+  if (!hasPermission('clients.edit') && !hasPermission('canEditClients')) {
+    showToast('⚠️ لا تملك صلاحية تعديل حالة العملاء.', 'error');
+    return;
+  }
+  if (S.cleanupIsExecuting) return;
+
+  const mode = S.cleanupMode === 'strict' ? 'strict' : 'balanced';
+  const plan = buildClientClassificationPlan(clients, mode);
+  if (plan.changesCount === 0) {
+    showToast(t('جميع العملاء مصنفون مسبقاً وفق هذه القاعدة ولا توجد تغييرات مطلوبة.'), 'info');
+    closeModal();
+    return;
+  }
+
+  const uid = (auth && auth.currentUser && auth.currentUser.uid) || (currentUser && currentUser.tenantId) || currentUser?.uid || getActiveTenantId();
+  if (!uid) {
+    showToast(t('يجب تسجيل الدخول لتنفيذ التصنيف السحابي.'), 'error');
+    return;
+  }
+  if (!S.isOnline || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+    showToast(t('النظام يعمل حصرياً أونلاين: لا يمكن تنفيذ التصفية بدون اتصال بالإنترنت.'), 'error');
+    return;
+  }
+
+  S.cleanupIsExecuting = true;
+  R();
+
+  const prevClients = clients.map(cl => ({ ...cl }));
+  const prevStats = { ...(S.stats || {}) };
+
+  try {
+    setSyncing(true);
+    await createSnapshotBackup(uid, 'نسخة تلقائية قبل تصفية وتصنيف الزبائن', clients, S.stats, S.nid);
+
+    const changeById = new Map(plan.changes.map(ch => [String(ch.client.id), ch.nextStatus]));
+    const nextClients = clients.map(c => {
+      if (!c) return c;
+      const nextSt = changeById.get(String(c.id));
+      if (!nextSt) return c;
+      return {
+        ...c,
+        status: nextSt,
+        version: Math.max(1, (Number(c.version) || 0) + 1)
+      };
+    });
+
+    const { stats: nextStats } = computeStats(nextClients);
+    const updates = plan.changes.map(ch => ({
+      clientId: ch.client.id,
+      status: ch.nextStatus,
+      baseVersion: Number(ch.client.version || 0),
+      nextVersion: Math.max(1, (Number(ch.client.version) || 0) + 1)
+    }));
+
+    await batchClassifyClientsStatus(uid, updates, nextStats);
+
+    setClients(nextClients);
+    S.stats = nextStats;
+    setLastSyncedTime(new Date());
+
+    logActivity(
+      null,
+      ActivityType.CLIENTS_STATUS_CLASSIFIED,
+      'تصفية وتصنيف الزبائن',
+      `تم تصنيف ${plan.changesCount} عميل (${plan.confirmedCount} مؤكد · ${plan.unconfirmedCount} غير مؤكد) وفق النمط ${mode === 'strict' ? 'الصارم' : 'المتوازن'}.`,
+      'online-crm',
+      { mode, changedCount: plan.changesCount, confirmedCount: plan.confirmedCount, unconfirmedCount: plan.unconfirmedCount }
+    ).catch(console.error);
+
+    showToast(`${t('تم تصنيف وتحديث')} ${plan.changesCount} ${t('عميل بنجاح')} (${plan.confirmedCount} ${t('مؤكد')} · ${plan.unconfirmedCount} ${t('غير مؤكد')})`, 'success');
+    S.cleanupIsExecuting = false;
+    closeModal();
+  } catch (err) {
+    setClients(prevClients);
+    S.stats = prevStats;
+    S.cleanupIsExecuting = false;
+    showToast(t('فشلت عملية تصنيف العملاء: ') + (err?.message || ''), 'error');
+    R();
+  } finally {
+    setSyncing(false);
+  }
+}
+
 

@@ -1855,7 +1855,55 @@ Object.assign(extraTranslations, {
   "تمت مزامنة الإصدار": ["Version synchronisée", "Synchronized version"],
   "الرجاء اختيار البرنامج الذي تم تحديثه *": ["Veuillez choisir le logiciel mis à jour *", "Please select the target software *"],
   "الرجاء اختيار الإصدار الذي تم تحديث العميل إليه *": ["Veuillez choisir la nouvelle version installée *", "Please select the updated software version *"],
-  "لا توجد برامج قابلة لتحديث الإصدار لدى هذا العميل.": ["Aucun logiciel avec gestion de version pour ce client.", "No versionable software found for this client."]
+  "لا توجد برامج قابلة لتحديث الإصدار لدى هذا العميل.": ["Aucun logiciel avec gestion de version pour ce client.", "No versionable software found for this client."],
+
+  // Confirmed / Non-confirmed Client Status & Cleanup Classification
+  "مؤكد": ["Confirmé", "Confirmed"],
+  "غير مؤكد": ["Non confirmé", "Unconfirmed"],
+  "عملاء مؤكدون": ["Clients confirmés", "Confirmed Clients"],
+  "عملاء غير مؤكدين": ["Clients non confirmés", "Unconfirmed Clients"],
+  "عميل مؤكد": ["client confirmé", "confirmed client"],
+  "عميل غير مؤكد": ["client non confirmé", "unconfirmed client"],
+  "بدون برامج": ["Sans logiciels", "No Software"],
+  "تصفية وتصنيف الزبائن": ["Filtrer & classer les clients", "Filter & Classify Clients"],
+  "تصفية وتصنيف": ["Classer les clients", "Classify Clients"],
+  "تأكيد العميل": ["Confirmer le client", "Confirm Client"],
+  "تحويل لغير مؤكد": ["Passer en non confirmé", "Mark Unconfirmed"],
+  "النصيحة التلقائية: المتوازن": ["Recommandé : Équilibré", "Recommended: Balanced"],
+  "الوضع المتوازن": ["Mode équilibré", "Balanced Mode"],
+  "الوضع الصارم": ["Mode strict", "Strict Mode"],
+  "تطبيق التصنيف على قاعدة البيانات": ["Appliquer le classement à la base", "Apply Classification to Database"],
+  "تم تأكيد العميل وحفظ الحالة في السحابة.": ["Client confirmé et enregistré dans le cloud.", "Client confirmed and saved to cloud."],
+  "تم تحويل العميل إلى غير مؤكد وحفظ الحالة في السحابة.": ["Client passé en non confirmé et enregistré.", "Client marked unconfirmed and saved."],
+  "حالة التأكيد (مؤكد / غير مؤكد)": ["Statut de confirmation (Confirmé / Non confirmé)", "Confirmation Status (Confirmed / Unconfirmed)"],
+  "بدون برامج أو تواصل": ["Sans logiciels ni contact", "No software or contact"],
+  "حالات قديمة تحتاج تصفية": ["Anciens statuts à classer", "Legacy statuses to classify"],
+  "سيتم تحديث": ["Seront mis à jour", "Will update"],
+  "عميل بنجاح": ["client(s) avec succès", "client(s) successfully"],
+  "حذف العملاء المتوقفين / غير المؤكدين": ["Supprimer les clients inactifs / non confirmés", "Delete Inactive / Unconfirmed Clients"],
+  "عملاء غير مؤكدين أو متوقفين ولم يتم التواصل معهم منذ مدة": ["Clients non confirmés ou inactifs sans contact récent", "Unconfirmed or inactive clients without recent contact"],
+  "تصنيف تلقائي مقترح": ["Classification automatique suggérée", "Suggested Automatic Classification"],
+  "عميل بحاجة للتحديث": ["client(s) à mettre à jour", "client(s) to update"],
+  "المتوازن (أي برنامج أو تواصل أو سجل = مؤكد)": ["Équilibré (tout logiciel, contact ou suivi = Confirmé)", "Balanced (any software, contact or record = Confirmed)"],
+  "الصارم (يجب توفر برنامج وتواصل أو سجل لتأكيد العميل)": ["Strict (logiciel et contact ou suivi requis pour confirmer)", "Strict (software and contact or record required to confirm)"],
+  "حالات قديمة": ["Anciens statuts", "Legacy statuses"],
+  "تصنيف تلقائي للزبائن بين مؤكد وغير مؤكد مع حفظ نسخة احتياطية قبل التحديث": ["Classement automatique Confirmé / Non confirmé avec sauvegarde préalable", "Automatic Confirmed / Unconfirmed classification with snapshot backup"],
+  "الحالي": ["Actuel", "Current"],
+  "اختر قاعدة التصنيف:": ["Choisissez la règle de classement :", "Choose classification rule:"],
+  "نتيجة المعاينة قبل التطبيق:": ["Aperçu avant application :", "Pre-apply preview:"],
+  "سيتم تعديل": ["À modifier", "Will modify"],
+  "سيتم تحويل إلى مؤكد": ["Passeront en Confirmé", "Will convert to Confirmed"],
+  "سيتم تحويل إلى غير مؤكد": ["Passeront en Non confirmé", "Will convert to Unconfirmed"],
+  "البرامج والتواصل": ["Logiciels & contacts", "Software & contacts"],
+  "سجلات": ["enregistrements", "records"],
+  "الحالة الحالية": ["Statut actuel", "Current status"],
+  "الحالة الجديدة": ["Nouveau statut", "New status"],
+  "عميل آخر مشمول بالتصنيف": ["autre(s) client(s) inclus", "more client(s) included"],
+  "جميع العملاء مصنفون بالفعل وفق القاعدة المختارة.": ["Tous les clients sont déjà classés selon cette règle.", "All clients are already classified under this rule."],
+  "جاري تطبيق التصنيف...": ["Application du classement...", "Applying classification..."],
+  "اختياري لغير المؤكد": ["Optionnel si non confirmé", "Optional if unconfirmed"],
+  "توزيع الحالة": ["Répartition des statuts", "Status distribution"],
+  "تم تصنيف وتحديث": ["Classé et mis à jour", "Classified and updated"]
 });
 
 const locationTranslations = {};
@@ -2208,7 +2256,7 @@ function replaceKnownSourcePhrases(text, lang) {
   for (const [key, arabicKey] of entries) {
     if (!key || !result.includes(key)) continue;
     const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const phrase = new RegExp(`(^|[^A-Za-z0-9])${escapedKey}(?=$|[^A-Za-z0-9])`, 'g');
+    const phrase = new RegExp(`(^|[^\\p{L}\\p{N}])${escapedKey}(?=$|[^\\p{L}\\p{N}])`, 'gu');
     result = result.replace(phrase, (_, prefix) => {
       return prefix + (lang === 'ar' ? arabicKey : targetDictionary[arabicKey] || key);
     });

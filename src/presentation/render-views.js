@@ -13,6 +13,12 @@ import {
 } from '../business/intelligence.js';
 import { ActivityType, getActivityVisuals } from '../business/timelineService.js';
 import { getClientCategoryBreakdown } from '../business/programMetrics.js';
+import {
+  normalizeClientStatus,
+  isConfirmedClientStatus,
+  isUnconfirmedClientStatus,
+  buildClientClassificationPlan
+} from '../business/clientStatus.js';
 import { t } from '../utils/i18n.js';
 
 const VI = {
@@ -93,6 +99,7 @@ function getTimelineEventSvg(type) {
     case ActivityType.STAFF_ADDED:
     case ActivityType.STAFF_EDITED: return { icon: 'shield', tone: 'var(--sys-blue)' };
     case ActivityType.SYSTEM_PURGE: return { icon: 'warn', tone: 'var(--r)' };
+    case ActivityType.CLIENTS_STATUS_CLASSIFIED: return { icon: 'sliders', tone: 'var(--g)' };
     default: return { icon: 'clock', tone: 'var(--sys-blue)' };
   }
 }
@@ -116,13 +123,17 @@ export function renderList() {
     `;
   }
 
-  const ac = clients.filter(c => c.status === 'نشط').length;
-  const pr = clients.filter(c => c.status === 'محتمل').length;
-  const pa = clients.filter(c => c.status === 'متوقف').length;
-  const totalProgs = clients.reduce((s, c) => s + getProgramStats(c).total, 0);
-  const totalInstalls = clients.reduce((s, c) => s + getProgramStats(c).totalInstalls, 0);
-  const fil = applyFilters(clients);
+  const safeAll = (clients || []).filter(Boolean);
+  const confirmedCount = safeAll.filter(c => isConfirmedClientStatus(c.status)).length;
+  const unconfirmedCount = safeAll.filter(c => isUnconfirmedClientStatus(c.status)).length;
+  const noProgCount = safeAll.filter(c => getProgramStats(c).total === 0).length;
+  const legacyCount = safeAll.filter(c => c.status !== 'مؤكد' && c.status !== 'غير مؤكد').length;
+  const plan = buildClientClassificationPlan(safeAll, 'balanced');
+  const totalProgs = safeAll.reduce((s, c) => s + getProgramStats(c).total, 0);
+  const totalInstalls = safeAll.reduce((s, c) => s + getProgramStats(c).totalInstalls, 0);
+  const fil = applyFilters(safeAll);
   const cnt = countAdvFil();
+  const canEditClients = hasPermission('clients.edit') || hasPermission('canEditClients');
 
   if (S.isLoading && clients.length === 0) {
     return `
@@ -161,6 +172,12 @@ export function renderList() {
           <p class="sub">${t('إدارة ومتابعة قاعدة العملاء والتراخيص النشطة عبر الولايات')}</p>
         </div>
         <div class="phead-actions">
+          ${canEditClients ? `
+            <button class="btn btn-outline btn-sm" onclick="openClientCleanupModal()" title="${t('تصفية وتصنيف الزبائن')}">
+              ${vIc('sliders', 14)}
+              <span>${t('تصفية وتصنيف الزبائن')}</span>
+            </button>
+          ` : ''}
           ${hasPermission('analytics.view') ? `
             <button class="btn btn-outline btn-sm" onclick="S.gi=true;R()">
               ${vIc('cpu', 14)}
@@ -177,23 +194,43 @@ export function renderList() {
       </div>
 
       <div class="stats-row">
-        <div class="stat-c sg" style="cursor:pointer" onclick="setFil('نشط')" title="${t('تصفية وتحديد')}">
-          <div class="stat-v num">${ac}</div>
-          <div class="stat-l">${t('نشط')}</div>
+        <div class="stat-c sg" style="cursor:pointer" onclick="setFil('مؤكد')" title="${t('تصفية وتحديد')}">
+          <div class="stat-v num">${confirmedCount}</div>
+          <div class="stat-l">${t('مؤكد')}</div>
         </div>
-        <div class="stat-c sb" style="cursor:pointer" onclick="setFil('محتمل')" title="${t('تصفية وتحديد')}">
-          <div class="stat-v num">${pr}</div>
-          <div class="stat-l">${t('محتمل')}</div>
+        <div class="stat-c so" style="cursor:pointer" onclick="setFil('غير مؤكد')" title="${t('تصفية وتحديد')}">
+          <div class="stat-v num">${unconfirmedCount}</div>
+          <div class="stat-l">${t('غير مؤكد')}</div>
         </div>
-        <div class="stat-c so" style="cursor:pointer" onclick="setFil('متوقف')" title="${t('تصفية وتحديد')}">
-          <div class="stat-v num">${pa}</div>
-          <div class="stat-l">${t('متوقف')}</div>
+        <div class="stat-c sb" style="cursor:pointer" onclick="setFil('بدون برامج')" title="${t('عرض العملاء بدون برامج')}">
+          <div class="stat-v num">${noProgCount}</div>
+          <div class="stat-l">${t('بدون برامج')}</div>
         </div>
         <div class="stat-c" style="cursor:pointer" onclick="setFil('الكل')" title="${t('جميع العملاء')}">
           <div class="stat-v num" style="color:var(--b)">${totalProgs}</div>
           <div class="stat-l">${t('برامج')} · <span class="num">${totalInstalls}</span> ${t('جهاز')}</div>
         </div>
       </div>
+
+      ${canEditClients && (plan.changesCount > 0 || legacyCount > 0) ? `
+        <div style="background:rgba(255,159,10,0.09);border:1px solid rgba(255,159,10,0.28);border-radius:var(--r-md);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">
+            <span style="width:32px;height:32px;border-radius:10px;background:rgba(255,159,10,0.16);color:var(--wt);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${vIc('sliders', 16)}</span>
+            <div>
+              <div style="font-size:13px;font-weight:800;color:var(--t1)">
+                ${t('تصنيف تلقائي مقترح')}: <span class="num" style="color:var(--wt)">${plan.changesCount}</span> ${t('عميل بحاجة للتحديث')}
+              </div>
+              <div style="font-size:12px;color:var(--t2);margin-top:2px">
+                ${t('المتوازن (أي برنامج أو تواصل أو سجل = مؤكد)')} · <span class="num">${noProgCount}</span> ${t('بدون برامج')}${legacyCount > 0 ? ` · <span class="num">${legacyCount}</span> ${t('حالات قديمة')}` : ''}
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openClientCleanupModal()">
+            ${vIc('sliders', 14)}
+            <span>${t('تصفية وتصنيف الزبائن')}</span>
+          </button>
+        </div>
+      ` : ''}
 
       <div class="search-row">
         ${hasPermission('search.global') || hasPermission('search.clients') ? `
@@ -226,9 +263,9 @@ export function renderList() {
 
       <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 12px;gap:12px;flex-wrap:wrap">
         <div class="filter-bar" style="margin:0;border:none;padding:0;gap:6px">
-          ${['الكل', 'نشط', 'محتمل', 'متوقف', 'خطر'].map(s => {
+          ${['الكل', 'مؤكد', 'غير مؤكد', 'بدون برامج', 'خطر'].map(s => {
             const isRisk = s === 'خطر';
-            const rCnt = isRisk ? clients.filter(c => isClientAtRisk(c)).length : 0;
+            const rCnt = isRisk ? safeAll.filter(c => isClientAtRisk(c)).length : 0;
             const active = S.filter === s;
             const riskStyle = isRisk
               ? (active ? 'background:var(--r);color:#fff;border-color:rgba(255,69,58,0.45)' : 'color:var(--rt);border-color:rgba(255,69,58,0.30)')
@@ -316,7 +353,7 @@ export function renderList() {
                 </div>
 
                 ${oi > 0 ? `<div class="cc-alert" style="color:${urg > 0 ? 'var(--rt)' : 'var(--wt)'}">${vIc('warn', 12)} <span class="num">${oi}</span> ${t('مشاكل مفتوحة')}${urg > 0 ? ` (${t('عاجل')})` : ''}</div>` : ''}
-                ${atRisk ? `<div class="cc-alert" style="color:var(--rt)">${vIc('shield', 12)} <span>${esc(computeRiskProfile(c).risks[0] || (c.status === 'متوقف' ? t('الحساب متوقف') : t('في وضع خطر')))}</span></div>` : ''}
+                ${atRisk ? `<div class="cc-alert" style="color:var(--rt)">${vIc('shield', 12)} <span>${esc(computeRiskProfile(c).risks[0] || (c.status === 'متوقف' ? t('الحساب متوقف') : (isUnconfirmedClientStatus(c.status) ? t('غير مؤكد') : t('في وضع خطر'))))}</span></div>` : ''}
               </div>
             `;
           }).join('')}
@@ -376,7 +413,13 @@ export function renderDetail() {
           </div>
           <div class="ch-acts">
             ${sBdg(c.status)}
-            ${hasPermission('clients.edit') ? `<button class="btn btn-outline btn-sm" onclick="openModal('editClient')">${vIc('edit', 14)} <span>${t('تعديل')}</span></button>` : ''}
+            ${(hasPermission('clients.edit') || hasPermission('canEditClients')) ? `
+              <button class="btn ${isConfirmedClientStatus(c.status) ? 'btn-outline' : 'btn-success-soft'} btn-sm" onclick="toggleClientConfirmationStatus(${c.id})">
+                ${vIc(isConfirmedClientStatus(c.status) ? 'x' : 'check', 14)}
+                <span>${isConfirmedClientStatus(c.status) ? t('تحويل لغير مؤكد') : t('تأكيد العميل')}</span>
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openModal('editClient')">${vIc('edit', 14)} <span>${t('تعديل')}</span></button>
+            ` : ''}
           </div>
         </div>
         <div class="ch-meta">
@@ -704,7 +747,7 @@ function renderReport(c) {
     if (hiReqs.length >= 2) score += 3;
     if (featureOp.length >= 2) score += 2;
     if (last30ct >= 3) score += 2;
-    if (c.status === 'محتمل') score += 2;
+    if (isUnconfirmedClientStatus(c.status)) score += 2;
     if (ps.total >= 2) score += 1;
     return score >= 6 ? 'عالية' : score >= 3 ? 'متوسطة' : 'منخفضة';
   })();
@@ -712,10 +755,10 @@ function renderReport(c) {
 
   const actions = [];
   if (urgIss.length > 0) actions.push({ icon: 'warn', text: `حل ${urgIss.length} مشكلة عاجلة مفتوحة فوراً`, cls: 'urgent' });
-  if (daysSince !== null && daysSince > 45 && c.status === 'نشط') actions.push({ icon: 'phone', text: `جدولة مكالمة متابعة — لا تواصل منذ ${daysSince} يوم`, cls: '' });
+  if (daysSince !== null && daysSince > 45 && isConfirmedClientStatus(c.status)) actions.push({ icon: 'phone', text: `جدولة مكالمة متابعة — لا تواصل منذ ${daysSince} يوم`, cls: '' });
   if (repeated.length >= 2) actions.push({ icon: 'wrench', text: `جلسة تقنية لحل ${repeated.length} مشاكل متكررة جذرياً`, cls: '' });
   if (hiReqs.length > 0) actions.push({ icon: 'bulb', text: `مراجعة ${hiReqs.length} طلب ذو تأثير عالٍ مع فريق المنتج`, cls: '' });
-  if (c.status === 'محتمل' && hist.length < 3) actions.push({ icon: 'users', text: 'تكثيف جهود الإقناع وتقديم عرض مخصص لإغلاق الصفقة', cls: '' });
+  if (isUnconfirmedClientStatus(c.status) && hist.length < 3) actions.push({ icon: 'users', text: 'التواصل مع العميل لتأكيد احتياجاته وتفعيل أول برنامج', cls: '' });
   if (actions.length === 0) actions.push({ icon: 'check', text: 'الوضع مستقر — استمر في المتابعة الدورية', cls: 'ok' });
 
   const sbar = (lbl, val, max, col) => `
@@ -762,7 +805,7 @@ function renderReport(c) {
         <div class="rep-card">
           <div class="rep-row"><div class="rep-dot"></div><div><strong>النشاط:</strong> ${esc(c.businessType) || 'غير محدد'}${c.businessField ? ' — ' + esc(c.businessField) : ''}</div></div>
           <div class="rep-row"><div class="rep-dot"></div><div><strong>الموقع:</strong> ${esc(c.wilaya) || '—'}${c.location ? '، ' + esc(c.location) : ''}</div></div>
-          <div class="rep-row"><div class="rep-dot"></div><div><strong>الحالة:</strong> ${esc(c.status)} — ${c.status === 'نشط' ? 'علاقة نشطة' : 'يحتاج متابعة'}</div></div>
+          <div class="rep-row"><div class="rep-dot"></div><div><strong>الحالة:</strong> ${esc(t(normalizeClientStatus(c.status)))} — ${isConfirmedClientStatus(c.status) ? 'عميل مؤكد ببرامج أو تواصل' : 'عميل غير مؤكد — بانتظار التواصل والتأكيد'}</div></div>
           <div class="rep-row"><div class="rep-dot"></div><div><strong>تاريخ الاشتراك:</strong> <span class="num">${fmtD(c.startDate) || '—'}</span> · ترخيص مدى الحياة</div></div>
           ${c.notes ? `<div class="rep-row"><div class="rep-dot"></div><div><strong>ملاحظات:</strong> ${esc(c.notes)}</div></div>` : ''}
         </div>
@@ -851,7 +894,7 @@ function renderReport(c) {
           <div class="rep-row"><div class="rep-dot ${oppLevel === 'عالية' ? 'green' : oppLevel === 'متوسطة' ? 'yellow' : ''}"></div><div><strong>مستوى الفرصة:</strong> <span style="color:${oppColor};font-weight:700">${oppLevel}</span></div></div>
           ${hiReqs.length > 0 ? `<div class="rep-row"><div class="rep-dot green"></div><div>${hiReqs.length} طلب ذو تأثير عالٍ — فرصة لتوسيع التراخيص</div></div>` : ''}
           ${featureOp.length > 0 ? `<div class="rep-row"><div class="rep-dot green"></div><div>${featureOp.length} مشكلة قابلة للتحويل لميزة — قيمة منتج مضافة</div></div>` : ''}
-          ${c.status === 'محتمل' ? `<div class="rep-row"><div class="rep-dot yellow"></div><div>عميل محتمل — قيد المتابعة لإغلاق الصفقة</div></div>` : ''}
+          ${isUnconfirmedClientStatus(c.status) ? `<div class="rep-row"><div class="rep-dot yellow"></div><div>عميل غير مؤكد — قيد المتابعة والتواصل للتأكيد</div></div>` : ''}
           ${ps.total >= 2 ? `<div class="rep-row"><div class="rep-dot green"></div><div>يستخدم ${ps.total} برامج — ارتباط قوي بالمنصة</div></div>` : ''}
         </div>
       </div>

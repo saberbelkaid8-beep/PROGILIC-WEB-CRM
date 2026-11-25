@@ -54,7 +54,11 @@ let internalState = {
   timelineDateTo: '',
   timelineCategoryFilter: 'all',
   timelineSearch: '',
+  cleanupMode: 'balanced',
+  cleanupIsExecuting: false,
   stats: {
+    confirmedClients: 0,
+    unconfirmedClients: 0,
     activeClients: 0,
     prospectiveClients: 0,
     stoppedClients: 0,
@@ -331,7 +335,11 @@ export function resetTenantSessionState() {
     clientsFromCache: false,
     hasPendingLocalWrites: false,
     pendingSyncCount: 0,
+    cleanupMode: 'balanced',
+    cleanupIsExecuting: false,
     stats: {
+      confirmedClients: 0,
+      unconfirmedClients: 0,
       activeClients: 0,
       prospectiveClients: 0,
       stoppedClients: 0,

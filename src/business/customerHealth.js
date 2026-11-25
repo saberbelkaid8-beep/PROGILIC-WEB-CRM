@@ -1,5 +1,6 @@
 import { ISSUE_SLA_HOURS } from '../constants/index.js';
 import { getClientCategoryBreakdown } from './programMetrics.js';
+import { isConfirmedClientStatus } from './clientStatus.js';
 
 const DAY_MS = 86400000;
 
@@ -109,7 +110,7 @@ export function computeCustomerDimensions(client, options = {}) {
   const deviceValuePts = Math.min(40, Math.round((totalDevices / maxRefDevices) * 32) + Math.min(8, totalPrograms * 4));
   const contractValuePts = supportStatus === 'ساري' ? 25 : supportStatus === 'قيد التجديد' ? 18 : totalPrograms > 0 ? 10 : 0;
   const dealsValuePts = Math.min(25, openDealsCount * 10 + (openDealsValue >= 100000 ? 15 : openDealsValue > 0 ? 8 : 0));
-  const tierStatusPts = client.status === 'نشط' ? 10 : client.status === 'محتمل' ? 6 : 2;
+  const tierStatusPts = isConfirmedClientStatus(client.status) ? 10 : 4;
   const customerValue = Math.min(100, Math.max(0, deviceValuePts + contractValuePts + dealsValuePts + tierStatusPts));
 
   // ---------------------------------------------------
@@ -195,14 +196,14 @@ export function computeCustomerDimensions(client, options = {}) {
     riskPts += avgSatisfaction <= 2.2 ? 25 : 14;
     riskReasons.push(`تقييم رضا منخفض (${avgSatisfaction} / 5)`);
   }
-  if (daysSinceContact !== null && daysSinceContact >= 30 && client.status === 'نشط') {
+  if (daysSinceContact !== null && daysSinceContact >= 30 && isConfirmedClientStatus(client.status)) {
     riskPts += daysSinceContact >= 60 ? 20 : 10;
     riskReasons.push(`لا يوجد تواصل منذ ${daysSinceContact} يوم`);
-  } else if (!client.lastContact && client.status === 'نشط') {
+  } else if (!client.lastContact && isConfirmedClientStatus(client.status)) {
     riskPts += 10;
     riskReasons.push('لم يُسجل تاريخ آخر تواصل');
   }
-  if (daysSinceUsage !== null && daysSinceUsage >= 30 && client.status === 'نشط') {
+  if (daysSinceUsage !== null && daysSinceUsage >= 30 && isConfirmedClientStatus(client.status)) {
     riskPts += daysSinceUsage >= 60 ? 20 : 12;
     riskReasons.push(`تراجع أو انقطاع في استعمال البرنامج منذ ${daysSinceUsage} يوم`);
   }

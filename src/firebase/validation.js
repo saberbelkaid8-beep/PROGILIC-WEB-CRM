@@ -1,3 +1,5 @@
+import { normalizeClientStatus } from '../business/clientStatus.js';
+
 export function validateClient(c) {
   const data = { ...c };
   const validBT = [
@@ -96,7 +98,7 @@ export function validateClient(c) {
     location: (data.location || '').substring(0, 100),
     businessType: validBT.includes(data.businessType) ? data.businessType : (data.businessType ? String(data.businessType).substring(0, 50) : 'أخرى'),
     businessField: (data.businessField || '').substring(0, 50),
-    status: ["نشط", "محتمل", "متوقف"].includes(data.status) ? data.status : "نشط",
+    status: normalizeClientStatus(data.status),
     startDate: (data.startDate || '').substring(0, 20),
     endDate: (data.endDate || '').substring(0, 20),
     lastContact: (data.lastContact || '').substring(0, 20),

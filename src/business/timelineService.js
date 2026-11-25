@@ -121,6 +121,7 @@ export const ActivityType = {
   CLIENT_CREATED: 'CLIENT_CREATED',
   CLIENT_EDITED: 'CLIENT_EDITED',
   CLIENT_DELETED: 'CLIENT_DELETED',
+  CLIENTS_STATUS_CLASSIFIED: 'CLIENTS_STATUS_CLASSIFIED',
   GPS_CAPTURED: 'GPS_CAPTURED',
 
   // Software & Licenses
@@ -172,6 +173,8 @@ export function getActivityVisuals(type) {
       return { icon: '📝', label: 'تعديل بيانات العميل', category: 'clients', colorClass: 'bg-blue-500/10 text-blue-500 border-blue-500/20' };
     case ActivityType.CLIENT_DELETED:
       return { icon: '🗑️', label: 'حذف العميل', category: 'clients', colorClass: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
+    case ActivityType.CLIENTS_STATUS_CLASSIFIED:
+      return { icon: '🧹', label: 'تصفية وتصنيف الزبائن', category: 'clients', colorClass: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
     case ActivityType.GPS_CAPTURED:
       return { icon: '📍', label: 'تحديد الموقع الجغرافي', category: 'clients', colorClass: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' };
 

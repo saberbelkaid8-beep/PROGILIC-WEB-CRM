@@ -17,6 +17,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from './config.js';
+import { isConfirmedClientStatus, isUnconfirmedClientStatus, normalizeClientStatus } from '../business/clientStatus.js';
 
 export const OperationType = {
   CREATE: 'create',
@@ -395,9 +396,13 @@ export async function addClientTransaction(userId, clientData, globalStats) {
       const nextStats = { ...baseStats };
       if (!callerAlreadyCounted) {
         nextStats.totalClients = (nextStats.totalClients || 0) + 1;
-        if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
-        else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
-        else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+        if (isConfirmedClientStatus(clientData.status)) {
+          nextStats.activeClients = (nextStats.activeClients || 0) + 1;
+          nextStats.confirmedClients = (nextStats.confirmedClients || 0) + 1;
+        } else {
+          nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+          nextStats.unconfirmedClients = (nextStats.unconfirmedClients || 0) + 1;
+        }
         if (programsCount > 0) {
           nextStats.totalPrograms = (nextStats.totalPrograms || 0) + programsCount;
           nextStats.totalLicensedDevices = (nextStats.totalLicensedDevices || 0) + installationsCount;
@@ -570,17 +575,25 @@ export async function updateClientTransaction(userId, clientId, clientData, oldS
         updatedAt: nowIso
       });
 
-      if (clientData.status && serverOldStatus !== clientData.status) {
+      if (clientData.status && normalizeClientStatus(serverOldStatus) !== normalizeClientStatus(clientData.status)) {
         const serverStats = userSnap && userSnap.exists && userSnap.exists() ? (userSnap.data()?.stats || null) : null;
         const nextStats = { ...(serverStats || globalStats || {}) };
 
-        if (serverOldStatus === 'نشط') nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
-        else if (serverOldStatus === 'محتمل') nextStats.prospectiveClients = Math.max(0, (nextStats.prospectiveClients || 0) - 1);
-        else if (serverOldStatus === 'متوقف') nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
+        if (isConfirmedClientStatus(serverOldStatus)) {
+          nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
+          nextStats.confirmedClients = Math.max(0, (nextStats.confirmedClients || 0) - 1);
+        } else {
+          nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
+          nextStats.unconfirmedClients = Math.max(0, (nextStats.unconfirmedClients || 0) - 1);
+        }
 
-        if (clientData.status === 'نشط') nextStats.activeClients = (nextStats.activeClients || 0) + 1;
-        else if (clientData.status === 'محتمل') nextStats.prospectiveClients = (nextStats.prospectiveClients || 0) + 1;
-        else if (clientData.status === 'متوقف') nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+        if (isConfirmedClientStatus(clientData.status)) {
+          nextStats.activeClients = (nextStats.activeClients || 0) + 1;
+          nextStats.confirmedClients = (nextStats.confirmedClients || 0) + 1;
+        } else {
+          nextStats.stoppedClients = (nextStats.stoppedClients || 0) + 1;
+          nextStats.unconfirmedClients = (nextStats.unconfirmedClients || 0) + 1;
+        }
 
         tx.set(userRef, {
           stats: nextStats,
@@ -636,9 +649,13 @@ export async function deleteClientTransaction(userId, clientId, clientData, glob
       if (serverStats || globalStats) {
         const nextStats = { ...(serverStats || globalStats || {}) };
         nextStats.totalClients = Math.max(0, (nextStats.totalClients || 0) - 1);
-        if (serverClient.status === 'نشط') nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
-        else if (serverClient.status === 'محتمل') nextStats.prospectiveClients = Math.max(0, (nextStats.prospectiveClients || 0) - 1);
-        else if (serverClient.status === 'متوقف') nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
+        if (isConfirmedClientStatus(serverClient.status)) {
+          nextStats.activeClients = Math.max(0, (nextStats.activeClients || 0) - 1);
+          nextStats.confirmedClients = Math.max(0, (nextStats.confirmedClients || 0) - 1);
+        } else if (isUnconfirmedClientStatus(serverClient.status)) {
+          nextStats.stoppedClients = Math.max(0, (nextStats.stoppedClients || 0) - 1);
+          nextStats.unconfirmedClients = Math.max(0, (nextStats.unconfirmedClients || 0) - 1);
+        }
 
         nextStats.totalPrograms = Math.max(0, (nextStats.totalPrograms || 0) - (serverClient.programsCount || 0));
         nextStats.totalLicensedDevices = Math.max(0, (nextStats.totalLicensedDevices || 0) - (serverClient.installationsCount || 0));
@@ -1316,5 +1333,45 @@ export function subscribeTasksForTenant(tenantId, onUpdate, onError) {
   } catch (err) {
     if (typeof onError === 'function') onError(err);
     return () => {};
+  }
+}
+
+export async function batchClassifyClientsStatus(userId, updates = [], nextGlobalStats = null) {
+  assertOnlineForWrite();
+  const safeUid = sanitizeUserId(userId);
+  if (!safeUid) throw new Error('معرف المستخدم غير صالح.');
+  const safeUpdates = Array.isArray(updates) ? updates.filter(u => u && u.clientId !== undefined && u.status) : [];
+  const nowIso = new Date().toISOString();
+
+  const CHUNK_SIZE = 420;
+  try {
+    for (let i = 0; i < safeUpdates.length; i += CHUNK_SIZE) {
+      const chunk = safeUpdates.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const item of chunk) {
+        const clientRef = doc(db, `users/${safeUid}/clients/${String(item.clientId)}`);
+        batch.update(clientRef, {
+          status: normalizeClientStatus(item.status),
+          version: Math.max(1, Number(item.nextVersion) || (Number(item.baseVersion) || 0) + 1),
+          updatedAt: nowIso
+        });
+      }
+      if (i + CHUNK_SIZE >= safeUpdates.length && nextGlobalStats) {
+        const userRef = doc(db, `users/${safeUid}`);
+        batch.set(userRef, {
+          stats: nextGlobalStats,
+          updatedAt: nowIso
+        }, { merge: true });
+      }
+      await batch.commit();
+    }
+
+    if (safeUpdates.length === 0 && nextGlobalStats) {
+      const userRef = doc(db, `users/${safeUid}`);
+      await setDoc(userRef, { stats: nextGlobalStats, updatedAt: nowIso }, { merge: true });
+    }
+    return { updatedCount: safeUpdates.length, updatedAt: nowIso };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `users/${safeUid}/clients`, { rethrow: true });
   }
 }

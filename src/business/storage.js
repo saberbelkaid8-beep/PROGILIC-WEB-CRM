@@ -60,6 +60,12 @@ import {
 } from './syncQueueUtils.js';
 
 import { createSnapshotBackup, checkAndTriggerPeriodicBackup } from './backupService.js';
+import {
+  normalizeClientStatus,
+  isConfirmedClientStatus,
+  isUnconfirmedClientStatus,
+  classifyClientConfirmation
+} from './clientStatus.js';
 
 const SCHEMA_VERSION = 3;
 
@@ -112,7 +118,7 @@ export function migrateSchema(d) {
     if (!c.wilaya) c.wilaya = '';
     if (!c.commune) c.commune = '';
     if (!c.location) c.location = '';
-    if (!c.status) c.status = 'نشط';
+    const hadExplicitStatus = Boolean(c.status && String(c.status).trim());
     if (!c.startDate) c.startDate = '';
     if (!c.endDate) c.endDate = '';
     if (!c.lastContact) c.lastContact = '';
@@ -151,6 +157,10 @@ export function migrateSchema(d) {
       });
     }
     delete c.product; delete c.contractType;
+
+    if (!hadExplicitStatus) {
+      c.status = classifyClientConfirmation(c, 'balanced');
+    }
 
     c.issues = c.issues.map(i => {
       if (i.confidence === undefined) i.confidence = 50;
@@ -225,7 +235,7 @@ export function sanitizeClient(c) {
     location: c.location || '',
     businessType: c.businessType || '',
     businessField: c.businessField || '',
-    status: c.status || 'نشط',
+    status: normalizeClientStatus(c.status),
     startDate: c.startDate || '',
     endDate: c.endDate || '',
     lastContact: c.lastContact || '',
@@ -1616,9 +1626,8 @@ export function exportToCSV(){
     return;
   }
   try{
-    const ac=clients.filter(c=>c.status==='نشط').length;
-    const pr=clients.filter(c=>c.status==='محتمل').length;
-    const pa=clients.filter(c=>c.status==='متوقف').length;
+    const confirmedCount=clients.filter(c=>isConfirmedClientStatus(c.status)).length;
+    const unconfirmedCount=clients.filter(c=>isUnconfirmedClientStatus(c.status)).length;
     const totalProgs=clients.reduce((s,c)=>s+(c.programs||[]).length,0);
     const totalInst=clients.reduce((s,c)=>s+(c.programs||[]).reduce((a,p)=>a+(Number(p.installationsCount)||1),0),0);
     const avgScore=clients.length?Math.round(clients.reduce((s,c)=>s+computeScore(c).total,0)/clients.length):0;
@@ -1628,9 +1637,8 @@ export function exportToCSV(){
     const generalStatsTitle = S.lang === 'fr' ? 'Statistiques Générales' : (S.lang === 'en' ? 'General Statistics' : 'إحصائيات عامة');
     const exportDateTitle = S.lang === 'fr' ? 'Date d\'exportation' : (S.lang === 'en' ? 'Export Date' : 'تاريخ التصدير');
     const totalClientsTitle = S.lang === 'fr' ? 'Total Clients' : (S.lang === 'en' ? 'Total Clients' : 'إجمالي العملاء');
-    const activeClientsTitle = S.lang === 'fr' ? 'Clients Actifs' : (S.lang === 'en' ? 'Active Clients' : 'عملاء نشطون');
-    const prospectClientsTitle = S.lang === 'fr' ? 'Clients Prospects' : (S.lang === 'en' ? 'Prospect Clients' : 'عملاء محتملون');
-    const inactiveClientsTitle = S.lang === 'fr' ? 'Clients Inactifs' : (S.lang === 'en' ? 'Inactive Clients' : 'عملاء متوقفون');
+    const confirmedClientsTitle = S.lang === 'fr' ? 'Clients Confirmés' : (S.lang === 'en' ? 'Confirmed Clients' : 'عملاء مؤكدون');
+    const unconfirmedClientsTitle = S.lang === 'fr' ? 'Clients Non confirmés' : (S.lang === 'en' ? 'Unconfirmed Clients' : 'عملاء غير مؤكدين');
     const totalProgramsTitle = S.lang === 'fr' ? 'Total Logiciels' : (S.lang === 'en' ? 'Total Software' : 'إجمالي البرامج');
     const totalDevicesTitle = S.lang === 'fr' ? 'Total Appareils Licenciés' : (S.lang === 'en' ? 'Total Licensed Devices' : 'إجمالي الأجهزة المرخصة');
     const avgScoreTitle = S.lang === 'fr' ? 'Score Moyen des Clients' : (S.lang === 'en' ? 'Average Client Score' : 'متوسط نقاط العملاء');
@@ -1639,9 +1647,8 @@ export function exportToCSV(){
     csvContent+=`"${generalStatsTitle}","PROGILIC CRM v3"\n`;
     csvContent+=`"${exportDateTitle}","${td()}"\n`;
     csvContent+=`"${totalClientsTitle}","${clients.length}"\n`;
-    csvContent+=`"${activeClientsTitle}","${ac}"\n`;
-    csvContent+=`"${prospectClientsTitle}","${pr}"\n`;
-    csvContent+=`"${inactiveClientsTitle}","${pa}"\n`;
+    csvContent+=`"${confirmedClientsTitle}","${confirmedCount}"\n`;
+    csvContent+=`"${unconfirmedClientsTitle}","${unconfirmedCount}"\n`;
     csvContent+=`"${totalProgramsTitle}","${totalProgs}"\n`;
     csvContent+=`"${totalDevicesTitle}","${totalInst}"\n`;
     csvContent+=`"${avgScoreTitle}","${avgScore}"\n`;
@@ -2064,6 +2071,8 @@ export async function clearAllData(){
     setSyncing(true);
 
     const stats = {
+      confirmedClients: 0,
+      unconfirmedClients: 0,
       activeClients: 0,
       prospectiveClients: 0,
       stoppedClients: 0,

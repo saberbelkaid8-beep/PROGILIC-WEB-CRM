@@ -1,6 +1,7 @@
 import { clients } from '../state/store.js';
 import { getProgramStats } from '../utils/index.js';
 import { computeCustomerDimensions, evaluateIssueSla } from './customerHealth.js';
+import { isConfirmedClientStatus, isUnconfirmedClientStatus, inspectClientSignals } from './clientStatus.js';
 
 export { computeCustomerDimensions, evaluateIssueSla };
 
@@ -175,7 +176,8 @@ export function computeGlobalStats(){
 export function computeAlerts(){
   const alerts=[];const now=Date.now();const DAY=86400000;
   (Array.isArray(clients)?clients:[]).filter(c=>c&&typeof c==='object').forEach(c=>{
-    if(c.status==='نشط'&&c.lastContact){
+    const confirmed = isConfirmedClientStatus(c.status);
+    if(confirmed&&c.lastContact){
       const ds=Math.floor((now-new Date(c.lastContact+'T00:00').getTime())/DAY);
       if(ds>=60)alerts.push({type:'NO_CONTACT',cid:c.id,
         msg:`لم يتم التواصل مع ${c.fullName} منذ ${ds} يوم`,
@@ -198,7 +200,7 @@ export function computeAlerts(){
       }
     });
     const dims = computeCustomerDimensions(c, { nowMs: now, maxDevicesRef: cachedMaxInsts });
-    if (dims.indicators.daysSinceUsage !== null && dims.indicators.daysSinceUsage >= 30 && c.status === 'نشط') {
+    if (dims.indicators.daysSinceUsage !== null && dims.indicators.daysSinceUsage >= 30 && confirmed) {
       alerts.push({type:'LOW_USAGE',cid:c.id,
         msg:`آخر استخدام للبرنامج منذ ${dims.indicators.daysSinceUsage} يوم (${c.fullName})`,
         sub:c.company,level:dims.indicators.daysSinceUsage >= 60 ? 'urgent' : 'info',icon:'📉'});
@@ -216,7 +218,7 @@ export function computeAlerts(){
         sub:c.company,level:'urgent',icon:'⭐'});
     }
     const rp=computeRiskProfile(c);
-    if(rp.level==='high'&&c.status!=='متوقف'){
+    if(rp.level==='high'&&confirmed){
       const existsAlready=alerts.some(a=>a.cid===c.id&&a.type==='HIGH_RISK');
       if(!existsAlready)alerts.push({type:'HIGH_RISK',cid:c.id,
         msg:`${c.fullName} — خطر تراجع العلاقة (${rp.customerRisk}%)`,
@@ -277,9 +279,12 @@ export function generateAutoNote(c){
   const parts=[];
   const tags=[];
 
-  if(c.status==='نشط') tags.push({t:'نشط',cls:'green'});
-  else if(c.status==='محتمل') tags.push({t:'محتمل',cls:'yellow'});
-  else tags.push({t:'متوقف',cls:'red'});
+  const confirmed = isConfirmedClientStatus(c.status);
+  const unconfirmed = isUnconfirmedClientStatus(c.status);
+  const signals = inspectClientSignals(c);
+
+  if (confirmed) tags.push({ t: 'مؤكد', cls: 'green' });
+  else tags.push({ t: 'غير مؤكد', cls: 'yellow' });
 
   if(last30>=3){
     parts.push('يتواصل بشكل متكرر ومنتظم');
@@ -289,7 +294,7 @@ export function generateAutoNote(c){
   } else if(daysSinceLast<=60&&last90>=1){
     parts.push('تواصل متقطع — لم يتصل خلال 30 يوم الأخيرة');
     tags.push({t:'تواصل ضعيف',cls:'yellow'});
-  } else if(daysSinceLast>60&&c.status==='نشط'){
+  } else if(daysSinceLast>60&&confirmed){
     parts.push(`غياب تواصل لـ ${daysSinceLast} يوم — يستدعي المتابعة العاجلة`);
     tags.push({t:'غياب تواصل',cls:'red'});
   }
@@ -309,7 +314,7 @@ export function generateAutoNote(c){
     parts.push(`${repeated.length} مشاكل تتكرر باستمرار تشير إلى خلل بنيوي`);
     tags.push({t:'مشاكل متكررة',cls:'red'});
   }
-  if(techIss.length>=3&&c.status==='نشط'){
+  if(techIss.length>=3&&confirmed){
     parts.push('يعاني من مشاكل تقنية متعددة — يحتاج دعماً تقنياً مكثفاً');
   }
 
@@ -320,21 +325,24 @@ export function generateAutoNote(c){
     parts.push(`لديه ${pendReqs.length} طلب قيد الانتظار — يتوقع ردوداً`);
   }
 
-  if(c.status==='متوقف'){
-    const daysOff = daysSinceLast;
-    parts.push(daysOff<90?'العميل في حالة توقف مؤقت — تواصل معه لاستئناف العلاقة':'العميل متوقف لفترة طويلة — يستوجب إعادة التواصل العاجل');
-  }
-  if(c.status==='محتمل'&&hist.length<=2){
-    parts.push('عميل في مرحلة التجربة — يحتاج متابعة دقيقة وإقناعاً مستمراً');
-    tags.push({t:'مرحلة إقناع',cls:'yellow'});
+  if(unconfirmed){
+    if(!signals.hasPrograms && !signals.hasContacts && !signals.hasNotesOrRecords){
+      parts.push('عميل غير مؤكد — لم يُسجّل له برنامج ولا مكالمة ولا ملاحظات بعد');
+      tags.push({t:'بدون برامج وتواصل',cls:'yellow'});
+    } else if(!signals.hasPrograms){
+      parts.push('عميل غير مؤكد — لا يملك برامج مسجلة حالياً ويحتاج متابعة');
+      tags.push({t:'بدون برامج',cls:'yellow'});
+    } else {
+      parts.push('عميل غير مؤكد — بانتظار استكمال التواصل والتأكيد');
+    }
   }
 
   let action='';
   if(urgIss.length>0) action='🔴 أولوية: حل المشاكل العاجلة فوراً';
-  else if(daysSinceLast>45&&c.status==='نشط') action='🔵 أولوية: جدولة مكالمة متابعة';
-  else if(c.status==='محتمل') action='🟢 أولوية: متابعة التجربة وإغلاق الصفقة';
+  else if(unconfirmed) action='📞 أولوية: التواصل مع العميل وتأكيد وضعيته وبرامجه';
+  else if(daysSinceLast>45&&confirmed) action='🔵 أولوية: جدولة مكالمة متابعة';
   else if(repeated.length>=2) action='🟠 أولوية: جلسة تقنية لحل المشاكل الجذرية';
-  else if(openIss.length===0&&c.status==='نشط') action='✅ الوضع مستقر — استمر في المتابعة الدورية';
+  else if(openIss.length===0&&confirmed) action='✅ الوضع مستقر — استمر في المتابعة الدورية';
 
   if(parts.length===0) parts.push('لا توجد بيانات كافية لتوليد تحليل تلقائي.');
 

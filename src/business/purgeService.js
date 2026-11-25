@@ -321,7 +321,7 @@ export function simulatePurge(config = {}) {
       });
     } else if (filterType === 'stopped_clients') {
       affectedClients = clients.filter(c => {
-        if (c.status !== 'متوقف') return false;
+        if (c.status !== 'متوقف' && c.status !== 'غير مؤكد') return false;
         if (!c.lastContact) return true;
         const diffDays = Math.floor((now - new Date(c.lastContact + 'T00:00')) / 86400000);
         return diffDays >= olderThanDays;
@@ -483,7 +483,7 @@ export async function executePurge(config = {}, onProgress) {
 
     } else if (filterType === 'stopped_clients') {
       const toDeleteList = clients.filter(c => {
-        if (c.status !== 'متوقف') return false;
+        if (c.status !== 'متوقف' && c.status !== 'غير مؤكد') return false;
         if (!c.lastContact) return true;
         const diffDays = Math.floor((now - new Date(c.lastContact + 'T00:00')) / 86400000);
         return diffDays >= olderThanDays;

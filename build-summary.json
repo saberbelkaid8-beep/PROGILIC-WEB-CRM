@@ -1,14 +1,14 @@
 {
   "appName": "crm",
-  "timestamp": "2026-11-23T09:06:35.794Z",
-  "nodeVersion": "v22.23.2",
+  "timestamp": "2026-11-25T11:02:36.281Z",
+  "nodeVersion": "v22.23.5",
   "platform": "linux",
   "build": {
-    "durationMs": 5366,
-    "durationSeconds": 5.37,
+    "durationMs": 8832,
+    "durationSeconds": 8.83,
     "totalFiles": 28,
-    "totalSizeBytes": 9016574,
-    "totalSizeFormatted": "8.6 MB"
+    "totalSizeBytes": 9009436,
+    "totalSizeFormatted": "8.59 MB"
   },
   "dependencies": {
     "productionCount": 3,
@@ -67,14 +67,14 @@
       "sizeFormatted": "1.12 MB"
     },
     {
-      "file": "assets/index-D5APLE9N.js",
-      "sizeBytes": 1484302,
-      "sizeFormatted": "1.42 MB"
+      "file": "assets/index-BMZoi63i.js",
+      "sizeBytes": 1466168,
+      "sizeFormatted": "1.4 MB"
     },
     {
-      "file": "assets/index-DoqkxjdN.css",
-      "sizeBytes": 102699,
-      "sizeFormatted": "100.29 KB"
+      "file": "assets/index-DhJDcAD5.css",
+      "sizeBytes": 113695,
+      "sizeFormatted": "111.03 KB"
     },
     {
       "file": "assets/search-engine-408GSLV4.js",

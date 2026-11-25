@@ -592,6 +592,7 @@ body.dark .search-input {
 .av-g { background: rgba(48, 209, 88, 0.25); color: #30D158; border: 1px solid rgba(48, 209, 88, 0.35); }
 .av-b { background: rgba(10, 132, 255, 0.25); color: #64D2FF; border: 1px solid rgba(10, 132, 255, 0.35); }
 .av-o { background: rgba(255, 159, 10, 0.25); color: #FFB340; border: 1px solid rgba(255, 159, 10, 0.35); }
+.av-y { background: rgba(255, 159, 10, 0.25); color: #FFB340; border: 1px solid rgba(255, 159, 10, 0.35); }
 .av-gr { background: rgba(148, 163, 184, 0.20); color: var(--t2); border: 1px solid var(--border); }
 .av-r { background: rgba(255, 69, 58, 0.25); color: #FF6961; border: 1px solid rgba(255, 69, 58, 0.35); }
 

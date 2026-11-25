@@ -5,8 +5,14 @@ import { getPurgeAuditLogs } from '../business/purgeService.js';
 import { computeScore, scoreColor } from '../business/intelligence.js';
 import { normalizeProgramCategory } from '../business/programMetrics.js';
 import { getClientProgramGroups } from '../business/versionSync.js';
+import {
+  normalizeClientStatus,
+  isConfirmedClientStatus,
+  isUnconfirmedClientStatus,
+  buildClientClassificationPlan
+} from '../business/clientStatus.js';
 
-const CSTATUSES = ['نشط', 'محتمل', 'متوقف'];
+const CSTATUSES = ['مؤكد', 'غير مؤكد'];
 const ITYPES = ISSUE_TYPES;
 const ISOURCES = ISSUE_SOURCES;
 const PRIOS = PRIORITY_LEVELS;
@@ -88,18 +94,21 @@ export function renderModal(){
   if(m==='ticketsAndReqs')html=renderTicketsAndReqsModal();
   if(m==='healthScoreExplainer')html=renderHealthScoreExplainerModal();
   if(m==='licensesExplorer')html=renderLicensesExplorerModal();
+  if(m==='clientCleanup')html=renderClientCleanupModal();
   const isSuperWide = m === 'licensesExplorer';
-  const isWide = m === 'geoReport' || m === 'ticketsAndReqs' || m === 'healthScoreExplainer' || m === 'dbPurge' || isSuperWide;
+  const isWide = m === 'geoReport' || m === 'ticketsAndReqs' || m === 'healthScoreExplainer' || m === 'dbPurge' || m === 'clientCleanup' || isSuperWide;
   return`<div class="mbk"><div class="msheet" style="direction: ${S.lang === 'ar' ? 'rtl' : 'ltr'}; ${isSuperWide ? 'max-width:1080px; width:96vw; max-height:94vh;' : isWide ? 'max-width:920px; width:95vw;' : ''}">${html}</div></div>`;
 }
 
 import { t } from '../utils/i18n.js';
-import { cOpts, programTypeOpts, updateProgramTypeSelect } from '../utils/index.js';
+import { cOpts, programTypeOpts, updateProgramTypeSelect, sBdg, getProgramStats } from '../utils/index.js';
 
 function renderClientModal(){
   const isEdit=S.modal==='editClient';
   let c={};if(isEdit)c=clients.find(x=>x.id===S.selId)||{};
-  const curStatus = c.status || 'نشط';
+  const addProgChecked = Boolean(S.form && S.form._addInitialProg);
+  const curStatus = isEdit ? normalizeClientStatus(c.status) : (addProgChecked ? 'مؤكد' : 'غير مؤكد');
+  const isConf = isConfirmedClientStatus(curStatus);
   return`
     <div class="mhdr">
       <div class="mtitle">${isEdit?t('تعديل بيانات العميل'):t('إضافة عميل جديد')}</div>
@@ -125,19 +134,18 @@ function renderClientModal(){
     <div class="fsec">${t('حالة العميل والتسجيل')}</div>
     <div class="frow">
       <div class="fgroup"><label class="flbl">${t('الحالة')} *</label><select class="fctl" id="f_st" onchange="onClientStatusChange()">${selOpts(CSTATUSES,curStatus)}</select></div>
-      <div class="fgroup"><label class="flbl">${t('آخر تواصل')} *</label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||td()}"></div>
+      <div class="fgroup"><label class="flbl">${t('آخر تواصل')} <span style="font-size:11px;color:var(--muted)">(${t('اختياري لغير المؤكد')})</span></label><input type="date" class="fctl" id="f_lc" value="${c.lastContact||(isConf?td():'')}"></div>
     </div>
     <div class="fgroup">
-      <label class="flbl">${t('تاريخ البدء / التسجيل')} * <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة')})</span></label>
-      <input type="date" class="fctl" id="f_sd" value="${c.startDate||(curStatus==='نشط'?td():'')}">
+      <label class="flbl">${t('تاريخ البدء / التسجيل')} <span style="color:var(--brand);font-weight:600">(${t('ترخيص مدى الحياة')})</span></label>
+      <input type="date" class="fctl" id="f_sd" value="${c.startDate||(isConf?td():'')}">
     </div>
     ${!isEdit ? (() => {
-      const addProgChecked = Boolean(S.form && S.form._addInitialProg);
       return `
     <div id="active_client_prog_sec" style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-top:10px;">
       <label for="f_p_enable" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; margin:0; user-select:none;">
         <span style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; color:var(--brand)">
-          <input type="checkbox" id="f_p_enable" ${addProgChecked ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--brand); cursor:pointer;" onchange="if(window.S&&window.S.form){window.S.form._addInitialProg=this.checked;} const fields=document.getElementById('f_p_fields'); if(fields) fields.style.display=this.checked?'block':'none';">
+          <input type="checkbox" id="f_p_enable" ${addProgChecked ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--brand); cursor:pointer;" onchange="if(window.S&&window.S.form){window.S.form._addInitialProg=this.checked;} const fields=document.getElementById('f_p_fields'); if(fields) fields.style.display=this.checked?'block':'none'; if(this.checked){const stSel=document.getElementById('f_st');if(stSel){stSel.value='مؤكد';if(window.onClientStatusChange)window.onClientStatusChange();}}">
           <span style="display:inline-flex; align-items:center; gap:6px">${mIc('box', 14)} ${t('إضافة أول برنامج')}</span>
         </span>
         <span style="font-size:11px; color:var(--muted); font-weight:500">(${t('اختياري')})</span>
@@ -610,8 +618,8 @@ function renderDbPurgeModal() {
               <label style="display:flex;align-items:center;gap:8px;padding:10px;background:rgba(255,255,255,0.03);border:1px solid ${filterType==='stopped_clients'?'var(--brand)':'var(--border)'};border-radius:var(--r-sm);cursor:pointer">
                 <input type="radio" name="pft" ${filterType==='stopped_clients'?'checked':''} onchange="setPurgeFilterType('stopped_clients')">
                 <div>
-                  <strong style="font-size:12px;display:block;color:var(--t1)">${S.lang==='fr'?'Purger clients inactifs':S.lang==='en'?'Purge inactive clients':'حذف العملاء المتوقفين'}</strong>
-                  <span style="font-size:11px;color:var(--t3)">${S.lang==='fr'?'Anciens clients au statut inactif':S.lang==='en'?'Old clients with inactive status':'العملاء بحالة "متوقف" القديمة'}</span>
+                  <strong style="font-size:12px;display:block;color:var(--t1)">${S.lang==='fr'?'Purger clients non confirmés / anciens':S.lang==='en'?'Purge unconfirmed / stopped clients':'حذف العملاء غير المؤكدين / المتوقفين'}</strong>
+                  <span style="font-size:11px;color:var(--t3)">${S.lang==='fr'?'Clients non confirmés ou ancien statut inactif selon l’ancienneté':S.lang==='en'?'Unconfirmed clients or legacy stopped status older than threshold':'العملاء بحالة "غير مؤكد" أو الحالة القديمة "متوقف"'}</span>
                 </div>
               </label>
 
@@ -948,22 +956,22 @@ export function renderGeoReportModal() {
   // Aggregate clients by wilaya
   const wilayaStats = {};
   WILAYAS.forEach(w => {
-    wilayaStats[w] = { name: w, total: 0, active: 0, prospective: 0, stopped: 0, scoreSum: 0, issues: 0, progs: 0 };
+    wilayaStats[w] = { name: w, total: 0, confirmed: 0, unconfirmed: 0, scoreSum: 0, issues: 0, progs: 0 };
   });
 
   clients.forEach(c => {
     const w = (c.wilaya || 'غير محدد').trim();
     if (!wilayaStats[w]) {
-      wilayaStats[w] = { name: w, total: 0, active: 0, prospective: 0, stopped: 0, scoreSum: 0, issues: 0, progs: 0 };
+      wilayaStats[w] = { name: w, total: 0, confirmed: 0, unconfirmed: 0, scoreSum: 0, issues: 0, progs: 0 };
     }
     wilayaStats[w].total++;
-    if (c.status === 'نشط') wilayaStats[w].active++;
-    else if (c.status === 'محتمل') wilayaStats[w].prospective++;
-    else if (c.status === 'متوقف') wilayaStats[w].stopped++;
+    if (isConfirmedClientStatus(c.status)) wilayaStats[w].confirmed++;
+    else wilayaStats[w].unconfirmed++;
     wilayaStats[w].scoreSum += (c._subcollectionsLoaded ? computeScore(c).total : (c.score !== undefined ? Number(c.score) : computeScore(c).total));
     const issCount = (c.issues || []).length > 0 || c._subcollectionsLoaded
       ? (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد').length
       : (Number(c.openIssuesCount) || 0);
+    wilayaStats[w].issues += issCount;
     const cProgs = (c.programs || []).length > 0 ? c.programs.length : Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0);
     wilayaStats[w].progs += cProgs;
   });
@@ -1034,7 +1042,7 @@ export function renderGeoReportModal() {
           <tr>
             <th>${t('الولاية')}</th>
             <th style="text-align:center">${t('عدد العملاء')}</th>
-            <th>${t('توزيع الحالة (نشط / محتمل / متوقف)')}</th>
+            <th>${t('توزيع الحالة')} (${t('مؤكد')} / ${t('غير مؤكد')})</th>
             <th style="text-align:center">${t('البرامج')}</th>
             <th style="text-align:center">${t('مشاكل مفتوحة')}</th>
             <th style="text-align:center">${t('صحة العملاء')}</th>
@@ -1061,9 +1069,8 @@ export function renderGeoReportModal() {
                 <td>
                   ${item.total > 0 ? `
                     <div style="display:flex;gap:6px;font-size:11.5px;align-items:center" class="num">
-                      <span style="color:var(--gt);font-weight:700">${item.active} ${t('نشط')}</span> · 
-                      <span style="color:var(--wt);font-weight:700">${item.prospective} ${t('محتمل')}</span> · 
-                      <span style="color:var(--rt);font-weight:700">${item.stopped} ${t('متوقف')}</span>
+                      <span style="color:var(--gt);font-weight:700">${item.confirmed} ${t('مؤكد')}</span> · 
+                      <span style="color:var(--wt);font-weight:700">${item.unconfirmed} ${t('غير مؤكد')}</span>
                     </div>
                   ` : `<span style="color:var(--t3);font-size:11.5px">—</span>`}
                 </td>
@@ -1399,7 +1406,7 @@ export function renderLicensesExplorerModal() {
           clientCompany: c.company || '—',
           clientWilaya: c.wilaya || '—',
           clientPhone: c.phone || '—',
-          clientStatus: c.status || 'نشط'
+          clientStatus: normalizeClientStatus(c.status)
         });
       });
     } else {
@@ -1430,7 +1437,7 @@ export function renderLicensesExplorerModal() {
             clientCompany: c.company || '—',
             clientWilaya: c.wilaya || '—',
             clientPhone: c.phone || '—',
-            clientStatus: c.status || 'نشط'
+            clientStatus: normalizeClientStatus(c.status)
           });
         });
       }
@@ -1668,7 +1675,7 @@ export function renderLicensesExplorerModal() {
               const plat = item.platform || 'Desktop';
               const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : 'lic-pill-web');
               const platIcoName = plat === 'Desktop' ? 'desktop' : (plat === 'Mobile' ? 'mobile' : 'globe');
-              const statusColor = item.clientStatus === 'نشط' ? 'var(--gt)' : (item.clientStatus === 'محتمل' ? 'var(--bt)' : 'var(--wt)');
+              const statusColor = isConfirmedClientStatus(item.clientStatus) ? 'var(--gt)' : 'var(--wt)';
 
               return `
                 <tr>
@@ -1775,7 +1782,7 @@ export function renderLicensesExplorerModal() {
           const plat = item.platform || 'Desktop';
           const platPillClass = plat === 'Desktop' ? 'lic-pill-desktop' : (plat === 'Mobile' ? 'lic-pill-mobile' : 'lic-pill-web');
           const platIcoName = plat === 'Desktop' ? 'desktop' : (plat === 'Mobile' ? 'mobile' : 'globe');
-          const statusColor = item.clientStatus === 'نشط' ? 'var(--gt)' : (item.clientStatus === 'محتمل' ? 'var(--bt)' : 'var(--wt)');
+          const statusColor = isConfirmedClientStatus(item.clientStatus) ? 'var(--gt)' : 'var(--wt)';
 
           return `
             <div 
@@ -1849,5 +1856,156 @@ export function renderLicensesExplorerModal() {
     </div>
   `;
 }
+
+export function renderClientCleanupModal() {
+  const safeAll = (clients || []).filter(Boolean);
+  const mode = S.cleanupMode === 'strict' ? 'strict' : 'balanced';
+  const plan = buildClientClassificationPlan(safeAll, mode);
+  const currentlyConfirmed = safeAll.filter(c => isConfirmedClientStatus(c.status)).length;
+  const currentlyUnconfirmed = safeAll.filter(c => isUnconfirmedClientStatus(c.status)).length;
+  const noProgramsCount = safeAll.filter(c => getProgramStats(c).total === 0).length;
+  const legacyCount = safeAll.filter(c => c.status !== 'مؤكد' && c.status !== 'غير مؤكد').length;
+
+  const willConfirmCount = plan.changes.filter(ch => ch.nextStatus === 'مؤكد').length;
+  const willUnconfirmCount = plan.changes.filter(ch => ch.nextStatus === 'غير مؤكد').length;
+  const isExec = Boolean(S.cleanupIsExecuting);
+
+  return `
+    <div class="mhdr" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:34px;height:34px;border-radius:10px;background:rgba(48,209,88,0.14);border:1px solid rgba(48,209,88,0.28);color:var(--gt);display:inline-flex;align-items:center;justify-content:center">${mIc('target', 17)}</span>
+        <div>
+          <div class="mtitle" style="font-size:17px;font-weight:800;color:var(--t1)">${t('تصفية وتصنيف الزبائن')}</div>
+          <div style="font-size:12px;color:var(--t2)">${t('تصنيف تلقائي للزبائن بين مؤكد وغير مؤكد مع حفظ نسخة احتياطية قبل التحديث')}</div>
+        </div>
+      </div>
+      <button class="mclose" onclick="closeModal()" ${isExec ? 'disabled' : ''}>×</button>
+    </div>
+
+    <!-- Current Stats Row -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;margin-bottom:16px">
+      <div style="background:rgba(48,209,88,0.08);border:1px solid rgba(48,209,88,0.25);padding:12px 14px;border-radius:var(--r-sm)">
+        <div style="font-size:11.5px;color:var(--gt);font-weight:700">${t('مؤكد')} (${t('الحالي')})</div>
+        <div class="num" style="font-size:22px;font-weight:800;color:var(--t1);margin-top:2px">${currentlyConfirmed}</div>
+      </div>
+      <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.25);padding:12px 14px;border-radius:var(--r-sm)">
+        <div style="font-size:11.5px;color:var(--wt);font-weight:700">${t('غير مؤكد')} (${t('الحالي')})</div>
+        <div class="num" style="font-size:22px;font-weight:800;color:var(--t1);margin-top:2px">${currentlyUnconfirmed}</div>
+      </div>
+      <div style="background:rgba(10,132,255,0.08);border:1px solid rgba(10,132,255,0.25);padding:12px 14px;border-radius:var(--r-sm)">
+        <div style="font-size:11.5px;color:var(--bt);font-weight:700">${t('بدون برامج')}</div>
+        <div class="num" style="font-size:22px;font-weight:800;color:var(--t1);margin-top:2px">${noProgramsCount}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);padding:12px 14px;border-radius:var(--r-sm)">
+        <div style="font-size:11.5px;color:var(--t2);font-weight:700">${t('حالات قديمة')}</div>
+        <div class="num" style="font-size:22px;font-weight:800;color:${legacyCount > 0 ? 'var(--wt)' : 'var(--t1)'};margin-top:2px">${legacyCount}</div>
+      </div>
+    </div>
+
+    <!-- Mode Selection Cards -->
+    <div style="font-size:12.5px;font-weight:800;color:var(--t1);margin-bottom:8px">${t('اختر قاعدة التصنيف:')}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:10px;margin-bottom:16px">
+      <button
+        type="button"
+        onclick="setCleanupMode('balanced')"
+        style="text-align:start;padding:12px 14px;border-radius:var(--r-sm);cursor:pointer;border:1px solid ${mode === 'balanced' ? 'var(--brand)' : 'var(--border)'};background:${mode === 'balanced' ? 'rgba(10,132,255,0.12)' : 'rgba(255,255,255,0.03)'};color:var(--t1)"
+      >
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <strong style="font-size:13px;color:${mode === 'balanced' ? 'var(--bt)' : 'var(--t1)'}">${t('الوضع المتوازن')}</strong>
+          ${mode === 'balanced' ? `<span style="color:var(--bt)">${mIc('check', 15)}</span>` : ''}
+        </div>
+        <div style="font-size:11.5px;color:var(--t2);line-height:1.55">
+          ${t('المتوازن (أي برنامج أو تواصل أو سجل = مؤكد)')}
+        </div>
+      </button>
+
+      <button
+        type="button"
+        onclick="setCleanupMode('strict')"
+        style="text-align:start;padding:12px 14px;border-radius:var(--r-sm);cursor:pointer;border:1px solid ${mode === 'strict' ? 'var(--brand)' : 'var(--border)'};background:${mode === 'strict' ? 'rgba(10,132,255,0.12)' : 'rgba(255,255,255,0.03)'};color:var(--t1)"
+      >
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <strong style="font-size:13px;color:${mode === 'strict' ? 'var(--bt)' : 'var(--t1)'}">${t('الوضع الصارم')}</strong>
+          ${mode === 'strict' ? `<span style="color:var(--bt)">${mIc('check', 15)}</span>` : ''}
+        </div>
+        <div style="font-size:11.5px;color:var(--t2);line-height:1.55">
+          ${t('الصارم (يجب توفر برنامج وتواصل أو سجل لتأكيد العميل)')}
+        </div>
+      </button>
+    </div>
+
+    <!-- Live Classification Plan Summary -->
+    <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <span style="font-size:12.5px;font-weight:800;color:var(--t1);display:inline-flex;align-items:center;gap:6px">
+          ${mIc('chart', 14)}
+          <span>${t('نتيجة المعاينة قبل التطبيق:')}</span>
+        </span>
+        <div style="display:flex;gap:12px;font-size:12px;font-weight:700;flex-wrap:wrap" class="num">
+          <span style="color:var(--gt)">${t('مؤكد')}: ${plan.confirmedCount}</span>
+          <span style="color:var(--wt)">${t('غير مؤكد')}: ${plan.unconfirmedCount}</span>
+          <span style="color:var(--bt)">${t('سيتم تعديل')}: ${plan.changesCount}</span>
+        </div>
+      </div>
+
+      ${plan.changesCount > 0 ? `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--t2);margin-bottom:10px">
+          <span>→ ${t('سيتم تحويل إلى مؤكد')}: <strong class="num" style="color:var(--gt)">${willConfirmCount}</strong></span>
+          <span>·</span>
+          <span>→ ${t('سيتم تحويل إلى غير مؤكد')}: <strong class="num" style="color:var(--wt)">${willUnconfirmCount}</strong></span>
+        </div>
+
+        <div class="glass-table-wrap" style="max-height:240px;overflow-y:auto">
+          <table class="glass-table">
+            <thead>
+              <tr>
+                <th>${t('العميل')}</th>
+                <th>${t('البرامج والتواصل')}</th>
+                <th>${t('الحالة الحالية')}</th>
+                <th>${t('الحالة الجديدة')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${plan.changes.slice(0, 40).map(ch => `
+                <tr>
+                  <td>
+                    <strong style="color:var(--t1);font-size:12.5px">${esc(ch.client.fullName)}</strong>
+                    ${ch.client.company ? `<div style="font-size:11px;color:var(--t3)">${esc(ch.client.company)}</div>` : ''}
+                  </td>
+                  <td style="font-size:11.5px;color:var(--t2)">
+                    <span class="num">${ch.signals.programsCount}</span> ${t('برامج')} ·
+                    <span class="num">${ch.signals.contactsCount}</span> ${t('تواصل')} ·
+                    <span class="num">${ch.signals.issuesCount + ch.signals.requirementsCount}</span> ${t('سجلات')}
+                  </td>
+                  <td>${sBdg(ch.prevStatus)}</td>
+                  <td>${sBdg(ch.nextStatus)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${plan.changes.length > 40 ? `
+          <div style="font-size:11.5px;color:var(--t3);margin-top:8px;text-align:center">
+            + <span class="num">${plan.changes.length - 40}</span> ${t('عميل آخر مشمول بالتصنيف')}
+          </div>
+        ` : ''}
+      ` : `
+        <div style="padding:18px;text-align:center;color:var(--gt);font-size:12.5px;font-weight:700">
+          ${t('جميع العملاء مصنفون بالفعل وفق القاعدة المختارة.')}
+        </div>
+      `}
+    </div>
+
+    <div class="facts" style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-ghost" onclick="closeModal()" ${isExec ? 'disabled' : ''}>${t('إلغاء')}</button>
+      <button type="button" class="btn btn-primary" onclick="applyClientStatusCleanup()" ${isExec ? 'disabled style="opacity:0.6;cursor:not-allowed"' : ''}>
+        ${isExec
+          ? `${mIc('clock', 14)} <span>${t('جاري تطبيق التصنيف...')}</span>`
+          : `${mIc('check', 14)} <span>${t('تطبيق التصنيف على قاعدة البيانات')} (<span class="num">${plan.changesCount}</span>)</span>`}
+      </button>
+    </div>
+  `;
+}
+
 
 

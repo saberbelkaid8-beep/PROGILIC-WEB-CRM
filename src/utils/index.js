@@ -2,6 +2,11 @@ import { S, clients } from '../state/store.js';
 import { WILAYAS, ACTIVITY_TYPES } from '../constants/index.js';
 import { t } from './i18n.js';
 import { normalizeProgramCategory } from '../business/programMetrics.js';
+import {
+  normalizeClientStatus,
+  isConfirmedClientStatus,
+  isUnconfirmedClientStatus
+} from '../business/clientStatus.js';
 
 export function esc(str) {
   if (str === null || str === undefined) return '';
@@ -32,11 +37,15 @@ export const fmtD = (d) => {
 };
 export const td = () => new Date().toISOString().split('T')[0];
 
-export function sBdg(s) { const m = { 'نشط': 'bdg-g', 'محتمل': 'bdg-b', 'متوقف': 'bdg-y' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${t(s)}</span>` }
+export function sBdg(s) {
+  const norm = normalizeClientStatus(s);
+  const cls = norm === 'مؤكد' ? 'bdg-g' : 'bdg-y';
+  return `<span class="bdg ${cls}">${t(norm)}</span>`;
+}
 export function pBdg(p) { const m = { 'عاجل': 'bdg-r', 'عالية': 'bdg-o', 'متوسطة': 'bdg-y', 'منخفضة': 'bdg-g' }; return `<span class="bdg ${m[p] || 'bdg-gr'}">${t(p)}</span>` }
 export function isBdg(s) { const m = { 'مفتوح': 'bdg-r', 'قيد المعالجة': 'bdg-y', 'محلول': 'bdg-g', 'مغلق': 'bdg-gr' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${t(s)}</span>` }
 export function rBdg(s) { const m = { 'مقترح': 'bdg-b', 'قيد الدراسة': 'bdg-y', 'مخطط': 'bdg-o', 'منفذ': 'bdg-g', 'مرفوض': 'bdg-r' }; return `<span class="bdg ${m[s] || 'bdg-gr'}">${t(s)}</span>` }
-export function avCls(s) { const m = { 'نشط': 'av-g', 'محتمل': 'av-b', 'متوقف': 'av-gr' }; return m[s] || 'av-gr' }
+export function avCls(s) { return isConfirmedClientStatus(s) ? 'av-g' : 'av-y'; }
 export function pBorder(p) { const m = { 'عاجل': 'p-urgent', 'عالية': 'p-high', 'متوسطة': 'p-med', 'منخفضة': 'p-low' }; return m[p] || '' }
 export function srcCls(s) { const m = { 'نظام': 'src-sys', 'عميل': 'src-cl', 'سوء استخدام': 'src-usr', 'شبكة': 'src-net', 'غير محدد': 'src-uk' }; return m[s] || 'src-uk' }
 
@@ -130,9 +139,14 @@ export function updateProgramTypeSelect(platform, targetId = 'fp_ty') {
 export function onClientStatusChange() {
   const st = document.getElementById('f_st')?.value;
   const sdInput = document.getElementById('f_sd');
-  if (st === 'نشط') {
+  const lcInput = document.getElementById('f_lc');
+  if (isConfirmedClientStatus(st)) {
+    const todayIso = new Date().toISOString().split('T')[0];
     if (sdInput && !sdInput.value) {
-      sdInput.value = new Date().toISOString().split('T')[0];
+      sdInput.value = todayIso;
+    }
+    if (lcInput && !lcInput.value) {
+      lcInput.value = todayIso;
     }
   }
 }
@@ -237,8 +251,8 @@ export function isClientAtRisk(c) {
   const sc = c.score !== undefined ? Number(c.score) : 100;
   if (sc < 50 || c.status === 'متوقف') return true;
 
-  // No contact for 30+ days
-  if (c.lastContact) {
+  // No contact for 30+ days (only flag confirmed active accounts, not uncontacted non-confirmed leads)
+  if (c.lastContact && isConfirmedClientStatus(c.status)) {
     try {
       const days = Math.floor((Date.now() - new Date(c.lastContact + 'T00:00').getTime()) / 86400000);
       if (days >= 30) return true;
@@ -260,6 +274,12 @@ export function applyFilters(list) {
   if (S.filter !== 'الكل') {
     if (S.filter === 'خطر') {
       fil = fil.filter(c => isClientAtRisk(c));
+    } else if (S.filter === 'بدون برامج') {
+      fil = fil.filter(c => getProgramStats(c).total === 0);
+    } else if (S.filter === 'مؤكد') {
+      fil = fil.filter(c => isConfirmedClientStatus(c.status));
+    } else if (S.filter === 'غير مؤكد') {
+      fil = fil.filter(c => isUnconfirmedClientStatus(c.status));
     } else {
       fil = fil.filter(c => c.status === S.filter);
     }

@@ -22,6 +22,8 @@
           "description": "Pre-aggregated counters for instant dashboard rendering",
           "properties": {
             "activeClients": { "type": "number" },
+            "confirmedClients": { "type": "number" },
+            "unconfirmedClients": { "type": "number" },
             "prospectiveClients": { "type": "number" },
             "stoppedClients": { "type": "number" },
             "totalClients": { "type": "number" },
@@ -90,8 +92,8 @@
         },
         "status": {
           "type": "string",
-          "enum": ["نشط", "محتمل", "متوقف"],
-          "description": "Client engagement status"
+          "enum": ["مؤكد", "غير مؤكد", "نشط", "محتمل", "متوقف"],
+          "description": "Client confirmation status (مؤكد / Confirmé vs غير مؤكد / Non confirmé)"
         },
         "startDate": {
           "type": "string",

@@ -3,13 +3,13 @@ import { saveUserData, assertOnlineForWrite } from '../firebase/service.js';
 import { migrateLegacyDataIfNeeded } from '../firebase/migration.js';
 import { auth } from '../firebase/config.js';
 import { computeScore } from './intelligence.js';
+import { isConfirmedClientStatus, isUnconfirmedClientStatus } from './clientStatus.js';
 
 
 export function computeStats(clientList) {
   const safeList = Array.isArray(clientList) ? clientList.filter(Boolean) : [];
-  const active = safeList.filter(c => c && c.status === 'نشط').length;
-  const prospective = safeList.filter(c => c && c.status === 'محتمل').length;
-  const stopped = safeList.filter(c => c && c.status === 'متوقف').length;
+  const confirmed = safeList.filter(c => c && isConfirmedClientStatus(c.status)).length;
+  const unconfirmed = safeList.filter(c => c && isUnconfirmedClientStatus(c.status)).length;
   const totalPrograms = safeList.reduce((acc, c) => {
     const progs = Array.isArray(c?.programs) ? c.programs : [];
     const countFromDoc = Math.max(Number(c?.programsCount) || 0, Array.isArray(c?.programNames) ? c.programNames.length : 0);
@@ -41,9 +41,11 @@ export function computeStats(clientList) {
 
   return {
     stats: {
-      activeClients: active,
-      prospectiveClients: prospective,
-      stoppedClients: stopped,
+      confirmedClients: confirmed,
+      unconfirmedClients: unconfirmed,
+      activeClients: confirmed,
+      prospectiveClients: 0,
+      stoppedClients: unconfirmed,
       totalClients: safeList.length,
       totalPrograms: totalPrograms,
       totalLicensedDevices: totalInstalls,

@@ -57,6 +57,10 @@ export const PROGRAM_TYPES = [
 export const PROGRAM_VERSIONS = ["V27", "V26", "V25", "V24", "V23", "V22", "V21", "v18", "v16", "v15", "R+", "arabe"];
 
 export const PRIORITY_LEVELS = ["عاجل", "عالية", "متوسطة", "منخفضة"];
+export const CLIENT_STATUS_CONFIRMED = "مؤكد";
+export const CLIENT_STATUS_UNCONFIRMED = "غير مؤكد";
+export const CLIENT_STATUSES = [CLIENT_STATUS_CONFIRMED, CLIENT_STATUS_UNCONFIRMED];
+export const LEGACY_CLIENT_STATUSES = ["نشط", "محتمل", "متوقف"];
 export const ISSUE_SLA_HOURS = {
   "عاجل": 24,
   "عالية": 48,

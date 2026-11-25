@@ -62,7 +62,7 @@ service cloud.firestore {
           ])
           && data.id is number
           && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
-          && data.status is string && data.status in ["نشط", "محتمل", "متوقف"]
+          && data.status is string && data.status in ["مؤكد", "غير مؤكد", "نشط", "محتمل", "متوقف"]
           && (!data.keys().contains('version') || data.version is number)
           && (!data.keys().contains('phone') || data.phone is string && data.phone.size() <= 30)
           && (!data.keys().contains('gmailAccount') || data.gmailAccount is string && data.gmailAccount.size() <= 254)

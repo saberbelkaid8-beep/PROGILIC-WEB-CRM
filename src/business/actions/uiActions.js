@@ -19,6 +19,7 @@ import {
   saveClientSubItemTransaction, 
   deleteClientSubItemTransaction 
 } from '../../firebase/service.js';
+import { isConfirmedClientStatus, isUnconfirmedClientStatus, normalizeClientStatus } from '../clientStatus.js';
 
 
 
@@ -225,7 +226,8 @@ export function exportDashboardReport() {
     ? clients
     : clients.filter(c => c.wilaya === selectedWilaya);
   const totalClients = targetClients.length;
-  const activeClients = targetClients.filter(c => c.status === 'نشط').length;
+  const confirmedClients = targetClients.filter(c => isConfirmedClientStatus(c.status)).length;
+  const unconfirmedClients = targetClients.filter(c => isUnconfirmedClientStatus(c.status)).length;
   const totalPrograms = targetClients.reduce((acc, c) => acc + ((c.programs?.length || 0) > 0 ? c.programs.length : Math.max(Number(c.programsCount) || 0, Array.isArray(c.programNames) ? c.programNames.length : 0)), 0);
   const totalDevices = targetClients.reduce((acc, c) => {
     const progs = c.programs || [];
@@ -248,7 +250,7 @@ export function exportDashboardReport() {
   if (selectedWilaya !== 'all') {
     csvContent += `الولاية المحددة: ${selectedWilaya}\n`;
   }
-  csvContent += `إجمالي العملاء: ${totalClients} (نشط: ${activeClients})\n`;
+  csvContent += `إجمالي العملاء: ${totalClients} (مؤكد: ${confirmedClients} | غير مؤكد: ${unconfirmedClients})\n`;
   csvContent += `البرامج المرخصة: ${totalPrograms} على ${totalDevices} جهازاً\n`;
   csvContent += `تذاكر الدعم المفتوحة: ${openIssues}\n\n`;
   csvContent += 'اسم العميل,الولاية,الحالة,النقاط,البرامج,الأجهزة,المشاكل المفتوحة\n';
@@ -263,7 +265,7 @@ export function exportDashboardReport() {
       ? (c.issues || []).filter(i => i.status === 'مفتوح' || i.status === 'قيد المعالجة' || i.status === 'جديد').length
       : (Number(c.openIssuesCount) || 0);
     const sc = c._subcollectionsLoaded ? computeScore(c).total : (c.score !== undefined ? Number(c.score) : computeScore(c).total);
-    csvContent += `"${(c.fullName || '').replace(/"/g, '""')}","${c.wilaya || ''}","${c.status || ''}",${sc},"${progs}",${inst},${iss}\n`;
+    csvContent += `"${(c.fullName || '').replace(/"/g, '""')}","${c.wilaya || ''}","${normalizeClientStatus(c.status)}",${sc},"${progs}",${inst},${iss}\n`;
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -303,6 +305,16 @@ export function openLicensesExplorerModal(platform = 'all', version = 'all', typ
   openModal('licensesExplorer', { platform, version, type, search: '' });
 }
 
+export function openClientCleanupModal() {
+  if (!hasPermission('clients.edit') && !hasPermission('canEditClients')) {
+    showToast(t('⚠️ لا تملك صلاحية تعديل حالة العملاء.'), 'error');
+    return;
+  }
+  S.cleanupMode = 'balanced';
+  S.cleanupIsExecuting = false;
+  openModal('clientCleanup');
+}
+
 export function exportLicensesCSV() {
   const dateStr = new Date().toISOString().split('T')[0];
   const allLicenses = [];
@@ -315,7 +327,7 @@ export function exportLicensesCSV() {
           company: c.company || '',
           wilaya: c.wilaya || '',
           phone: c.phone || '',
-          status: c.status || 'نشط',
+          status: normalizeClientStatus(c.status),
           platform: p.platform || 'Desktop',
           type: p.type || 'تجاري',
           version: p.version || '',
@@ -340,7 +352,7 @@ export function exportLicensesCSV() {
             company: c.company || '',
             wilaya: c.wilaya || '',
             phone: c.phone || '',
-            status: c.status || 'نشط',
+            status: normalizeClientStatus(c.status),
             platform: plat,
             type: 'تجاري',
             version: vMatch ? vMatch[0].toUpperCase() : '',
@@ -378,11 +390,10 @@ export function exportGeoReport() {
   const wilayaCounts = {};
   clients.forEach(c => {
     const w = (c.wilaya || 'غير محدد').trim();
-    if (!wilayaCounts[w]) wilayaCounts[w] = { total: 0, active: 0, prospective: 0, stopped: 0, scoreSum: 0, issues: 0, progs: 0 };
+    if (!wilayaCounts[w]) wilayaCounts[w] = { total: 0, confirmed: 0, unconfirmed: 0, scoreSum: 0, issues: 0, progs: 0 };
     wilayaCounts[w].total++;
-    if (c.status === 'نشط') wilayaCounts[w].active++;
-    else if (c.status === 'محتمل') wilayaCounts[w].prospective++;
-    else if (c.status === 'متوقف') wilayaCounts[w].stopped++;
+    if (isConfirmedClientStatus(c.status)) wilayaCounts[w].confirmed++;
+    else wilayaCounts[w].unconfirmed++;
     const sc = c._subcollectionsLoaded ? computeScore(c).total : (c.score !== undefined ? Number(c.score) : computeScore(c).total);
     wilayaCounts[w].scoreSum += sc;
     const issCount = (c.issues || []).length > 0 || c._subcollectionsLoaded
@@ -394,11 +405,11 @@ export function exportGeoReport() {
 
   let csv = '\uFEFFالتقرير الجغرافي للولايات — PROGILIC CRM v3\n';
   csv += `تاريخ التصدير: ${dateStr}\n`;
-  csv += 'الولاية,إجمالي العملاء,نشط,محتمل,متوقف,البرامج المرخصة,المشاكل المفتوحة,متوسط صحة العملاء\n';
+  csv += 'الولاية,إجمالي العملاء,مؤكد,غير مؤكد,البرامج المرخصة,المشاكل المفتوحة,متوسط صحة العملاء\n';
 
   Object.entries(wilayaCounts).sort((a,b) => b[1].total - a[1].total).forEach(([w, d]) => {
     const avg = d.total ? Math.round(d.scoreSum / d.total) : 100;
-    csv += `"${w}",${d.total},${d.active},${d.prospective},${d.stopped},${d.progs},${d.issues},${avg}\n`;
+    csv += `"${w}",${d.total},${d.confirmed},${d.unconfirmed},${d.progs},${d.issues},${avg}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

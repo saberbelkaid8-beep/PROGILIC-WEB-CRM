@@ -2,6 +2,7 @@ import { db } from './config.js';
 import { doc, writeBatch, setDoc, deleteField } from 'firebase/firestore';
 import { assertOnlineForWrite, handleFirestoreError, OperationType } from './service.js';
 import { validateClient, validateProgram, validateIssue, validateRequirement, validateContact } from './validation.js';
+import { isConfirmedClientStatus, isUnconfirmedClientStatus } from '../business/clientStatus.js';
 
 export async function migrateLegacyDataIfNeeded(userId, legacyData, currentNid) {
   const userPath = `users/${userId}`;
@@ -11,9 +12,8 @@ export async function migrateLegacyDataIfNeeded(userId, legacyData, currentNid) 
     assertOnlineForWrite();
     const clientsToMigrate = Array.isArray(legacyData?.clients) ? legacyData.clients.filter(Boolean) : [];
     let migratedClientsCount = 0;
-    let globalActive = 0;
-    let globalProspective = 0;
-    let globalStopped = 0;
+    let globalConfirmed = 0;
+    let globalUnconfirmed = 0;
     let globalPrograms = 0;
     let globalInstalls = 0;
     let globalIssues = 0;
@@ -95,9 +95,8 @@ export async function migrateLegacyDataIfNeeded(userId, legacyData, currentNid) 
       }
 
       migratedClientsCount++;
-      if (clientDoc.status === 'نشط') globalActive++;
-      else if (clientDoc.status === 'محتمل') globalProspective++;
-      else if (clientDoc.status === 'متوقف') globalStopped++;
+      if (isConfirmedClientStatus(clientDoc.status)) globalConfirmed++;
+      else if (isUnconfirmedClientStatus(clientDoc.status)) globalUnconfirmed++;
 
       globalPrograms += programsList.length;
       globalInstalls += installsCount;
@@ -108,9 +107,11 @@ export async function migrateLegacyDataIfNeeded(userId, legacyData, currentNid) 
     await flushBatchIfNeeded(true);
 
     const globalStats = {
-      activeClients: globalActive,
-      prospectiveClients: globalProspective,
-      stoppedClients: globalStopped,
+      confirmedClients: globalConfirmed,
+      unconfirmedClients: globalUnconfirmed,
+      activeClients: globalConfirmed,
+      prospectiveClients: 0,
+      stoppedClients: globalUnconfirmed,
       totalClients: migratedClientsCount,
       totalPrograms: globalPrograms,
       totalLicensedDevices: globalInstalls,

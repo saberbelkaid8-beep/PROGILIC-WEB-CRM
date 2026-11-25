@@ -9,6 +9,7 @@ import { renderGlobalTimeline } from './render-timeline-view.js';
 import { renderModal } from './render-modals.js';
 import { renderAiAssistantWidget } from './ai/assistantWidget.js';
 import { renderEmployeesView } from './render-employees.js';
+import { isConfirmedClientStatus, isUnconfirmedClientStatus } from '../business/clientStatus.js';
 
 
 // DOM Morphing/Reconciliation Engine (Reuses DOM, prevents recreation, maintains inputs, selection and focus)
@@ -393,7 +394,8 @@ const hIc = (name, size = 15, sw = 2) =>
 // Helper to render Header Panel
 function renderHdr(alertCount, isDark) {
   const safeClients = (clients || []).filter(Boolean);
-  const ac = safeClients.filter(c => c.status === 'نشط').length;
+  const confirmedCount = safeClients.filter(c => isConfirmedClientStatus(c.status)).length;
+  const unconfirmedCount = safeClients.filter(c => isUnconfirmedClientStatus(c.status)).length;
   const activeUserLabel = currentStaffUser ? esc(currentStaffUser.name) : (currentUser ? esc(currentUser.email) : '');
 
   return `<header class="hdr">
@@ -422,7 +424,7 @@ function renderHdr(alertCount, isDark) {
       ` : ''}
     </nav>
 
-    <span class="hdr-count-meta num">${ac} ${t('نشط')} · ${safeClients.length}</span>
+    <span class="hdr-count-meta num">${confirmedCount} ${t('مؤكد')} · ${unconfirmedCount} ${t('غير مؤكد')} · ${safeClients.length}</span>
 
     <div class="hdr-right">
       <!-- 3-Way Language Selector -->
